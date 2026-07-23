@@ -1,317 +1,89 @@
-﻿# DAWdex 分工方案
+# DAWdex 三人分工与 7 月 26 日前交付计划
 
-> 默认：1 位主创 + Coding Agent，48 小时黑客松。
-> 可选：第 2 位协作者负责 Electron / UI，主创聚焦 Agent、Ableton 与音乐验收。
+> 团队规模：3 人
+> 计划起点：2026-07-23
+> 内部完成线：2026-07-25 22:00
+> 7 月 26 日用途：提交、现场缓冲和演示，不再开发新功能
 
----
+## 一、共同目标
 
-## 一、目标
-
-在 48 小时内完成：
+在内部完成线前交付一个可重复演示的 DAWdex Demo：
 
 ```text
 Electron App
-→ Open Agent Runtime
-→ Ableton MCP
-→ Ableton Live
-```
-
-并演示完整循环：
-
-```text
-读取工程
-→ 用户提出修改
-→ Agent 制定计划
-→ 角色分工
+→ 用户提出音乐修改
+→ Agent 读取或获得 DAW Context
+→ 展示 Plan 与影响范围
 → 用户确认
-→ DAW 执行
-→ 读回验证
+→ 通过 Ableton MCP 修改真实工程
+→ 读回结果
 → Before / After
 ```
 
-弹幕编曲作为附加 Demo Skill，只有主循环稳定后才做。
-
----
-
-## 二、角色
-
-### 主创 / Product & Music Director
-
-负责：
-
-- 产品定位；
-- 音乐工作流；
-- Agent 角色；
-- Ableton 真实工程；
-- 音乐结果验收；
-- Demo；
-- 赛道材料。
-
-不可委托的决策：
-
-- 什么是产品本体；
-- 修改任务是否真实；
-- 音乐结果是否可用；
-- 哪些功能进入主 Demo；
-- 是否允许 Agent 执行重要操作。
-
-### Coding Agent / Virtual Engineering Team
-
-负责：
-
-- Runtime 候选研究；
-- Electron；
-- IPC；
-- Agent Adapter；
-- MCP Host；
-- Ableton Adapter；
-- UI；
-- 测试；
-- 文档；
-- Debug。
-
-### 可选 Person A：Desktop & UX
-
-负责：
-
-- Electron Shell；
-- Renderer；
-- 对话；
-- DAW Context；
-- Plan；
-- Roles；
-- Tool Calls；
-- Approval；
-- Action Log；
-- Before / After。
-
-### 可选 Person B：Agent & Ableton
-
-负责：
-
-- Runtime；
-- MCP；
-- Queue；
-- Verification；
-- Music Director；
-- Role Skills；
-- Demo 工程；
-- Ableton Smoke。
-
----
-
-## 三、48 小时计划
-
-### Phase 0：产品与合同（0–3h）
-
-- [ ] 锁定一句话；
-- [ ] 锁定主 Demo；
-- [ ] 锁定 Ableton 为唯一 DAW；
-- [ ] 定义 Runtime Port；
-- [ ] 定义 AgentUiEvent；
-- [ ] 定义 DawContext；
-- [ ] 定义 MusicIntent / AgentPlan；
-- [ ] 定义 Approval；
-- [ ] 定义 Tool risk。
-
-验收：
-
-- 所有人能说明弹幕只是 Skill；
-- UI、Runtime 和 MCP 可基于合同并行开发。
-
-### Phase 1：Runtime Spike（3–8h）
-
-对两个候选运行相同 Spike：
-
-- [ ] Windows 启动；
-- [ ] 创建 Session；
-- [ ] 流式消息；
-- [ ] Tool；
-- [ ] MCP；
-- [ ] Approval；
-- [ ] Cancel；
-- [ ] Resume；
-- [ ] Subagent / Task；
-- [ ] 许可证。
-
-T+8h 必须做出选择。若没有候选完整满足，选择最容易 Adapter 的一个，并对缺失能力自行补薄层。
-
-### Phase 2：Electron Shell（3–10h，可并行）
-
-- [ ] Main；
-- [ ] Preload；
-- [ ] Renderer；
-- [ ] Context Isolation；
-- [ ] typed IPC；
-- [ ] Mock Runtime；
-- [ ] Session 页面；
-- [ ] Event stream；
-- [ ] Settings；
-- [ ] Child process cleanup。
-
-验收：
+申报 08 B 站赛道时，再增加一个小而完整的输入 Skill：
 
 ```text
-用户发消息
-→ Mock Runtime 流式响应
-→ Plan
-→ Approval
-→ Mock Tool Call
-→ Action Log
+3–5 条预设弹幕
+→ 聚合为一个音乐请求
+→ 复用同一条 Agent → MCP → Ableton 链
 ```
 
-### Phase 3：Ableton Host（8–16h）
+弹幕功能服务于赛道展示，但不是产品本体，也不能建立第二套执行引擎。
 
-- [ ] MCP lifecycle；
-- [ ] 防止重复 Server；
-- [ ] Diagnose；
-- [ ] Tool discovery；
-- [ ] Session / Track / Arrangement；
-- [ ] Connection UI；
-- [ ] 串行 Queue；
-- [ ] Tool Event；
-- [ ] 写后 Verification。
+## 二、三位成员的稳定职责
 
-验收：
+### 成员 A：Experience & Story Lead
 
-- App 内显示真实 Ableton 工程；
-- 可创建一条测试 MIDI Track；
-- 写后读回确认；
-- App 退出不残留进程。
+适合背景：宣发、视觉设计、前端页面、UI / UX 交互。
 
-### Phase 4：Music Director（16–23h）
+唯一负责人：
 
-- [ ] UserMusicRequest；
-- [ ] MusicIntent；
-- [ ] 固定任务 Prompt；
-- [ ] Music Director Skill；
-- [ ] Plan；
-- [ ] Preserve；
-- [ ] Approval；
-- [ ] MusicAction → Ableton Adapter；
-- [ ] Partial Success。
+- 产品视觉语言和 Electron Renderer；
+- Codex-like 对话区、DAW Context、Plan、Tool Call、Agent Roles；
+- Apply / Cancel、Loading、Error 和空状态；
+- Before / After 的交互呈现；
+- 赛道视觉素材、Pitch、截图和演示视频剪辑；
+- Build in Public 内容与用户招募；
+- 主持可用性测试并整理原话。
 
-固定任务：
-
-> Bar 9–16 更炸但别太满，保留 Bells，鼓和贝斯推动，吉他只做回答。
-
-验收：
-
-- Plan 可读；
-- 受影响轨道正确；
-- 不允许的轨道未修改；
-- 写后验证。
-
-### Phase 5：Music UX（23–32h）
-
-- [ ] Codex-like Conversation；
-- [ ] Project header；
-- [ ] DAW Context Panel；
-- [ ] Bar Range；
-- [ ] Plan Card；
-- [ ] Approval；
-- [ ] Tool Call；
-- [ ] Roles；
-- [ ] Action Log；
-- [ ] Transport；
-- [ ] Before / After。
-
-UI 验收：
-
-- 10 秒内知道它是 DAW Agent；
-- 当前连接和工程清楚；
-- Plan 和 Result 不混；
-- Agent 角色是真实状态；
-- Ableton 与 App 变化对应。
-
-### Phase 6：角色任务（32–37h）
-
-优先：
-
-- [ ] Arranger；
-- [ ] Drum Player；
-- [ ] Bass Player；
-- [ ] Guitar Player；
-- [ ] QA Auditor。
-
-可选：
-
-- [ ] Composer；
-- [ ] Mix Engineer。
-
-v0.1 角色只输出 Proposal，由 Music Director 合并。DAW 写入仍串行。
-
-### Phase 7：Demo 与弹幕 Skill（37–43h）
-
-先完成：
-
-- [ ] 固定 Ableton Demo；
-- [ ] 重置方式；
-- [ ] 主 90 秒流程；
-- [ ] 连续运行；
-- [ ] 备用录像。
-
-有时间再做：
-
-- [ ] 预设弹幕；
-- [ ] 聚合；
-- [ ] 转 UserMusicRequest；
-- [ ] 复用主 Agent 执行。
-
-禁止为弹幕另写第二套 MIDI / Audio Engine。
-
-### Phase 8：提交与排练（43–48h）
-
-- [ ] 修阻塞 Bug；
-- [ ] 安全检查；
-- [ ] 打包；
-- [ ] 新机器 / 新用户流程；
-- [ ] 连续三次；
-- [ ] 断网或模型失败兜底；
-- [ ] 视频；
-- [ ] 截图；
-- [ ] 赛道回答；
-- [ ] 用户反馈。
-
-最后 5 小时不做：
-
-- 换 Runtime；
-- 换 Electron 脚手架；
-- 接第二个 DAW；
-- 接真实 B 站；
-- 增加不可逆工具；
-- 大改 Prompt / Schema。
-
----
-
-## 四、两人并行
-
-### Person A：Desktop / UX
-
-主文件：
+主要目录：
 
 ```text
-apps/desktop/src/main/**
-apps/desktop/src/preload/**
 apps/desktop/src/renderer/**
-packages/shared-contracts/**
+packages/ui/**
+design/**
+docs/demo-script.md
 ```
 
-任务：
+不负责：
 
-- Electron；
-- IPC；
-- UI；
-- Session View；
-- Event；
-- Approval；
-- Roles；
-- Action Log；
-- Packaging。
+- 直接调用 MCP；
+- 设计 Agent Runtime 内部协议；
+- Ableton Tool 参数；
+- Electron Main 中的本地权限。
 
-### Person B：Agent / DAW
+交付标准：
 
-主文件：
+- 用户 10 秒内知道这是“为音乐制作定制的 Codex”；
+- Plan、执行中、成功、部分失败四种状态能够区分；
+- UI 展示的每个工具状态都来自真实事件或明确标注的 Mock；
+- 7 月 25 日前产出最终截图、90 秒演示画面和 Pitch 页面。
+
+### 成员 B：Agent & DAW Lead（当前已完成 Codex → MCP → Ableton 初步验证的成员）
+
+唯一负责人：
+
+- 开源 Agent Runtime 的快速 Spike 和最终选择；
+- `AgentRuntimePort` 与 Runtime Adapter；
+- MCP Client 接入；
+- Ableton MCP 生命周期与连接诊断；
+- Music Director 的 Prompt / Skill；
+- 音乐意图、计划与 Tool Mapping；
+- Ableton Track / Clip / MIDI 的真实写入；
+- 固定 Demo 工程的音乐结果；
+- 所有 DAW 操作的安全边界。
+
+主要目录：
 
 ```text
 packages/agent-runtime/**
@@ -319,295 +91,322 @@ packages/mcp-client/**
 packages/ableton-adapter/**
 packages/music-domain/**
 skills/**
+patches/**
 ```
 
-任务：
+不负责：
 
-- Runtime；
-- MCP；
-- Ableton；
-- Queue；
-- Verification；
-- Music Director；
-- Role Skills；
-- Demo 工程。
+- 反复打磨页面像素；
+- 安装包视觉素材；
+- 宣发内容排期；
+- Electron Renderer 的组件细节。
 
-### 共同文件
+交付标准：
+
+- 7 月 24 日中午前锁定 Runtime，不再并行维护候选；
+- 一个自然语言任务可稳定转成 Plan；
+- 至少一条真实写入动作可由 App 发起并在 Ableton 中读回；
+- 删除、覆盖、保存工程不进入现场可调用工具；
+- 固定音乐任务连续成功三次。
+
+### 成员 C：App Integration & Reliability Lead
+
+第三位技术成员不是“捡剩下的活”，而是拥有完整的产品集成与可靠性边界。
+
+唯一负责人：
+
+- Electron Main / Preload；
+- 本地进程生命周期与启动顺序；
+- typed IPC 和 Shared Contracts；
+- UI Event Hub 与状态归一化；
+- Session 最小状态；
+- Approval plumbing；
+- 串行执行队列、取消和超时后的状态协调；
+- Action Log 数据链；
+- Mock Runtime / Mock MCP；
+- 集成测试、Smoke Test、打包和启动脚本；
+- Demo Reset、故障诊断和备用模式；
+- GitHub CI 与发布产物。
+
+主要目录：
 
 ```text
-packages/shared-contracts/src/events.ts
-packages/shared-contracts/src/session.ts
-packages/shared-contracts/src/daw.ts
-package.json
-docs/**
+apps/desktop/src/main/**
+apps/desktop/src/preload/**
+packages/shared-contracts/**
+packages/session-domain/**
+packages/test-support/**
+scripts/**
+.github/**
 ```
 
-修改共同合同前同步。
+不负责：
 
----
+- 决定音乐结果好不好；
+- 修改 Music Director 的审美 Prompt；
+- 主导页面视觉；
+- 临时接第二个 DAW。
 
-## 五、Mock
+交付标准：
 
-### UI Mock
+- Renderer 不直接获得 Node 或 MCP 权限；
+- Electron 能启动、监控并清理 Runtime / MCP 子进程；
+- Mock 和 Real Adapter 使用同一套 UI Event；
+- Tool Call 的 pending / running / succeeded / failed 能被 UI 稳定消费；
+- App 退出后不残留子进程；
+- 在固定演示电脑上提供一条明确启动和重置路径。
 
-Mock Runtime 产生：
+## 三、边界接口
 
-- assistant delta；
-- plan；
-- role runs；
-- approval；
-- tool call；
-- result；
-- error。
+### A 与 C 的接口
 
-UI 不等待真实模型。
-
-### Runtime Mock Tool
-
-先注册：
+A 只依赖 View Model 和 typed commands：
 
 ```text
-mock_get_session
-mock_create_track
-mock_write_clip
-mock_verify
+sendMessage
+approvePlan
+cancelTask
+playRange
+resetDemo
+subscribeAgentUiEvents
 ```
 
-验证 Agent Loop。
+C 保证状态和事件真实可消费。A 不解析 Runtime stdout，也不直接调用 Node API。
 
-### Ableton Mock
+### B 与 C 的接口
 
-内存工程：
-
-- Tempo；
-- Tracks；
-- Devices；
-- Clips；
-- Arrangement。
-
-支持：
-
-- 成功；
-- 失败；
-- 超时但已执行；
-- 部分执行；
-- 读回不一致。
-
-### Role Mock
-
-固定输出：
+B 实现：
 
 ```text
-Arranger: energy up, density controlled
-Drums: open hats + crash + fill
-Bass: more movement
-Guitar: short response only
+AgentRuntimePort
+DawPort
+MusicDirector
+AbletonAdapter
 ```
 
----
-
-## 六、关键对齐点
-
-### T+3h：合同
-
-冻结：
-
-- Runtime Port；
-- UI Event；
-- DawContext；
-- Plan；
-- Tool Call；
-- Approval。
-
-### T+8h：Runtime
-
-必须选型，不能无限研究。
-
-### T+16h：Ableton
-
-必须从 Electron Host 读取真实工程并完成一次可验证写入。
-
-### T+23h：主 Loop
-
-必须跑通：
+C 负责：
 
 ```text
-Request → Plan → Approval → Write → Verify
+ProcessManager
+SessionService
+EventHub
+ApprovalService
+DawCommandQueue
 ```
 
-### T+32h：产品体验
+两人共同冻结：
 
-必须看起来是音乐定制 Agent，不是通用聊天壳。
+- `DawContextSnapshot`；
+- `MusicIntent`；
+- `AgentPlan`；
+- `PlanStep`；
+- `AgentUiEvent`；
+- `ToolCallResult`；
+- `PublicAppError`。
 
-### T+37h：功能冻结
+共享合同发生破坏性修改前，必须先在三人群里说明影响，并由另一位技术成员确认。
 
-之后只做 Demo、弹幕 Skill 和修复。
+### A 与 B 的接口
 
-### T+43h：演示冻结
+A 定义用户能理解的音乐语言和操作方式；B 保证这些内容能映射到真实 Agent / DAW
+能力。任何 UI 文案如果暗示了尚不存在的 Undo、音频理解或多 Agent 并发，B 有权阻止
+进入 Demo。
 
-固定：
+## 四、按日期倒排
 
-- Runtime；
-- Model；
-- App build；
-- Ableton 工程；
-- MCP；
-- Port；
-- Prompt；
-- 脚本；
-- 录像。
+### 7 月 23 日：锁定范围与并行起跑
 
----
+共同：
 
-## 七、优先级
+- [ ] 冻结一句话、主赛道和 90 秒 Demo；
+- [ ] 冻结 P0，建立 GitHub Issues；
+- [ ] 冻结七个共享合同；
+- [ ] 明确固定 Ableton Demo 工程和重置方法。
 
-### P0
+成员 A：
 
-- Electron；
-- Runtime；
-- Ableton MCP；
-- Connection；
-- Context；
-- Music Director；
-- Plan；
-- Approval；
-- Queue；
-- Verification；
-- Action Log；
-- Before / After。
+- [ ] 完成主界面低保真和视觉方向；
+- [ ] 用 Mock Event 跑通 Conversation → Plan → Apply → Result；
+- [ ] 准备赛道介绍页和用户测试脚本。
 
-### P1
+成员 B：
 
-- Arranger；
-- Player Roles；
-- Range；
-- Session persistence；
-- Demo reset；
-- Packaging。
+- [ ] 最多 Spike 两个 Runtime；
+- [ ] 验证 Runtime → MCP 工具调用；
+- [ ] 整理已可用 Ableton Tools；
+- [ ] 固定一个编曲任务和音乐动作模板。
 
-### P2
+成员 C：
 
-- 弹幕 Skill；
-- Composer；
-- Mix Engineer；
-- MIDI diff；
-- 多候选。
+- [ ] 建 Electron Shell、Main、Preload 和 typed IPC；
+- [ ] 接入 Mock Runtime / Mock MCP；
+- [ ] 建 Event Hub 与 Process Manager 骨架；
+- [ ] 配置最小 CI：typecheck、lint、test。
 
-### P3
+当天退出条件：
 
-- 真实弹幕；
-- 音频监听；
-- 多 DAW；
-- 多人协作；
-- 完整 Undo；
-- VST。
+- Mock 主链在 Electron 中可见；
+- Real MCP 链在命令行仍可运行；
+- 三人对接口没有分歧。
 
----
+### 7 月 24 日：跑通真实端到端
 
-## 八、失败兜底
+上午 12:00 前：
 
-### Runtime 失败
+- [ ] B 锁定 Runtime；
+- [ ] B + C 完成 Electron Host 到 MCP 的连接；
+- [ ] A 的 UI 能显示真实连接状态和 Tool Event。
 
-- Runtime 可重启；
-- Session 保存；
-- 固定 Demo 可用预先生成 Plan；
-- 备用视频。
+当天结束前：
 
-### MCP 失败
+- [ ] 在 App 中发起固定请求；
+- [ ] 展示 Plan 并确认；
+- [ ] Ableton 发生至少一次真实修改；
+- [ ] 读回结果并进入 Action Log；
+- [ ] 同一小节可播放 Before / After；
+- [ ] 记录第一个完整 Demo 视频。
 
-- Diagnose；
-- 明确启动顺序；
-- 检查 Ableton Control Surface；
-- 检查 8765；
-- 防止重复 Server；
+如果当天结束仍未端到端：
+
+- 取消真实多 Agent；
+- 取消持久化；
+- 取消 MIDI Diff；
+- 弹幕只保留预设输入；
+- 使用一个 Orchestrator 和固定 Skill；
+- 不再研究新的 Runtime。
+
+### 7 月 25 日：产品化、赛道化和冻结
+
+09:00–12:00：
+
+- [ ] A 完成核心 UI 状态和视觉收口；
+- [ ] B 完成固定音乐任务的音质验收；
+- [ ] C 完成错误状态、重置和启动脚本；
+- [ ] 三类用户测试至少完成两类。
+
+12:00–15:00：
+
+- [ ] 接入 3–5 条预设弹幕；
+- [ ] 确认弹幕复用主执行链；
+- [ ] 完成主赛道文案和团队介绍；
+- [ ] 补录真实用户反馈。
+
+15:00：功能冻结。
+
+15:00–18:00：
+
+- [ ] 连续运行主 Demo 三次；
+- [ ] 测试 Ableton 未启动、MCP 断开、模型失败；
+- [ ] 修复仅限 P0 阻塞问题；
+- [ ] 生成安装包或冻结开发环境。
+
+18:00–22:00：
+
+- [ ] 录制 90 秒视频和备用长视频；
+- [ ] 截图、架构图、README、团队分工；
+- [ ] 赛道提交回答终审；
+- [ ] 检查 GitHub 仓库；
+- [ ] 排练每个人的讲解段落。
+
+### 7 月 26 日：提交缓冲
+
+- 不增加功能；
+- 不更换 Runtime / Model / Port；
+- 不重构共享合同；
+- 只处理提交、环境恢复和现场演示；
+- 现场失败时立即切备用录屏，不在台上调试。
+
+## 五、GitHub 协作
+
+建议建立以下 GitHub Labels：
+
+```text
+area:ux
+area:agent-daw
+area:integration
+priority:p0
+priority:p1
+blocked
+demo-risk
+```
+
+分支：
+
+```text
+feat/ux-<task>
+feat/agent-<task>
+feat/integration-<task>
+fix/demo-<task>
+docs/<task>
+```
+
+规则：
+
+- `main` 不直接提交功能；
+- 每个 P0 Issue 只有一位 Owner；
+- PR 尽量控制在 300 行可审查变更以内；
+- 普通 PR 至少一位同伴批准；
+- 修改共享合同需要另一位技术成员批准；
+- 修改产品一句话、Demo 顺序和赛道回答需要成员 A 与成员 B 同时确认；
+- 使用 Squash Merge，合并后删除分支；
+- 每次合并 P0 后立即运行一次最短 Smoke；
+- Ableton 工程、音频和大文件使用共享盘或 Git LFS，不直接塞进普通 Git 历史。
+
+## 六、每日 15 分钟同步
+
+每人只回答：
+
+1. 昨天/上一时段交付了什么可运行结果？
+2. 下一时段唯一的 P0 是什么？
+3. 现在被谁的哪个接口阻塞？
+4. 这项工作若今天失败，降级方案是什么？
+
+同步结束后，Owner 更新 GitHub Issue；不要用聊天记录代替任务状态。
+
+## 七、功能砍除顺序
+
+遇到延期时，依次砍掉：
+
+1. 真实并行子 Agent；
+2. Composer / Mix Engineer；
+3. 会话搜索和完整持久化；
+4. MIDI 可视化 Diff；
+5. 真实 B 站 API；
+6. 多候选方案；
+7. 完整 Undo；
+8. 第二个 DAW。
+
+不能砍：
+
+- Electron 中的真实产品入口；
+- Agent → MCP → Ableton 的一条真实链路；
+- Plan 与用户确认；
+- 真实可编辑的 DAW 修改；
+- 最小结果验证；
+- 固定 Demo 重置；
 - 备用录屏。
 
-### Tool timeout
+## 八、完成定义
 
-- Queue 暂停；
-- 读回；
-- 不盲目重试；
-- UI 标记 uncertain；
-- 人决定。
+- [ ] 三人职责不存在无人负责或两人同时主责的 P0；
+- [ ] Electron 能启动并显示真实 Ableton 连接；
+- [ ] 一个自然语言任务完整跑通；
+- [ ] Agent 修改的是可编辑 DAW 工程，不是只生成文本；
+- [ ] UI 不伪造不存在的 Agent、Tool Call 或 Undo；
+- [ ] 主 Demo 连续成功三次；
+- [ ] B 站 Skill 成功一次且不绕过主执行链；
+- [ ] 所有重要操作默认不可用或必须确认；
+- [ ] 安装、启动、重置和演示都有文档；
+- [ ] 90 秒视频、备用录屏和提交材料齐全；
+- [ ] GitHub 主分支包含最新稳定版本；
+- [ ] 7 月 25 日 22:00 后不再开发新功能。
 
-### 多 Agent 不稳定
+## 九、仍需三人确认
 
-- 降级为一个 Orchestrator；
-- 角色使用固定 Skill 顺序；
-- UI 如实显示 Role Task；
-- 不影响主执行。
+以下答案会影响任务拆分，但不阻塞当前开工：
 
-### Before / After 不完整
+1. 成员 A 能否独立实现 React / Electron Renderer，还是主要完成 Figma、视觉和交互稿？
+2. 成员 C 最熟悉的是 Electron / Node、后端集成、测试打包中的哪一块？7 月 23–25 日每天可投入多少小时？
+3. 团队是否已经确认报名 08 方向一和 05？若主办方只允许一个赛道，默认保留 08。
 
-- 使用预保存 Before 工程；
-- Agent 创建新 Track / Clip；
-- 播放固定范围；
-- 不承诺完整 Undo。
-
-### 弹幕未完成
-
-直接不演。产品主 Demo 不依赖弹幕。
-
----
-
-## 九、Demo 排练
-
-### 环境
-
-- [ ] Ableton Live 12.1.5
-- [ ] 官方许可 / 试用
-- [ ] AbletonMCP Control Surface
-- [ ] 127.0.0.1:8765
-- [ ] 单个 MCP Server
-- [ ] Electron build
-- [ ] 固定 Runtime / Model
-- [ ] 固定 Demo 工程
-- [ ] 音频输出
-- [ ] 通知关闭
-
-### 主流程
-
-- [ ] App 启动
-- [ ] Connection 绿色
-- [ ] 工程 Context
-- [ ] 选择 Bar 9–16
-- [ ] 输入修改
-- [ ] Plan
-- [ ] Roles
-- [ ] Approve
-- [ ] Tool Calls
-- [ ] Verification
-- [ ] Before
-- [ ] After
-- [ ] 下一条追问
-
-### 讲解
-
-- [ ] 一句话先说“为音乐制作定制的 Codex”
-- [ ] 弹幕不作为开场
-- [ ] 强调读取真实工程
-- [ ] 强调计划与确认
-- [ ] 强调可编辑结果
-- [ ] 强调音乐角色
-- [ ] 不夸大音频监听和 Undo
-
----
-
-## 十、完成条件
-
-- Runtime 已选并有 ADR；
-- Electron 安全配置通过；
-- Ableton 连接自检；
-- 真实 Context；
-- 固定修改任务；
-- Plan；
-- Approval；
-- 串行写入；
-- 写后验证；
-- Partial / Uncertain 可见；
-- Before / After；
-- 至少一个角色任务；
-- 连续三次主 Demo；
-- 备用视频；
-- 弹幕被正确放在附加 Skill；
-- 文档、UI 和 Pitch 使用同一产品定义。
+确认后只调整 Owner 和工作量，不扩大 P0 范围。

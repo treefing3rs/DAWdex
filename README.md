@@ -43,6 +43,7 @@ The concrete open-source agent runtime is intentionally undecided. Candidates ar
 ## Documentation
 
 - [Product requirements](docs/PRD_DAWdex.md)
+- [Hackathon track strategy and submission answers](docs/track-strategy.md)
 - [Technical specification](docs/DAWdex_TechSpec.md)
 - [Architecture](docs/architecture.md)
 - [Coding conventions](docs/coding-conventions.md)

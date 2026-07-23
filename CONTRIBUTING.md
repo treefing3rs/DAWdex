@@ -8,9 +8,9 @@ Each person has a primary lane, but pull requests should remain reviewable by ev
 
 | Lane | Primary responsibility | Typical paths |
 |---|---|---|
-| Product & Music | Product decisions, music workflow, Ableton demo, acceptance | `docs/`, `skills/`, demo fixtures |
-| Desktop & UX | Electron, renderer, interaction, visual system | `apps/desktop/`, UI packages |
-| Agent & DAW | Runtime adapter, MCP host, Ableton adapter, verification | `packages/agent-runtime/`, `packages/mcp-client/`, `packages/ableton-adapter/` |
+| Experience & Story | Renderer, UI/UX, visual system, pitch and user testing | `apps/desktop/src/renderer/`, `packages/ui/`, `design/` |
+| Agent & DAW | Runtime adapter, Music Director, MCP client, Ableton adapter and music acceptance | `packages/agent-runtime/`, `packages/mcp-client/`, `packages/ableton-adapter/`, `skills/` |
+| Integration & Reliability | Electron Main/Preload, IPC, events, tests, packaging and demo recovery | `apps/desktop/src/main/`, `apps/desktop/src/preload/`, `packages/shared-contracts/`, `scripts/`, `.github/` |
 
 Shared contracts require extra care:
 
@@ -19,6 +19,8 @@ packages/shared-contracts/
 packages/music-domain/
 package.json
 docs/architecture.md
+docs/PRD_DAWdex.md
+docs/track-strategy.md
 ```
 
 Announce shared-contract changes before implementing them.
