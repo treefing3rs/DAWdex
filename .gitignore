@@ -1,4 +1,4 @@
-﻿# Node / Electron
+# Node / Electron
 node_modules/
 dist/
 out/
@@ -41,6 +41,7 @@ third_party/ableton-mcp-upstream/
 # Logs and temporary files
 *.log
 tmp/
+prd生成/
 temp/
 .cache/
 
