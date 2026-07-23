@@ -1,0 +1,16 @@
+diff --git a/AbletonMCP_Remote_Script/__init__.py b/AbletonMCP_Remote_Script/__init__.py
+index edf3f2d..bc53db3 100644
+--- a/AbletonMCP_Remote_Script/__init__.py
++++ b/AbletonMCP_Remote_Script/__init__.py
+@@ -16,8 +16,8 @@ except ImportError:
+     import queue  # Python 3
+ 
+ # Constants for socket communication
+-DEFAULT_PORT = 9877
+-HOST = "0.0.0.0"
++DEFAULT_PORT = 8765
++HOST = "127.0.0.1"
+ 
+ def create_instance(c_instance):
+     """Create and return the AbletonMCP script instance"""
+

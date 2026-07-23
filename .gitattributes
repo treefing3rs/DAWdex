@@ -1,0 +1,18 @@
+﻿* text=auto eol=lf
+
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+*.xlsx binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.wav binary
+*.aif binary
+*.aiff binary
+*.flac binary
+*.als binary
+*.patch text eol=lf whitespace=-blank-at-eol,-blank-at-eof

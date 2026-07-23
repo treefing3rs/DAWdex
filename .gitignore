@@ -1,0 +1,52 @@
+﻿# Node / Electron
+node_modules/
+dist/
+out/
+build/
+release/
+.vite/
+coverage/
+*.tsbuildinfo
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Local agent configuration
+.codex/
+.agents/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Local third-party checkout
+# Recreate from upstream and apply patches/ableton-mcp-localhost-8765.patch.
+third_party/ableton-mcp-upstream/
+
+# DAW projects and large rendered audio should use Git LFS or shared storage.
+*.als
+*.asd
+*.wav
+*.aif
+*.aiff
+*.flac
+
+# Logs and temporary files
+*.log
+tmp/
+temp/
+.cache/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
