@@ -22,7 +22,7 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     const danmakuLayer: HTMLElement = (<div className="danmaku-layer"/>)
     const statusDot: HTMLElement = (<span className="status-dot checking"/>)
     const textArea: HTMLTextAreaElement = (
-        <textarea maxLength={300} placeholder="例如：做一个 Dubstep，或保留和弦只把鼓变松"/>
+        <textarea maxLength={300} placeholder="例如：给我一段浪漫、温暖、适合夜晚的音乐"/>
     )
     const sendButton: HTMLButtonElement = (<button type="button" className="send">Plan edit →</button>)
     const undoButton: HTMLButtonElement = (<button type="button">Undo</button>)
@@ -41,7 +41,7 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
             </div>
         )
         activity.prepend(event)
-        while (activity.childElementCount > 5) {activity.lastElementChild?.remove()}
+        while (activity.childElementCount > 8) {activity.lastElementChild?.remove()}
     }
 
     const launchDanmaku = (text: string) => {
@@ -182,8 +182,8 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
                 <div className="provider-card unavailable">
                     <span className="provider-icon">!</span>
                     <div>
-                        <strong>Local fallback active</strong>
-                        <span>{codex.error ?? "Start the DAWdex Agent server to connect Codex"}</span>
+                        <strong>Creative model unavailable</strong>
+                        <span>{codex.error ?? "Connect Codex or configure the OpenAI API"}</span>
                     </div>
                 </div>
             )
@@ -240,16 +240,24 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
             ? "Codex account"
             : plan.source === "model"
                 ? "OpenAI API"
-                : "Local fallback"
+                : "Legacy local plan"
+        const rationale: HTMLElement = (<div className="reasoning"/>)
+        appendChildren(
+            rationale,
+            <strong>AI creative direction</strong>,
+            <span>{plan.brief.decisionSummary}</span>,
+            ...plan.rationale.map(item => <span className="reason">{`• ${item}`}</span>)
+        )
         return (
             <div className="plan-card">
                 <div className="plan-kicker">
-                    <span>{`Approval required · ${plan.brief.intent} · ${plan.brief.style === "rnb" ? "R&B" : "Dubstep"}`}</span>
+                    <span>{`Approval required · ${plan.brief.intent} · ${plan.brief.style}`}</span>
                     <span className="source">{source}</span>
                 </div>
                 <h3>{plan.title}</h3>
                 <p>{plan.summary}</p>
                 <p>{`${plan.brief.key} · ${plan.brief.bars} bars · ${Math.round(plan.brief.bpm)} BPM · ${plan.brief.preserveTrackIds.length} kept`}</p>
+                {rationale}
                 {actions}
                 <div className="plan-buttons">{dismissButton}{applyButton}</div>
             </div>
@@ -274,7 +282,9 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         textArea.disabled = true
         launchDanmaku(prompt)
         appendEvent("Producer is translating your idea into a music plan…", "working")
-        client.createPlan(prompt, daw.snapshot()).then(plan => {
+        client.createPlan(prompt, daw.snapshot(), progress => {
+            appendEvent(progress.message, "working")
+        }).then(plan => {
             currentPlan = Option.wrap(plan)
             isBusy = false
             sendButton.disabled = false

@@ -6,8 +6,10 @@
   "license": "AGPL-3.0-or-later",
   "scripts": {
     "build": "tsc --noEmit",
-    "dev": "node --experimental-strip-types src/server.ts",
-    "start": "node --experimental-strip-types src/server.ts"
+    "dev": "node --experimental-sqlite --experimental-strip-types src/server.ts",
+    "start": "node --experimental-sqlite --experimental-strip-types src/server.ts",
+    "index:midi": "node --experimental-sqlite --experimental-strip-types src/index-midi.ts",
+    "test": "vitest run"
   },
   "dependencies": {
     "@openai/agents": "^0.13.5",

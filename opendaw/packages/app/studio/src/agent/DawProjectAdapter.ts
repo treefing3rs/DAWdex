@@ -1,5 +1,6 @@
-import {clamp} from "@opendaw/lib-std"
+import {clamp, isInstanceOf} from "@opendaw/lib-std"
 import {PPQN} from "@opendaw/lib-dsp"
+import {VaporisateurDeviceBox} from "@opendaw/studio-boxes"
 import {
     AudioUnitBoxAdapter,
     InstrumentFactories,
@@ -7,7 +8,7 @@ import {
     TrackBoxAdapter,
     TrackType
 } from "@opendaw/studio-adapters"
-import {StudioService} from "@/service/StudioService"
+import type {StudioService} from "@/service/StudioService"
 import {
     AgentPlan,
     DawProjectSnapshot,
@@ -15,7 +16,6 @@ import {
 } from "./AgentProtocol"
 import {
     CompiledNote,
-    compileRolePattern,
     midiFingerprint
 } from "./music/PatternCompiler"
 import {
@@ -24,6 +24,12 @@ import {
     readDawdexTrackMetadata
 } from "./music/DawdexTrackMetadata"
 import {hasDuplicateMidiFingerprint} from "./music/QualityGate"
+import {applyRoleInstrumentProfile} from "./music/RoleInstrumentProfiles"
+import {
+    compileMidiAsset,
+    loadMidiAsset,
+    MidiAssetLoader
+} from "./music/MidiAsset"
 
 type InstrumentTrack = {
     readonly audioUnit: AudioUnitBoxAdapter
@@ -63,8 +69,12 @@ const notesForRegion = (region: NoteRegionBoxAdapter): ReadonlyArray<CompiledNot
 
 export class DawProjectAdapter {
     readonly #service: StudioService
+    readonly #midiAssetLoader: MidiAssetLoader
 
-    constructor(service: StudioService) {this.#service = service}
+    constructor(service: StudioService, midiAssetLoader: MidiAssetLoader = loadMidiAsset) {
+        this.#service = service
+        this.#midiAssetLoader = midiAssetLoader
+    }
 
     snapshot(): DawProjectSnapshot {
         if (!this.#service.hasProfile) {return {hasProject: false, bpm: 120, tracks: []}}
@@ -110,7 +120,7 @@ export class DawProjectAdapter {
     async apply(plan: AgentPlan): Promise<ApplyResult> {
         if (!this.#service.hasProfile) {await this.#service.newProject()}
         if (!this.#service.hasProfile) {return {success: false, message: "No project is open."}}
-        const prepared = this.#prepare(plan)
+        const prepared = await this.#prepare(plan)
         if (!prepared.success) {return {success: false, message: prepared.message}}
         const project = this.#service.project
         const tempoActions = plan.actions.filter(action => action.type === "set-tempo")
@@ -129,18 +139,30 @@ export class DawProjectAdapter {
             prepared.operations.forEach(operation => this.#applyUpsert(operation))
         })
         const snapshot = this.snapshot()
-        const didVerify = prepared.operations.every(operation => {
+        const verificationFailures = prepared.operations.flatMap(operation => {
             const expectedId = operation.target?.track.address.toString()
-            return snapshot.tracks.some(track =>
+            const actual = snapshot.tracks.find(track =>
                 (expectedId === undefined || track.id === expectedId)
                 && track.generated
                 && track.role === operation.action.role
-                && track.style === operation.action.style
-                && track.midiFingerprint === operation.fingerprint)
+                && track.style === operation.action.style)
+            return actual?.midiFingerprint === operation.fingerprint
+                ? []
+                : [{
+                    role: operation.action.role,
+                    expected: operation.fingerprint,
+                    actual: actual?.midiFingerprint ?? "missing"
+                }]
         })
-        if (!didVerify) {
+        if (verificationFailures.length > 0) {
             project.editing.undo()
-            return {success: false, message: "DAWdex could not verify the MIDI replacement; the edit was reverted."}
+            const details = verificationFailures
+                .map(({role, expected, actual}) => `${role}: expected ${expected}, got ${actual}`)
+                .join("; ")
+            return {
+                success: false,
+                message: `DAWdex could not verify the MIDI replacement; the edit was reverted. ${details}`
+            }
         }
         const changed = prepared.operations.length + (changesTempo ? 1 : 0)
         const skipped = prepared.skipped === 0 ? "" : ` Skipped ${prepared.skipped} duplicate.`
@@ -176,7 +198,7 @@ export class DawProjectAdapter {
                 }))
     }
 
-    #prepare(plan: AgentPlan): PreparationResult {
+    async #prepare(plan: AgentPlan): Promise<PreparationResult> {
         const tracks = this.#instrumentTracks()
         const fingerprints = new Map<string, string>()
         tracks.forEach(({track, fingerprint}) => {
@@ -233,7 +255,16 @@ export class DawProjectAdapter {
                 density: clamp(rawAction.density, 0.1, 1),
                 energy: clamp(rawAction.energy, 0.1, 1)
             }
-            const notes = compileRolePattern(action)
+            let notes: ReadonlyArray<CompiledNote>
+            try {
+                const buffer = await this.#midiAssetLoader(action.midiAssetId)
+                notes = compileMidiAsset(buffer, action.role, action.bars)
+            } catch (error) {
+                return {
+                    success: false,
+                    message: `Could not load ${action.role} MIDI asset "${action.midiAssetPath}": ${String(error)}`
+                }
+            }
             const fingerprint = midiFingerprint(absoluteNotes(notes, action.startBar))
             const targetId = target?.track.address.toString()
             const targetFingerprint = targetId === undefined ? null : fingerprints.get(targetId) ?? null
@@ -262,10 +293,17 @@ export class DawProjectAdapter {
         const name = dawdexTrackName(action.role, action.style)
         let trackBox
         if (target === null) {
-            trackBox = project.api.createInstrument(InstrumentFactories.Vaporisateur, {name}).trackBox
+            const product = project.api.createInstrument(InstrumentFactories.Vaporisateur, {name})
+            applyRoleInstrumentProfile(product.instrumentBox, action.role, action.style)
+            trackBox = product.trackBox
         } else {
             target.track.regions.collection.asArray().forEach(region => region.box.delete())
             target.track.targetName = name
+            target.audioUnit.input.adapter().ifSome(input => {
+                if (isInstanceOf(input.box, VaporisateurDeviceBox)) {
+                    applyRoleInstrumentProfile(input.box, action.role, action.style)
+                }
+            })
             trackBox = target.track.box
         }
         const region = project.api.createNoteRegion({

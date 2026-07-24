@@ -2,7 +2,19 @@ export type AgentPlanSource = "codex" | "model" | "local"
 export type AgentProviderId = "codex" | "openai" | "local"
 export type MusicIntent = "create" | "add" | "restyle" | "modify"
 export type MusicRole = "drums" | "bass" | "keys"
-export type SupportedStyle = "dubstep" | "rnb"
+export type SupportedStyle = string
+
+export type AgentProgressStage =
+    | "understanding"
+    | "direction"
+    | "searching"
+    | "arranging"
+    | "review"
+
+export type AgentProgress = {
+    readonly stage: AgentProgressStage
+    readonly message: string
+}
 
 export type CodexRateLimit = {
     readonly usedPercent: number
@@ -78,6 +90,8 @@ export type UpsertRoleTrackAction = {
     readonly seed: number
     readonly density: number
     readonly energy: number
+    readonly midiAssetId: string
+    readonly midiAssetPath: string
 }
 
 export type DawAction = SetTempoAction | UpsertRoleTrackAction
@@ -85,6 +99,10 @@ export type DawAction = SetTempoAction | UpsertRoleTrackAction
 export type MusicBrief = {
     readonly intent: MusicIntent
     readonly style: SupportedStyle
+    readonly styleAlternatives: ReadonlyArray<string>
+    readonly moods: ReadonlyArray<string>
+    readonly decisionSummary: string
+    readonly instrumentation: ReadonlyArray<string>
     readonly bpm: number
     readonly key: string
     readonly bars: 4 | 8
@@ -112,7 +130,8 @@ export namespace DawAction {
                 return `Set tempo to ${Math.round(action.bpm)} BPM`
             case "upsert-role-track": {
                 const operation = action.mode === "replace" ? "Replace" : "Create"
-                return `${operation} ${action.role} · ${action.style} · seed ${action.seed} · bars ${action.startBar}–${action.startBar + action.bars - 1}`
+                const asset = action.midiAssetPath.split("/").at(-1) ?? action.midiAssetId
+                return `${operation} ${action.role} · ${action.style} · ${asset} · bars ${action.startBar}–${action.startBar + action.bars - 1}`
             }
         }
     }

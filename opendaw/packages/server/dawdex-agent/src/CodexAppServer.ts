@@ -7,12 +7,17 @@ import {join} from "node:path"
 import {createInterface} from "node:readline"
 import {z} from "zod"
 import {
+    CreativeBriefSchema,
+    createCreativeDirectorInput,
     CodexPlanOutputSchema,
     createProducerInput,
+    CREATIVE_DIRECTOR_INSTRUCTIONS,
+    parseCreativeBrief,
     parseCodexPlan,
     PRODUCER_INSTRUCTIONS
 } from "./MusicPlan.ts"
-import type {PlanOutput, ProjectSnapshot} from "./MusicPlan.ts"
+import type {CreativeBrief, PlanOutput, ProjectSnapshot} from "./MusicPlan.ts"
+import type {MidiCandidate} from "./MidiCatalog.ts"
 
 type JsonObject = Record<string, unknown>
 
@@ -143,7 +148,38 @@ export class CodexAppServer {
         }
     }
 
-    async createPlan(prompt: string, snapshot: ProjectSnapshot): Promise<PlanOutput> {
+    async createCreativeBrief(
+        prompt: string,
+        snapshot: ProjectSnapshot
+    ): Promise<CreativeBrief> {
+        return this.#runStructured(
+            createCreativeDirectorInput(prompt, snapshot),
+            CREATIVE_DIRECTOR_INSTRUCTIONS,
+            CreativeBriefSchema,
+            parseCreativeBrief
+        )
+    }
+
+    async createPlan(
+        prompt: string,
+        snapshot: ProjectSnapshot,
+        brief: CreativeBrief,
+        candidates: ReadonlyArray<MidiCandidate>
+    ): Promise<PlanOutput> {
+        return this.#runStructured(
+            createProducerInput(prompt, snapshot, brief, candidates),
+            PRODUCER_INSTRUCTIONS,
+            CodexPlanOutputSchema,
+            parseCodexPlan
+        )
+    }
+
+    async #runStructured<T>(
+        input: string,
+        instructions: string,
+        schema: z.ZodType<T>,
+        parse: (value: unknown) => T
+    ): Promise<T> {
         await this.#ensureStarted()
         const status = await this.status()
         if (!status.authenticated) {
@@ -155,8 +191,8 @@ export class CodexAppServer {
             cwd: workdir,
             approvalPolicy: "never",
             sandbox: "read-only",
-            baseInstructions: PRODUCER_INSTRUCTIONS,
-            developerInstructions: "Return only the structured music plan. Do not use tools or inspect the filesystem.",
+            baseInstructions: instructions,
+            developerInstructions: "Return only the requested structured data. Do not use tools or inspect the filesystem.",
             ephemeral: true,
             serviceName: "dawdex"
         }, 30_000)
@@ -177,17 +213,17 @@ export class CodexAppServer {
         })
         const turnParams: JsonObject = {
             threadId,
-            input: [{type: "text", text: createProducerInput(prompt, snapshot)}],
+            input: [{type: "text", text: input}],
             approvalPolicy: "never",
             sandboxPolicy: {type: "readOnly", networkAccess: false},
-            outputSchema: z.toJSONSchema(CodexPlanOutputSchema)
+            outputSchema: z.toJSONSchema(schema)
         }
         const configuredModel = process.env.DAWDEX_CODEX_MODEL?.trim()
         if (configuredModel) {turnParams.model = configuredModel}
         try {
             await this.#request("turn/start", turnParams, 30_000)
             const output = await completion
-            return parseCodexPlan(JSON.parse(output) as unknown)
+            return parse(JSON.parse(output) as unknown)
         } catch (error) {
             const pending = this.#pendingTurns.get(threadId)
             if (pending) {

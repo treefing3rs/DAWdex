@@ -5,10 +5,11 @@ import {
     MusicIntent,
     MusicRole,
     ProjectTrackSnapshot,
-    SupportedStyle,
     UpsertRoleTrackAction
 } from "./AgentProtocol"
 import {StyleProfiles} from "./music/StyleProfiles"
+
+type LocalStyle = keyof typeof StyleProfiles
 
 const allRoles: ReadonlyArray<MusicRole> = ["drums", "bass", "keys"]
 
@@ -33,10 +34,12 @@ const extractBars = (text: string): 4 | 8 => {
     return 4
 }
 
-const inferStyle = (text: string, snapshot: DawProjectSnapshot): SupportedStyle => {
+const inferStyle = (text: string, snapshot: DawProjectSnapshot): LocalStyle => {
     if (includesAny(text, ["r&b", "rnb", "节奏布鲁斯"])) {return "rnb"}
     if (includesAny(text, ["dubstep", "回响贝斯"])) {return "dubstep"}
-    return snapshot.tracks.find(track => track.generated && track.style !== null)?.style ?? "dubstep"
+    const existing = snapshot.tracks
+        .find(track => track.generated && track.style !== null)?.style?.toLowerCase()
+    return existing?.includes("dubstep") ? "dubstep" : "rnb"
 }
 
 const inferIntent = (text: string, snapshot: DawProjectSnapshot): MusicIntent => {
@@ -74,7 +77,7 @@ const selectTargetRoles = (intent: MusicIntent, text: string,
     return mentioned.length > 0 ? mentioned : allRoles
 }
 
-const seedFor = (prompt: string, role: MusicRole, style: SupportedStyle): number => {
+const seedFor = (prompt: string, role: MusicRole, style: LocalStyle): number => {
     const value = `${prompt.trim().toLowerCase()}|${role}|${style}`
     let hash = 2166136261
     for (let index = 0; index < value.length; index++) {
@@ -94,7 +97,7 @@ const createRoleAction = (
     snapshot: DawProjectSnapshot,
     intent: MusicIntent,
     role: MusicRole,
-    style: SupportedStyle,
+    style: LocalStyle,
     preserveTrackIds: ReadonlyArray<string>,
     startBar: number,
     bars: 4 | 8,
@@ -102,6 +105,7 @@ const createRoleAction = (
     energy: number
 ): UpsertRoleTrackAction => {
     const target = intent === "add" ? null : targetForRole(snapshot, role, preserveTrackIds)
+    const seed = seedFor(prompt, role, style)
     return {
         type: "upsert-role-track",
         mode: target === null ? "create" : "replace",
@@ -110,10 +114,12 @@ const createRoleAction = (
         style,
         startBar,
         bars,
-        rootMidi: role === "drums" ? 36 : role === "bass" ? 38 : 50,
-        seed: seedFor(prompt, role, style),
+        rootMidi: role === "drums" ? 36 : role === "bass" ? 38 : 62,
+        seed,
         density,
-        energy
+        energy,
+        midiAssetId: `auto:${style}:${role}:${seed}`,
+        midiAssetPath: `Automatic ${style} ${role} library match`
     }
 }
 
@@ -178,6 +184,10 @@ export namespace LocalMusicPlanner {
             brief: {
                 intent,
                 style,
+                styleAlternatives: [],
+                moods: [style === "rnb" ? "laid-back" : "intense"],
+                decisionSummary: `Legacy local ${style} plan`,
+                instrumentation: targetRoles,
                 bpm,
                 key: "D minor",
                 bars,

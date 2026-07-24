@@ -62,6 +62,9 @@ describe("LocalMusicPlanner", () => {
             .filter(action => action.type === "upsert-role-track")
             .map(action => action.seed)
         expect(new Set(seeds).size).toBe(3)
+        expect(plan.actions
+            .filter(action => action.type === "upsert-role-track")
+            .every(action => action.midiAssetId.startsWith("auto:dubstep:"))).toBe(true)
     })
 
     it("restyles Dubstep by replacing the three located role tracks", () => {

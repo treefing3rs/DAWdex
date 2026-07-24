@@ -13,3 +13,20 @@ library-relative directory structure.
 The six zero-filled `.mid` files under the two
 `Fox_Samples/Piano_in_Silence/` trees are preserved verbatim from the source
 library. All other files begin with a standard MIDI `MThd` header.
+
+## DAWdex catalog
+
+DAWdex retrieves files from this library instead of generating replacement
+note patterns. Build or refresh the local SQLite metadata catalog after the
+MIDI library changes:
+
+```powershell
+cd opendaw
+npm.cmd run index:midi -w @dawdex/agent-server
+```
+
+The generated catalog is stored at `midi/.dawdex/catalog.sqlite` and is ignored
+by Git. It contains paths, roles, style tags, tempo, length, pitch range,
+density, and content fingerprints for filtering, ranking, and duplicate
+suppression. The Agent server falls back to a smaller curated directory scan
+when the catalog does not exist.
