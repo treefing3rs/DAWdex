@@ -1,0 +1,174 @@
+import css from "./ShadertoyEditor.sass?inline"
+import {
+    asInstanceOf,
+    Attempt,
+    Attempts,
+    DefaultObservableValue,
+    EmptyProcedure,
+    isAbsent,
+    Lifecycle,
+    RuntimeNotifier,
+    Terminator,
+    UUID
+} from "@opendaw/lib-std"
+import {Await, createElement} from "@opendaw/lib-jsx"
+import {Events, Html, Keyboard} from "@opendaw/lib-dom"
+import {MonacoFactory} from "@/monaco/factory"
+import {IconSymbol} from "@opendaw/studio-enums"
+import {ShadertoyBox} from "@opendaw/studio-boxes"
+import {StudioService} from "@/service/StudioService"
+import {ThreeDots} from "@/ui/spinner/ThreeDots"
+import {Button} from "@/ui/components/Button"
+import {Icon} from "@/ui/components/Icon"
+import {EditorLoadFailure} from "@/ui/components/EditorLoadFailure"
+import {dynamicImportWithRetry} from "@/ui/components/dynamicImportWithRetry"
+import Example from "./example.glsl?raw"
+import {ShadertoyRunner} from "@/ui/shadertoy/ShadertoyRunner"
+import {Checkbox} from "@/ui/components/Checkbox"
+
+const className = Html.adoptStyleSheet(css, "ShadertoyEditor")
+
+const loadMonacoSetup = dynamicImportWithRetry(() => import("./monaco-setup"))
+
+type Construct = {
+    lifecycle: Lifecycle
+    service: StudioService
+}
+
+export const ShadertoyEditor = ({service, lifecycle}: Construct) => {
+    const {project} = service
+    const {boxGraph, editing, rootBox} = project
+    const hiresModel = new DefaultObservableValue(true)
+    let ignoreBoxUpdate = false // prevents reloading the script into the editor
+    return (
+        <div className={className}>
+            <Await
+                factory={() => Promise.all([loadMonacoSetup().then(({monaco}) => monaco)])}
+                failure={(props) => EditorLoadFailure(props)}
+                loading={() => ThreeDots()}
+                success={([monaco]) => {
+                    const initialCode = rootBox.shadertoy.targetVertex.mapOr((box) =>
+                        asInstanceOf(box, ShadertoyBox).shaderCode.getValue(), Example)
+                    const {editor, model, container} = MonacoFactory.create({
+                        monaco, lifecycle, language: "glsl",
+                        uri: "file:///shader.glsl", initialCode
+                    })
+                    const canCompile = (code: string): Attempt<void, string> => {
+                        const canvas = document.createElement("canvas")
+                        const gl = canvas.getContext("webgl2")
+                        if (isAbsent(gl)) {
+                            return Attempts.err("Could not create webgl2 context")
+                        }
+                        try {
+                            const testRunner = new ShadertoyRunner(service.optShadertoyState.unwrap("No state"), gl)
+                            testRunner.compile(code)
+                            testRunner.terminate()
+                            return Attempts.Ok
+                        } catch (error) {
+                            const match = /ERROR: \d+:(\d+): (.+)/.exec(String(error))
+                            if (match) {
+                                const lineNumber = parseInt(match[1], 10) - 9
+                                monaco.editor.setModelMarkers(editor.getModel()!, "glsl", [{
+                                    startLineNumber: lineNumber,
+                                    startColumn: 1,
+                                    endLineNumber: lineNumber,
+                                    endColumn: 1000,
+                                    message: match[2],
+                                    severity: monaco.MarkerSeverity.Error
+                                }])
+                            }
+                            return Attempts.err(String(error))
+                        }
+                    }
+                    const saveShadertoyCode = (code: string) => {
+                        ignoreBoxUpdate = true
+                        editing.modify(() => {
+                            if (rootBox.shadertoy.isEmpty()) {
+                                rootBox.shadertoy
+                                    .refer(ShadertoyBox.create(boxGraph, UUID.generate(), box => box.shaderCode.setValue(code)))
+                            } else {
+                                asInstanceOf(rootBox.shadertoy.targetVertex.unwrap("shadertoy.target"), ShadertoyBox).shaderCode.setValue(code)
+                            }
+                        })
+                        ignoreBoxUpdate = false
+                    }
+                    const deleteShadertoyCode = () => {
+                        editing.modify(() => {
+                            if (rootBox.shadertoy.nonEmpty()) {
+                                asInstanceOf(rootBox.shadertoy.targetVertex.unwrap("shadertoy.target"), ShadertoyBox).delete()
+                            }
+                        })
+                    }
+                    const compileAndRun = () => {
+                        const code = editor.getValue()
+                        if (!canCompile(code)) {return}
+                        monaco.editor.setModelMarkers(editor.getModel()!, "glsl", [])
+                        saveShadertoyCode(code)
+                    }
+                    editor.addCommand(monaco.KeyMod.Alt | monaco.KeyCode.Enter, compileAndRun)
+                    const shadertoyLifecycle = lifecycle.own(new Terminator())
+                    lifecycle.ownAll(
+                        rootBox.shadertoy.catchupAndSubscribe(pointer => {
+                            shadertoyLifecycle.terminate()
+                            if (pointer.nonEmpty()) {
+                                const {shaderCode, highres} =
+                                    asInstanceOf(rootBox.shadertoy.targetVertex.unwrap("shadertoy.target"), ShadertoyBox)
+                                shadertoyLifecycle.ownAll(
+                                    shaderCode.catchupAndSubscribe(owner => {
+                                        if (ignoreBoxUpdate) {return}
+                                        const value = owner.getValue()
+                                        if (value === "") {return}
+                                        model.setValue(value)
+                                    }),
+                                    highres.catchupAndSubscribe(owner => hiresModel.setValue(owner.getValue())),
+                                    hiresModel.catchupAndSubscribe(owner => editing.modify(() => highres.setValue(owner.getValue())))
+                                )
+                            } else {
+                                editor.setValue(Example)
+                            }
+                        }),
+                        Events.subscribe(window, "keydown", event => {
+                            if (Keyboard.isControlKey(event) && event.code === "KeyS") {
+                                const code = editor.getValue()
+                                const attempt = canCompile(code)
+                                if (attempt.isFailure()) {
+                                    console.warn(attempt.failureReason())
+                                    RuntimeNotifier.notify({message: "Cannot save.", icon: "Warning"})
+                                } else {
+                                    saveShadertoyCode(code)
+                                    service.projectProfileService.save().then(EmptyProcedure, EmptyProcedure)
+                                }
+                                event.preventDefault()
+                            }/* else if (event.altKey && event.key === "Enter") {
+                                compileAndRun()
+                                event.preventDefault()
+                                event.stopPropagation()
+                            }*/
+                        }, {capture: true}),
+                    )
+                    return (
+                        <div className="content">
+                            <header>
+                                <Button lifecycle={lifecycle}
+                                        onClick={compileAndRun}
+                                        appearance={{tooltip: "Run script"}}>
+                                    <span>Run (alt+enter)</span> <Icon symbol={IconSymbol.Play}/>
+                                </Button>
+                                <Button lifecycle={lifecycle}
+                                        onClick={deleteShadertoyCode}
+                                        appearance={{tooltip: "Delete script"}}>
+                                    <span>Delete</span> <Icon symbol={IconSymbol.Delete}/>
+                                </Button>
+                                <Checkbox lifecycle={lifecycle}
+                                          model={hiresModel}
+                                          appearance={{tooltip: "Disable hd, if available"}}>
+                                    Hires
+                                </Checkbox>
+                            </header>
+                            {container}
+                        </div>
+                    )
+                }}/>
+        </div>
+    )
+}

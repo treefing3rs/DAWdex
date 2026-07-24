@@ -1,0 +1,24 @@
+{
+  "extends": "@opendaw/typescript-config/base.json",
+  "include": [
+    "src"
+  ],
+  "compilerOptions": {
+    "lib": [
+      "ESNext",
+      "DOM",
+      "DOM.Iterable",
+      "DOM.AsyncIterable"
+    ],
+    "jsx": "react",
+    "jsxFactory": "createElement",
+    "jsxFragmentFactory": "Fragment",
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "exclude": [
+    "dist",
+    "node_modules",
+    "**/*.test.ts"
+  ]
+}

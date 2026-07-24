@@ -1,0 +1,18 @@
+{
+  "extends": "@opendaw/typescript-config/vite.json",
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "src/**/*.test.ts"
+  ],
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ]
+    },
+    "allowImportingTsExtensions": true
+  }
+}

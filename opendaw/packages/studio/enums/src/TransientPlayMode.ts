@@ -1,0 +1,1 @@
+export enum TransientPlayMode { Once, Repeat, Pingpong }

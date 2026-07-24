@@ -1,0 +1,30 @@
+@use "@/colors"
+
+component
+  padding: 0.5em 0.5em 0.5em 0
+  display: flex
+  flex-direction: row
+  align-items: center
+  position: relative
+  overflow: hidden
+  min-height: 0
+  @include colors.panel-background
+
+  &::after
+    content: attr(data-status)
+    position: absolute
+    top: 50%
+    left: 1em
+    right: 1em
+    transform: translateY(-50%)
+    font-size: 11px
+    text-align: center
+    overflow: hidden
+    text-overflow: ellipsis
+    white-space: nowrap
+
+  > canvas
+    height: 100%
+    aspect-ratio: 1280 / 720
+    border-radius: 0.5em
+    @include colors.panel-background-dark

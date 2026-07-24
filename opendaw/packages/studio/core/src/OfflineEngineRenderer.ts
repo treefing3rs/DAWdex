@@ -1,0 +1,374 @@
+import {
+    DefaultObservableValue,
+    Errors,
+    int,
+    isDefined,
+    Nullable,
+    Option,
+    panic,
+    SyncStream,
+    Terminable,
+    Terminator,
+    TimeSpan,
+    UUID
+} from "@opendaw/lib-std"
+import {AudioData, ppqn} from "@opendaw/lib-dsp"
+import {ApparatDeviceBox, SpielwerkDeviceBox, WerkstattDeviceBox} from "@opendaw/studio-boxes"
+import {Communicator, Messenger, Promises, Wait} from "@opendaw/lib-runtime"
+import {AnimationFrame} from "@opendaw/lib-dom"
+import {
+    EngineCommands,
+    EngineState,
+    EngineStateSchema,
+    EngineToClient,
+    ExportConfiguration,
+    MonitoringMapEntry,
+    NoteSignal,
+    OfflineEngineInitializeConfig,
+    OfflineEngineProtocol,
+    OfflineEngineRenderConfig
+, ScriptCompiler} from "@opendaw/studio-adapters"
+import {Project} from "./project"
+import {AudioWorklets} from "./AudioWorklets"
+import {MIDIReceiver} from "./midi"
+import type {SoundFont2} from "soundfont2"
+
+// The engine worker every offline render runs in: the wasm engine, installed by `WasmEngine.install`.
+// studio-core cannot import studio-core-wasm (that package depends on THIS one), so the url + artifact
+// attachment are injected here rather than imported.
+let engineWorker: Option<{url: string, attachment: Record<string, unknown>}> = Option.None
+
+export class OfflineEngineRenderer {
+    // `attachment` travels to the worker as `config.variant` (the wasm artifacts base url).
+    static install(url: string, attachment: Record<string, unknown>): void {
+        console.debug(`OfflineEngineWorkerUrl: '${url}'`)
+        engineWorker = Option.wrap({url, attachment})
+    }
+
+    static isInstalled(): boolean {return engineWorker.nonEmpty()}
+
+    static async create(source: Project,
+                        optExportConfiguration: Option<ExportConfiguration>,
+                        sampleRate: int = 48_000,
+                        abortSignal?: AbortSignal
+    ): Promise<OfflineEngineRenderer> {
+        const numStems = ExportConfiguration.countStems(optExportConfiguration)
+        if (numStems === 0) {return panic("Nothing to export")}
+        if (isDefined(abortSignal) && abortSignal.aborted) {return Promise.reject(Errors.AbortError)}
+
+        const numberOfChannels = numStems * 2
+        const engine = engineWorker.unwrap("No engine worker installed (WasmEngine.install must run first)")
+        const worker = new Worker(engine.url, {type: "module"})
+        const messenger = Messenger.for(worker)
+        const protocol = Communicator.sender<OfflineEngineProtocol>(
+            messenger.channel("offline-engine"),
+            dispatcher => new class implements OfflineEngineProtocol {
+                initialize(enginePort: MessagePort, config: OfflineEngineInitializeConfig): Promise<void> {
+                    return dispatcher.dispatchAndReturn(this.initialize, enginePort, config)
+                }
+                addModule(code: string): Promise<void> {
+                    return dispatcher.dispatchAndReturn(this.addModule, code)
+                }
+                render(config: OfflineEngineRenderConfig): Promise<Float32Array[]> {
+                    return dispatcher.dispatchAndReturn(this.render, config)
+                }
+                step(samples: number): Promise<Float32Array[]> {
+                    return dispatcher.dispatchAndReturn(this.step, samples)
+                }
+                stop(): void { dispatcher.dispatchAndForget(this.stop) }
+            }
+        )
+        const channel = new MessageChannel()
+        const engineStateIO = EngineStateSchema()
+        const reader = SyncStream.reader<EngineState>(engineStateIO, () => {})
+        const controlFlagsBuffer = new SharedArrayBuffer(4)
+        const terminator = new Terminator()
+        const engineMessenger = Messenger.for(channel.port2)
+        Communicator.executor<EngineToClient>(engineMessenger.channel("engine-to-client"), {
+            log: (message: string): void => console.log("OFFLINE-ENGINE", message),
+            error: (reason: unknown) => console.error("OFFLINE-ENGINE", reason),
+            ready: (): void => {},
+            fetchAudio: (uuid: UUID.Bytes): Promise<AudioData> => new Promise((resolve, reject) => {
+                const handler = source.sampleManager.getOrCreate(uuid)
+                const subscription = handler.subscribe(state => {
+                    if (state.type === "error") {
+                        reject(new Error(state.reason))
+                        subscription.terminate()
+                    } else if (state.type === "loaded") {
+                        resolve(handler.data.unwrap("handler.data"))
+                        subscription.terminate()
+                    }
+                })
+            }),
+            fetchSoundfont: (uuid: UUID.Bytes): Promise<SoundFont2> => new Promise((resolve, reject) => {
+                const handler = source.soundfontManager.getOrCreate(uuid)
+                const subscription = handler.subscribe(state => {
+                    if (state.type === "error") {
+                        reject(new Error(state.reason))
+                        subscription.terminate()
+                    } else if (state.type === "loaded") {
+                        resolve(handler.soundfont.unwrap("handler.soundfont"))
+                        subscription.terminate()
+                    }
+                })
+            }),
+            fetchNamWasm: async (): Promise<ArrayBuffer> => {
+                const url = new URL("@opendaw/nam-wasm/nam.wasm", import.meta.url)
+                const response = await fetch(url)
+                return response.arrayBuffer()
+            },
+            notifyClipSequenceChanges: (): void => {},
+            switchMarkerState: (): void => {},
+            deviceMessage: (uuid: string, message: string): void => {
+                console.warn(`OFFLINE-ENGINE device(${uuid}): ${message}`)
+            }
+        })
+
+        const engineCommands = Communicator.sender<EngineCommands>(
+            engineMessenger.channel("engine-commands"),
+            dispatcher => new class implements EngineCommands {
+                play(): void { dispatcher.dispatchAndForget(this.play) }
+                stop(reset: boolean): void { dispatcher.dispatchAndForget(this.stop, reset) }
+                setPosition(position: ppqn): void { dispatcher.dispatchAndForget(this.setPosition, position) }
+                prepareRecordingState(countIn: boolean): void { dispatcher.dispatchAndForget(this.prepareRecordingState, countIn) }
+                stopRecording(): void { dispatcher.dispatchAndForget(this.stopRecording) }
+                queryLoadingComplete(): Promise<boolean> { return dispatcher.dispatchAndReturn(this.queryLoadingComplete) }
+                panic(): void { dispatcher.dispatchAndForget(this.panic) }
+                noteSignal(signal: NoteSignal): void { dispatcher.dispatchAndForget(this.noteSignal, signal) }
+                ignoreNoteRegion(uuid: UUID.Bytes): void { dispatcher.dispatchAndForget(this.ignoreNoteRegion, uuid) }
+                scheduleClipPlay(clipIds: ReadonlyArray<UUID.Bytes>): void { dispatcher.dispatchAndForget(this.scheduleClipPlay, clipIds) }
+                scheduleClipStop(trackIds: ReadonlyArray<UUID.Bytes>): void { dispatcher.dispatchAndForget(this.scheduleClipStop, trackIds) }
+                setupMIDI(port: MessagePort, buffer: SharedArrayBuffer): void { dispatcher.dispatchAndForget(this.setupMIDI, port, buffer) }
+                updateMonitoringMap(map: ReadonlyArray<MonitoringMapEntry>): void { dispatcher.dispatchAndForget(this.updateMonitoringMap, map) }
+                loadClickSound(index: 0 | 1, data: AudioData): void { dispatcher.dispatchAndForget(this.loadClickSound, index, data) }
+                setFrozenAudio(uuid: UUID.Bytes, audioData: Nullable<AudioData>): void { dispatcher.dispatchAndForget(this.setFrozenAudio, uuid, audioData) }
+                terminate(): void { dispatcher.dispatchAndForget(this.terminate) }
+            }
+        )
+
+        channel.port2.start()
+
+        terminator.own(source.liveStreamReceiver.connect(engineMessenger.channel("engine-live-data")))
+
+        const {port, sab} = terminator.own(MIDIReceiver.create(() => 0,
+            (deviceId, data, relativeTimeInMs) => source.receivedMIDIFromEngine(deviceId, data, relativeTimeInMs)))
+
+        // The SAME wrapper as the live worklet path (`ScriptCompiler.wrap`): the registry entry must carry
+        // `params`/`samples` too — the WASM script bridge reads them (the TS worker ignores the extras).
+        const loadScriptDevice = async (code: string,
+                                        headerPattern: RegExp,
+                                        headerTag: string,
+                                        registryName: string,
+                                        functionName: string,
+                                        uuid: string): Promise<void> => {
+            const match = code.match(headerPattern)
+            if (match === null) {return}
+            const userCode = code.slice(match[0].length)
+            const update = parseInt(match[3])
+            await protocol.addModule(ScriptCompiler.wrap({headerTag, registryName, functionName}, uuid, update, userCode))
+        }
+        const initialize = async (): Promise<void> => {
+            for (const box of source.boxGraph.boxes()) {
+                if (box instanceof WerkstattDeviceBox) {
+                    await loadScriptDevice(box.code.getValue(),
+                        /^\/\/ @werkstatt (\w+) (\d+) (\d+)\n/,
+                        "werkstatt", "werkstattProcessors", "werkstatt",
+                        UUID.toString(box.address.uuid))
+                } else if (box instanceof SpielwerkDeviceBox) {
+                    await loadScriptDevice(box.code.getValue(),
+                        /^\/\/ @spielwerk (\w+) (\d+) (\d+)\n/,
+                        "spielwerk", "spielwerkProcessors", "spielwerk",
+                        UUID.toString(box.address.uuid))
+                } else if (box instanceof ApparatDeviceBox) {
+                    await loadScriptDevice(box.code.getValue(),
+                        /^\/\/ @apparat (\w+) (\d+) (\d+)\n/,
+                        "apparat", "apparatProcessors", "apparat",
+                        UUID.toString(box.address.uuid))
+                }
+            }
+            await protocol.initialize(channel.port1, {
+                sampleRate,
+                numberOfChannels,
+                syncStreamBuffer: reader.buffer,
+                controlFlagsBuffer,
+                project: source.toArrayBuffer(),
+                exportConfiguration: optExportConfiguration.unwrapOrUndefined(),
+                variant: engine.attachment
+            })
+        }
+        const {promise: abortPromise, reject: rejectOnAbort} = Promise.withResolvers<never>()
+        const onAbort = (): void => rejectOnAbort(Errors.AbortError)
+        if (isDefined(abortSignal)) {abortSignal.addEventListener("abort", onAbort, {once: true})}
+        const result = await Promises.tryCatch(Promise.race([initialize(), abortPromise]))
+        if (isDefined(abortSignal)) {abortSignal.removeEventListener("abort", onAbort)}
+        if (result.status === "rejected") {
+            terminator.terminate()
+            channel.port1.close()
+            channel.port2.close()
+            worker.terminate()
+            return Promise.reject(result.error)
+        }
+        engineCommands.setupMIDI(port, sab)
+        return new OfflineEngineRenderer(
+            worker,
+            protocol,
+            engineCommands,
+            terminator,
+            reader,
+            engineStateIO,
+            sampleRate,
+            numberOfChannels
+        )
+    }
+
+    static async start(source: Project,
+                       optExportConfiguration: Option<ExportConfiguration>,
+                       progress: DefaultObservableValue<number>,
+                       abortSignal?: AbortSignal,
+                       sampleRate: int = 48_000
+    ): Promise<AudioData> {
+        const {timelineBox: {loopArea: {enabled}}, boxGraph} = source
+        const wasEnabled = enabled.getValue()
+        boxGraph.beginTransaction()
+        enabled.setValue(false)
+        boxGraph.endTransaction()
+        const range = optExportConfiguration.flatMap(cfg => Option.wrap(cfg.range))
+        const {startPosition, endPosition} = range.match({
+            none: () => ({startPosition: 0 as ppqn, endPosition: source.lastRegionAction()}),
+            some: r => r === "full"
+                ? {startPosition: 0 as ppqn, endPosition: source.lastRegionAction()}
+                : {startPosition: r.start, endPosition: r.end}
+        })
+        const maxDurationSeconds = source.tempoMap.intervalToSeconds(startPosition, endPosition) + 30
+        const result = await Promises.tryCatch(
+            this.create(source, optExportConfiguration, sampleRate, abortSignal).then(renderer =>
+                renderer.render({maxDurationSeconds}, startPosition, endPosition, progress, abortSignal)))
+        boxGraph.beginTransaction()
+        enabled.setValue(wasEnabled)
+        boxGraph.endTransaction()
+        if (result.status === "rejected") {return Promise.reject(result.error)}
+        return result.value
+    }
+
+    readonly #worker: Worker
+    readonly #protocol: OfflineEngineProtocol
+    readonly #engineCommands: EngineCommands
+    readonly #terminator: Terminator
+    readonly #reader: SyncStream.Reader
+    readonly #engineStateIO: ReturnType<typeof EngineStateSchema>
+    readonly #sampleRate: int
+    readonly #numberOfChannels: int
+
+    #totalFrames: int = 0
+
+    private constructor(
+        worker: Worker,
+        protocol: OfflineEngineProtocol,
+        engineCommands: EngineCommands,
+        terminator: Terminator,
+        reader: SyncStream.Reader,
+        engineStateIO: ReturnType<typeof EngineStateSchema>,
+        sampleRate: int,
+        numberOfChannels: int
+    ) {
+        this.#worker = worker
+        this.#protocol = protocol
+        this.#engineCommands = engineCommands
+        this.#terminator = terminator
+        this.#reader = reader
+        this.#engineStateIO = engineStateIO
+        this.#sampleRate = sampleRate
+        this.#numberOfChannels = numberOfChannels
+    }
+
+    get sampleRate(): int {return this.#sampleRate}
+    get numberOfChannels(): int {return this.#numberOfChannels}
+    get totalFrames(): int {return this.#totalFrames}
+
+    async play(): Promise<void> {
+        this.#engineCommands.play()
+        await this.#engineCommands.queryLoadingComplete()
+    }
+
+    stop(): void {
+        this.#engineCommands.stop(true)
+        this.#protocol.stop()
+    }
+
+    setPosition(position: ppqn): void {
+        this.#engineCommands.setPosition(position)
+    }
+
+    async waitForLoading(): Promise<void> {
+        while (!await this.#engineCommands.queryLoadingComplete()) {
+            await Wait.timeSpan(TimeSpan.millis(100))
+        }
+    }
+
+    terminate(): void {
+        this.#terminator.terminate()
+        this.#worker.terminate()
+    }
+
+    async step(samples: int): Promise<Float32Array[]> {
+        const channels = await this.#protocol.step(samples)
+        this.#totalFrames += samples
+        return channels
+    }
+
+    async render(config: OfflineEngineRenderConfig,
+                 startPosition: ppqn,
+                 endPosition: ppqn,
+                 progress: DefaultObservableValue<number>,
+                 abortSignal?: AbortSignal
+    ): Promise<AudioData> {
+        if (isDefined(abortSignal) && abortSignal.aborted) {
+            this.terminate()
+            return Promise.reject(Errors.AbortError)
+        }
+        const {promise, reject, resolve} = Promise.withResolvers<AudioData>()
+        let cancelled = false
+        const span = endPosition - startPosition
+        const polling = span > 0
+            ? AnimationFrame.add(() => {
+                this.#reader.tryRead()
+                progress.setValue(Math.min(1.0,
+                    Math.max(0, this.#engineStateIO.object.position - startPosition) / span))
+            })
+            : Terminable.Empty
+        const onAbort = (): void => {
+            polling.terminate()
+            this.stop()
+            this.terminate()
+            cancelled = true
+            reject(Errors.AbortError)
+        }
+        if (isDefined(abortSignal)) {abortSignal.addEventListener("abort", onAbort, {once: true})}
+        while (!await this.#engineCommands.queryLoadingComplete()) {
+            await Wait.timeSpan(TimeSpan.millis(100))
+        }
+        if (startPosition !== 0) {this.setPosition(startPosition)}
+        await this.play()
+        this.#protocol.render(config).then(channels => {
+            polling.terminate()
+            if (isDefined(abortSignal)) {abortSignal.removeEventListener("abort", onAbort)}
+            if (cancelled) {return}
+            progress.setValue(1.0)
+            this.terminate()
+            const numberOfFrames = channels[0].length
+            const audioData = AudioData.create(this.#sampleRate, numberOfFrames, this.#numberOfChannels)
+            for (let channelIndex = 0; channelIndex < this.#numberOfChannels; channelIndex++) {
+                audioData.frames[channelIndex].set(channels[channelIndex])
+            }
+            resolve(audioData)
+        }).catch(reason => {
+            polling.terminate()
+            if (isDefined(abortSignal)) {abortSignal.removeEventListener("abort", onAbort)}
+            if (!cancelled) {
+                this.terminate()
+                reject(reason)
+            }
+        })
+        return promise
+    }
+}

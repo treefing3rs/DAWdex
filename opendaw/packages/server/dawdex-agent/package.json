@@ -1,0 +1,20 @@
+{
+  "name": "@dawdex/agent-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-or-later",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "dev": "node --experimental-strip-types src/server.ts",
+    "start": "node --experimental-strip-types src/server.ts"
+  },
+  "dependencies": {
+    "@openai/agents": "^0.13.5",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.18",
+    "typescript": "^5.9.2"
+  }
+}

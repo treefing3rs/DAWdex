@@ -1,0 +1,32 @@
+@use "@/mixins"
+
+component
+  display: grid
+  grid-template-columns: 18px auto 1rem 18px auto
+  align-items: center
+  row-gap: 0.125em
+
+  > svg
+    font-size: 13px
+    white-space: nowrap
+
+  > div.group
+    display: flex
+    align-items: center
+    column-gap: 0.5em
+
+    > div.unit
+      color: var(--color-shadow)
+      font-size: 0.75em
+      white-space: nowrap
+
+    &.connect
+      grid-column: span 2
+
+      > hr
+        margin: 0 0.5em 0 0
+        padding: 0
+        border: none
+        height: 1px
+        background-color: rgba(white, 0.06)
+        @include mixins.width-available

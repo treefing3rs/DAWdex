@@ -1,0 +1,215 @@
+import {
+    asInstanceOf,
+    DefaultObservableValue,
+    isDefined,
+    Option,
+    panic,
+    RuntimeNotifier,
+    TimeSpan
+} from "@opendaw/lib-std"
+import {dbToGain, ppqn, RenderQuantum} from "@opendaw/lib-dsp"
+import {OfflineEngineRenderer, Project} from "@opendaw/studio-core"
+import {ShadertoyState} from "@/ui/shadertoy/ShadertoyState"
+import {ShadertoyRunner} from "@/ui/shadertoy/ShadertoyRunner"
+import {ShadertoyBox} from "@opendaw/studio-boxes"
+import type {VideoExporter} from "@/video"
+import {
+    BufferVideoExporter,
+    showVideoExportDialog,
+    StreamVideoExporter,
+    VideoOverlay,
+    WebCodecsVideoExporter
+} from "@/video"
+import {Promises} from "@opendaw/lib-runtime"
+
+const MAX_DURATION_SECONDS = TimeSpan.hours(1).absSeconds()
+// A project whose audio never decays (e.g. a generative Spielwerk emitting notes forever) would otherwise
+// render toward MAX_DURATION_SECONDS waiting for a silence that never comes. Bound the tail past the last
+// region instead, and fade the audio out over the final stretch so the forced stop is not an abrupt cut.
+const RENDER_TAIL_SECONDS = 12   // max audio rendered past the last region when no explicit duration is set
+const FADE_OUT_SECONDS = 4       // fade the audio to zero over the final stretch approaching the tail cap
+const SILENCE_THRESHOLD_DB = -72.0
+const SILENCE_DURATION_SECONDS = 10
+
+const isAllocationError = (error: unknown): boolean =>
+    error instanceof RangeError && /alloc|array|memory/i.test(error.message)
+
+export namespace VideoRenderer {
+    export const render = async (source: Project, projectName: string, sampleRate: number): Promise<void> => {
+        if (!WebCodecsVideoExporter.isSupported()) {
+            return panic("WebCodecs is not supported in this browser")
+        }
+        const config = await showVideoExportDialog(sampleRate)
+        const {width, height, frameRate, duration, overlay: overlayEnabled, videoBitrate} = config
+        const exportConfig = {width, height, frameRate, sampleRate, numberOfChannels: 2, videoBitrate}
+        let exporter: VideoExporter
+        if (isDefined(window.showSaveFilePicker)) {
+            const result = await Promises.tryCatch(
+                window.showSaveFilePicker({suggestedName: "opendaw-video.mp4"})
+            )
+            if (result.status === "rejected") {return}
+            const writable = await result.value.createWritable()
+            exporter = await Promises.timeout(
+                StreamVideoExporter.create(exportConfig, writable), TimeSpan.seconds(10))
+        } else {
+            exporter = await Promises.timeout(
+                BufferVideoExporter.create(exportConfig), TimeSpan.seconds(10))
+        }
+        console.time("Render Video")
+        const project = source.copy()
+        const {boxGraph, timelineBox: {loopArea: {enabled}}} = project
+        boxGraph.beginTransaction()
+        enabled.setValue(false)
+        boxGraph.endTransaction()
+        let active = true
+        const progressValue = new DefaultObservableValue(0.0)
+        const dialog = RuntimeNotifier.progress({
+            headline: "Rendering video...",
+            progress: progressValue,
+            cancel: () => active = false
+        })
+
+        try {
+            dialog.message = "Initializing..."
+            const estimator = TimeSpan.createEstimator()
+            const shadertoyCanvas = new OffscreenCanvas(width, height)
+            const shadertoyContext = shadertoyCanvas.getContext("webgl2")!
+            const shadertoyState = new ShadertoyState(project)
+            const shadertoyRunner = new ShadertoyRunner(shadertoyState, shadertoyContext)
+            const shadertoy = project.rootBoxAdapter.box.shadertoy
+            if (shadertoy.nonEmpty()) {
+                const code = asInstanceOf(shadertoy.targetVertex.unwrap("shadertoy.target").box, ShadertoyBox).shaderCode.getValue()
+                shadertoyRunner.compile(code)
+            } else {
+                shadertoyRunner.compile(
+                    `void mainImage(out vec4 fragColor, in vec2 fragCoord){vec2 uv = fragCoord/iResolution.xy;vec3 col = 0.5 + 0.5*cos(iTime+uv.xyx+vec3(0,1,2));fragColor = vec4(col,1.0);}`)
+            }
+            const compositionCanvas = new OffscreenCanvas(width, height)
+            const compositionCtx = compositionCanvas.getContext("2d")!
+            const overlay = await VideoOverlay.create({
+                width, height, projectName,
+                toParts: (position: ppqn) => project.timelineBoxAdapter.signatureTrack.toParts(position)
+            })
+
+            const renderer = await OfflineEngineRenderer.create(project, Option.None, sampleRate)
+            renderer.play()
+
+            const tempoMap = project.tempoMap
+            const estimatedDurationInSeconds = duration > 0
+                ? duration
+                : tempoMap.ppqnToSeconds(project.lastRegionAction())
+            const maxDuration = duration > 0
+                ? duration
+                : Math.min(estimatedDurationInSeconds + RENDER_TAIL_SECONDS, MAX_DURATION_SECONDS)
+            const fadeStartSeconds = maxDuration - FADE_OUT_SECONDS
+            const maxFrames = Math.ceil(maxDuration * frameRate)
+            const estimatedNumberOfFrames = Math.ceil(estimatedDurationInSeconds * frameRate)
+
+            const silenceThreshold = dbToGain(SILENCE_THRESHOLD_DB)
+            const silenceSamplesNeeded = Math.ceil(SILENCE_DURATION_SECONDS * sampleRate)
+            let consecutiveSilentSamples = 0
+            let hasHadAudio = false
+
+            const idealSamplesPerFrame = sampleRate / frameRate
+            let samplesRendered = 0
+            let frameIndex = 0
+
+            while (frameIndex < maxFrames && active) {
+                if (frameIndex >= estimatedNumberOfFrames) {
+                    dialog.message = `Rendering tail...`
+                    progressValue.setValue(maxFrames > estimatedNumberOfFrames
+                        ? (frameIndex - estimatedNumberOfFrames) / (maxFrames - estimatedNumberOfFrames)
+                        : 1)
+                } else {
+                    const progress = frameIndex / estimatedNumberOfFrames
+                    dialog.message = `Frame ${frameIndex + 1} / ${estimatedNumberOfFrames} (${estimator(progress)})`
+                    progressValue.setValue(progress)
+                }
+
+                const targetSamples = Math.round((frameIndex + 1) * idealSamplesPerFrame)
+                const samplesToRender = targetSamples - samplesRendered
+                const quantumsNeeded = Math.ceil(samplesToRender / RenderQuantum)
+                const actualSamplesToRender = quantumsNeeded * RenderQuantum
+                const channels = await renderer.step(actualSamplesToRender)
+                const chunkStartSample = samplesRendered
+                samplesRendered += actualSamplesToRender
+                project.liveStreamReceiver.dispatch()
+                if (duration === 0) {
+                    let maxSample = 0
+                    for (const channel of channels) {
+                        for (const sample of channel) {
+                            const absoluteValue = Math.abs(sample)
+                            if (absoluteValue > maxSample) {maxSample = absoluteValue}
+                        }
+                    }
+                    if (maxSample > silenceThreshold) {
+                        hasHadAudio = true
+                        consecutiveSilentSamples = 0
+                    } else if (hasHadAudio) {
+                        consecutiveSilentSamples += actualSamplesToRender
+                        if (consecutiveSilentSamples >= silenceSamplesNeeded) {
+                            break
+                        }
+                    }
+                }
+
+                const seconds = renderer.totalFrames / sampleRate
+                const ppqn = tempoMap.secondsToPPQN(seconds)
+                shadertoyState.setPPQN(ppqn)
+                shadertoyRunner.render(seconds)
+
+                compositionCtx.drawImage(shadertoyCanvas, 0, 0)
+
+                if (overlayEnabled) {
+                    overlay.render(ppqn)
+                    compositionCtx.globalCompositeOperation = "screen"
+                    compositionCtx.drawImage(overlay.canvas, 0, 0)
+                    compositionCtx.globalCompositeOperation = "source-over"
+                }
+
+                if (duration === 0) {
+                    // Fade the audio out over the final FADE_OUT_SECONDS approaching the tail cap (applied
+                    // AFTER the silence check above, which must read the raw signal). A project that never
+                    // goes silent then ends on a smooth fade instead of a hard cut at the cap.
+                    const chunkSamples = channels[0]?.length ?? 0
+                    for (let index = 0; index < chunkSamples; index++) {
+                        const timeSeconds = (chunkStartSample + index) / sampleRate
+                        if (timeSeconds <= fadeStartSeconds) {continue}
+                        const gain = Math.max(0, (maxDuration - timeSeconds) / FADE_OUT_SECONDS)
+                        for (const channel of channels) {channel[index] *= gain}
+                    }
+                }
+                const timestampSeconds = frameIndex / frameRate
+                await exporter.addFrame(compositionCanvas, channels, timestampSeconds)
+                frameIndex++
+            }
+
+            renderer.stop()
+            renderer.terminate()
+            shadertoyState.terminate()
+            shadertoyRunner.terminate()
+            overlay.terminate()
+
+            if (!active) {
+                dialog.terminate()
+                await exporter.abort()
+                return
+            }
+
+            dialog.message = "Finalizing video..."
+            await exporter.finalize()
+            dialog.terminate()
+        } catch (error) {
+            dialog.terminate()
+            await exporter.abort()
+            const message = isAllocationError(error)
+                ? "Video is too large for this browser. Please use Chrome."
+                : String(error)
+            console.warn(message)
+            RuntimeNotifier.notify({message: "Video export failed.", icon: "Warning"})
+            throw error
+        }
+
+        console.timeEnd("Render Video")
+    }
+}

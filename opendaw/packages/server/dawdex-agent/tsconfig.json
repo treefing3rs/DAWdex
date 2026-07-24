@@ -1,0 +1,12 @@
+{
+  "extends": "@opendaw/typescript-config/base.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node"],
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false
+  },
+  "include": ["src"]
+}

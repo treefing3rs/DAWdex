@@ -1,55 +1,46 @@
-﻿# Contributing to DAWdex
+# Contributing to DAWdex
 
-DAWdex uses a lightweight GitHub Flow designed for a three-person team.
+DAWdex 使用适合三人黑客松团队的轻量 GitHub Flow。
 
-## Team lanes
+## 团队分区
 
-Each person has a primary lane, but pull requests should remain reviewable by everyone.
-
-| Lane | Primary responsibility | Typical paths |
+| Lane | 主要职责 | 典型路径 |
 |---|---|---|
-| Experience & Story | Renderer, UI/UX, visual system, pitch and user testing | `apps/desktop/src/renderer/`, `packages/ui/`, `design/` |
-| Agent & DAW | Runtime adapter, Music Director, MCP client, Ableton adapter and music acceptance | `packages/agent-runtime/`, `packages/mcp-client/`, `packages/ableton-adapter/`, `skills/` |
-| Integration & Reliability | Electron Main/Preload, IPC, events, tests, packaging and demo recovery | `apps/desktop/src/main/`, `apps/desktop/src/preload/`, `packages/shared-contracts/`, `scripts/`, `.github/` |
+| Experience & Story | 弹幕、角色 UI、动画、UX、路演 | `opendaw/packages/app/studio/src/agent/`、设计资产 |
+| Agent & Intent | Agent Server、Schema、角色编排、openDAW Adapter | `opendaw/packages/server/dawdex-agent/`、Agent Protocol |
+| Music & Reliability | MIDI 素材、检索变体、循环、质量、构建测试 | MIDI 模块、播放调度、脚本和测试 |
 
-Shared contracts require extra care:
+共享文件：
 
 ```text
-packages/shared-contracts/
-packages/music-domain/
-package.json
+opendaw/package.json
+opendaw/package-lock.json
+opendaw/packages/app/studio/src/agent/AgentProtocol.ts
+opendaw/packages/app/studio/src/ui/App.tsx
 docs/architecture.md
 docs/PRD_DAWdex.md
-docs/track-strategy.md
 ```
 
-Announce shared-contract changes before implementing them.
+修改共享文件前在团队群里说明。
 
-## Branch model
+## 分支
 
-`main` must always be demoable.
-
-Create one short-lived branch per issue:
+`main` 必须始终可演示。每个任务使用短生命周期分支：
 
 ```text
-feat/electron-shell
-feat/runtime-spike
-feat/ableton-diagnostics
-feat/music-director-plan
-fix/mcp-timeout-reconciliation
-docs/update-demo-flow
-chore/configure-ci
+feat/role-task-schema
+feat/virtual-player-ui
+feat/midi-retrieval
+fix/chinese-encoding
+fix/loop-boundary
+docs/update-pitch
 ```
 
-Do not create permanent personal branches such as `alice`, `bob-dev`, or `my-work`.
+Codex 自动创建的分支使用 `codex/` 前缀。
 
-## Start a task
+不要使用长期个人分支，也不要直接把未验证代码推到 `main`。
 
-1. Create or claim a GitHub Issue.
-2. Assign one owner.
-3. Write the acceptance criteria.
-4. Update local `main`.
-5. Create a branch.
+## 开始任务
 
 ```bash
 git switch main
@@ -57,85 +48,66 @@ git pull --ff-only origin main
 git switch -c feat/short-task-name
 ```
 
-## Commit style
+一个任务应有：
 
-Use Conventional Commits:
+- 一名 Owner；
+- 明确验收标准；
+- 影响的共享文件；
+- 预期截图、测试或音乐结果。
+
+## Commit
+
+使用 Conventional Commits：
 
 ```text
-feat(ui): add daw context panel
-feat(agent): add runtime capability contract
-feat(ableton): verify clip creation by reading arrangement
-fix(queue): stop dependent writes after uncertain timeout
-docs(prd): clarify danmaku as a demo skill
-chore(ci): add pull request checks
+feat(agent): compile audience intent into role tasks
+feat(ui): add virtual bassist state
+feat(midi): transpose retrieved clips to project key
+fix(playback): align new track to loop boundary
+fix(text): restore chinese agent labels
+docs(prd): update virtual band direction
 ```
 
-Keep commits small and do not mix formatting, refactoring, and feature behavior unless necessary.
+不要在一个 Commit 混入无关格式化和大范围重构。
 
-## Before pushing
-
-Run:
+## 提交前
 
 ```bash
 git status
 git diff --check
-git diff --staged
+git diff
 ```
 
-When application code exists, also run:
+在 `opendaw/` 中执行与改动相关的检查：
 
 ```bash
-npm run typecheck
-npm run lint
-npm test
-npm run build
+npm run build -w @dawdex/agent-server
+npm test -- --run
 ```
 
-Never commit:
+影响 Studio 时至少执行对应构建或固定 Smoke Flow。由于上游 Monorepo 较大，PR 中写明实际运行了哪些命令，不要假装运行了全部检查。
 
-- `.env` or API keys;
-- local `.codex/` or `.agents/` state;
-- `node_modules/`, build output, or logs;
-- the local `third_party/ableton-mcp-upstream` checkout;
-- Ableton `.als` projects or rendered audio without an explicit Git LFS decision.
-
-## Push and open a pull request
+## Pull Request
 
 ```bash
 git push -u origin feat/short-task-name
 ```
 
-Open a PR into `main`. The PR must include:
+PR 必须说明：
 
-- what changed;
-- why it changed;
-- how it was tested;
-- screenshots or video for UI work;
-- Ableton verification evidence for DAW writes;
-- known limitations;
-- linked issue.
+- 修改了什么；
+- 为什么修改；
+- 如何验证；
+- UI 截图或视频；
+- 音乐前后结果；
+- 已知限制；
+- 回退方式。
 
-## Review rules
+至少一名队友 Review 后再合并。影响 Agent Schema、音乐硬规则、密钥、安全或素材许可证的 PR 建议两名队友都看。
 
-- Every PR needs at least one approval from another teammate.
-- The author must not merge their own unreviewed PR.
-- Changes to shared contracts, Agent permissions, Electron security, or destructive DAW tools should be reviewed by both other teammates.
-- Review the behavior and failure path, not only code style.
-- Resolve all blocking comments before merge.
+## 合并
 
-## Merge rules
-
-Use **Squash and merge** for normal feature branches.
-
-The squash commit should follow Conventional Commits:
-
-```text
-feat(ui): add plan approval workflow
-```
-
-Delete the remote branch after merging.
-
-After merge:
+普通功能使用 Squash and merge。合并后：
 
 ```bash
 git switch main
@@ -143,59 +115,80 @@ git pull --ff-only origin main
 git branch -d feat/short-task-name
 ```
 
-## Avoiding conflicts
+不要 Force Push `main`。个人分支确有必要时使用 `--force-with-lease`。
 
-- Keep PRs small and merge daily.
-- One owner edits a shared contract at a time.
-- Rebase or merge the latest `main` before requesting final review.
-- Do not reformat unrelated files.
-- Coordinate before changing `package.json`, schemas, IPC contracts, or Agent event types.
-- Never use `git push --force` on `main`.
-- If force-updating your own branch is unavoidable, use `--force-with-lease`.
+## 冲突处理
 
-## Ableton-specific review
+- 小 PR，每天合并；
+- 一个共享协议同时只由一人修改；
+- 不格式化无关上游 openDAW 文件；
+- `package-lock.json` 冲突由实际安装依赖的人解决；
+- 先更新协议，再让 UI 和音乐管线分别实现；
+- 发现上游文件被误改时先沟通，不使用破坏性的 reset。
 
-Every new write action must document:
+## 绝不提交
 
-1. risk level;
-2. approval policy;
-3. serialized execution behavior;
-4. read-back verification;
-5. timeout behavior;
-6. rollback or recovery limitations.
+- `.env` 和 API Key；
+- GitHub/Codex Token；
+- `.codex/`、`.agents/`；
+- `node_modules/`；
+- `dist/`、`target/`、缓存和日志；
+- 未确认许可证的 MIDI 或音频；
+- 本地绝对路径和私人配置；
+- 仅用于临时实验的大型文件。
 
-Multiple Agents may analyze in parallel, but DAW writes must remain serialized.
+## 音乐改动 Review
 
-## Daily team rhythm
+每个新音乐动作必须说明：
 
-### Start of day — 10 minutes
+1. 输入 Schema；
+2. 允许的参数范围；
+3. BPM、调性、小节和音域约束；
+4. 如何进入循环；
+5. 失败回退；
+6. Undo；
+7. 角色工作回执如何与动作保持一致。
 
-- What did I finish?
-- What will I own today?
-- Which shared files will I touch?
-- What is blocked?
+## 每日节奏
 
-### Midday integration
+早上：
 
-- Merge small prerequisite PRs.
-- Refresh all branches from `main`.
-- Run the fixed Ableton smoke flow if MCP code changed.
+- 昨天完成什么；
+- 今天只交付什么；
+- 会改哪些共享文件；
+- 当前阻塞。
 
-### End of day
+中午：
 
-- No unpushed critical work.
-- Open draft PRs for unfinished branches.
-- Update issue status and blockers.
-- Confirm `main` is demoable.
+- 合并最短链路；
+- 刷新所有分支；
+- 跑固定 Prompt Smoke Test。
 
-## Releases
+晚上：
 
-Use SemVer tags:
+- 关键工作不得只留在本地；
+- 未完成任务开 Draft PR；
+- `main` 必须能够启动；
+- 录制一次成功 Demo。
 
-```text
-v0.1.0  First hackathon MVP
-v0.2.0  New backward-compatible product capability
-v0.2.1  Bug fix
+## GitHub 身份验证
+
+每名成员在自己的电脑执行：
+
+```bash
+gh auth login --hostname github.com --git-protocol https --web
+gh auth status
+gh auth setup-git
 ```
 
-Create tags only from a reviewed commit on `main`.
+详细排障见 [prd生成/GIT_GUIDE.md](prd生成/GIT_GUIDE.md)。不要在群聊、Issue、Commit 或 Prompt 中发送 Token。
+
+## 发布
+
+首个黑客松版本：
+
+```text
+v0.1.0
+```
+
+Tag 只从经过验证的 `main` 创建。

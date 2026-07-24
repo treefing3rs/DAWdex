@@ -1,0 +1,43 @@
+@use "@/colors"
+
+component
+  font-size: 1rem
+  position: relative
+  display: flex
+  align-items: center
+  justify-content: space-between
+  padding: 0.5em 1em
+  min-width: 0
+  overflow: hidden
+
+  &::before
+    @include colors.diagonal-stripes
+
+  .tile-frame
+    @include colors.hud-frame
+
+  .tile-text
+    position: relative
+    display: flex
+    flex-direction: column
+    gap: 0.5em
+    min-width: 0
+
+    .tile-label
+      color: var(--color-shadow)
+      font-size: 0.625em
+      text-transform: uppercase
+      letter-spacing: 0.05em
+      white-space: nowrap
+      overflow: hidden
+      text-overflow: ellipsis
+
+    .tile-value
+      color: var(--color-cream)
+      font-size: 1.125em
+      font-weight: 700
+      font-variant-numeric: tabular-nums
+      white-space: nowrap
+      overflow: hidden
+      text-overflow: ellipsis
+      line-height: 1.1

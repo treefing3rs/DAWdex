@@ -1,0 +1,313 @@
+@use "@/colors"
+
+component
+  position: fixed
+  inset: 0
+  z-index: 10000
+  pointer-events: none
+  font-family: Inter, system-ui, sans-serif
+
+  > .danmaku-layer
+    position: fixed
+    inset: 0
+    z-index: 3
+    overflow: hidden
+    pointer-events: none
+    mask-image: linear-gradient(to right, transparent 0, black 3%, black 97%, transparent 100%)
+
+    > .danmaku
+      position: absolute
+      left: 100%
+      max-width: 46vw
+      padding: 0.48em 0.85em
+      border: 1px solid rgba(167, 139, 250, 0.5)
+      border-radius: 999px
+      color: #f8f7ff
+      background: rgba(20, 16, 32, 0.78)
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.32)
+      backdrop-filter: blur(12px)
+      white-space: nowrap
+      overflow: hidden
+      text-overflow: ellipsis
+      animation: dawdex-danmaku 9s linear forwards
+
+  > .agent-shell
+    pointer-events: auto
+    position: absolute
+    z-index: 2
+    top: 52px
+    right: 12px
+    bottom: 38px
+    width: 354px
+    display: flex
+    flex-direction: column
+    color: #e9e7ef
+    background: linear-gradient(155deg, rgba(29, 25, 38, 0.98), rgba(14, 13, 19, 0.98))
+    border: 1px solid rgba(255, 255, 255, 0.1)
+    border-radius: 14px
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45)
+    overflow: hidden
+
+    > .agent-header
+      display: flex
+      align-items: center
+      gap: 0.75em
+      padding: 13px 14px
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08)
+
+      > .mark
+        display: grid
+        place-items: center
+        width: 31px
+        height: 31px
+        border-radius: 9px
+        color: #17121f
+        font-weight: 800
+        background: linear-gradient(135deg, #c4b5fd, #67e8f9)
+
+      > .identity
+        flex: 1
+
+        > strong
+          display: block
+          color: white
+          font-size: 0.78rem
+
+        > span
+          display: block
+          margin-top: 2px
+          color: #8f899c
+          font-size: 0.61rem
+
+      > .status-dot
+        width: 7px
+        height: 7px
+        border-radius: 50%
+        background: #4ade80
+        box-shadow: 0 0 10px rgba(74, 222, 128, 0.8)
+
+    > .agent-content
+      flex: 1
+      min-height: 0
+      display: flex
+      flex-direction: column
+      gap: 10px
+      padding: 12px
+      overflow-y: auto
+
+      > .context-card, > .plan-card, > .empty-state
+        border: 1px solid rgba(255, 255, 255, 0.08)
+        border-radius: 10px
+        background: rgba(255, 255, 255, 0.035)
+
+      > .context-card
+        display: grid
+        grid-template-columns: 1fr 1fr
+        gap: 8px
+        padding: 10px
+
+        > div
+          color: #86808f
+          font-size: 0.58rem
+          text-transform: uppercase
+          letter-spacing: 0.08em
+
+          > strong
+            display: block
+            margin-top: 4px
+            color: #f4f2f8
+            font-size: 0.76rem
+            text-transform: none
+            letter-spacing: 0
+
+      > .empty-state
+        display: flex
+        flex-direction: column
+        align-items: flex-start
+        gap: 7px
+        padding: 14px
+        color: #8f899c
+        font-size: 0.67rem
+        line-height: 1.45
+
+        > strong
+          color: #f4f2f8
+          font-size: 0.76rem
+
+      > .plan-card
+        padding: 13px
+
+        > .plan-kicker
+          display: flex
+          align-items: center
+          justify-content: space-between
+          color: #a78bfa
+          font-size: 0.58rem
+          letter-spacing: 0.08em
+          text-transform: uppercase
+
+          > .source
+            color: #777080
+
+        > h3
+          margin: 9px 0 5px
+          color: white
+          font-size: 0.84rem
+
+        > p
+          margin: 0
+          color: #aaa4b3
+          font-size: 0.66rem
+          line-height: 1.5
+
+        > .actions
+          display: flex
+          flex-direction: column
+          gap: 6px
+          margin-top: 11px
+
+          > .action
+            display: grid
+            grid-template-columns: 22px 1fr
+            align-items: center
+            gap: 7px
+            padding: 7px
+            border-radius: 7px
+            color: #d6d1dd
+            background: rgba(255, 255, 255, 0.045)
+            font-size: 0.62rem
+
+            > .index
+              display: grid
+              place-items: center
+              width: 20px
+              height: 20px
+              border-radius: 5px
+              color: #c4b5fd
+              background: rgba(167, 139, 250, 0.14)
+
+        > .plan-buttons
+          display: grid
+          grid-template-columns: 1fr 1fr
+          gap: 7px
+          margin-top: 12px
+
+          > button
+            min-height: 31px
+            border: 1px solid rgba(255, 255, 255, 0.1)
+            border-radius: 7px
+            color: #c8c3ce
+            background: rgba(255, 255, 255, 0.04)
+            font: inherit
+            font-size: 0.63rem
+            cursor: pointer
+
+            &.apply
+              border-color: transparent
+              color: #17121f
+              font-weight: 700
+              background: linear-gradient(135deg, #c4b5fd, #67e8f9)
+
+            &:disabled
+              opacity: 0.45
+              cursor: default
+
+      > .activity
+        display: flex
+        flex-direction: column
+        gap: 5px
+
+        > .event
+          display: grid
+          grid-template-columns: 7px 1fr
+          gap: 8px
+          align-items: start
+          color: #827c89
+          font-size: 0.59rem
+          line-height: 1.35
+
+          > .event-dot
+            width: 6px
+            height: 6px
+            margin-top: 3px
+            border-radius: 50%
+            background: #64748b
+
+          &.success > .event-dot
+            background: #4ade80
+
+          &.working > .event-dot
+            background: #67e8f9
+            box-shadow: 0 0 7px rgba(103, 232, 249, 0.7)
+
+    > .composer
+      display: flex
+      flex-direction: column
+      gap: 8px
+      padding: 11px
+      border-top: 1px solid rgba(255, 255, 255, 0.08)
+      background: rgba(7, 7, 10, 0.52)
+
+      > textarea
+        width: 100%
+        min-height: 65px
+        box-sizing: border-box
+        resize: none
+        outline: none
+        border: 1px solid rgba(255, 255, 255, 0.09)
+        border-radius: 9px
+        padding: 9px 10px
+        color: #f5f3f7
+        background: rgba(255, 255, 255, 0.035)
+        font: inherit
+        font-size: 0.68rem
+        line-height: 1.45
+
+        &:focus
+          border-color: rgba(167, 139, 250, 0.65)
+
+        &::placeholder
+          color: #686270
+
+      > .composer-row
+        display: flex
+        align-items: center
+        justify-content: space-between
+
+        > span
+          color: #706a78
+          font-size: 0.56rem
+
+        > .composer-actions
+          display: flex
+          gap: 6px
+
+          > button
+            height: 29px
+            padding: 0 10px
+            border: 1px solid rgba(255, 255, 255, 0.1)
+            border-radius: 7px
+            color: #b9b3c1
+            background: rgba(255, 255, 255, 0.04)
+            font: inherit
+            font-size: 0.61rem
+            cursor: pointer
+
+            &.send
+              border-color: rgba(167, 139, 250, 0.5)
+              color: #f4f0ff
+              background: rgba(139, 92, 246, 0.2)
+
+            &:disabled
+              opacity: 0.45
+              cursor: default
+
+@keyframes dawdex-danmaku
+  from
+    transform: translateX(0)
+  to
+    transform: translateX(calc(-100vw - 100%))
+
+@media (prefers-reduced-motion: reduce)
+  component > .danmaku-layer > .danmaku
+    animation-duration: 0.01ms

@@ -1,0 +1,169 @@
+import {Dialog} from "@/ui/components/Dialog"
+import {Surface} from "@/ui/surface/Surface"
+import {Colors, IconSymbol} from "@opendaw/studio-enums"
+import {createElement} from "@opendaw/lib-jsx"
+import {DefaultObservableValue, Errors, isDefined, isInstanceOf, Terminator} from "@opendaw/lib-std"
+import {Button} from "@/ui/components/Button"
+import {RadioGroup} from "@/ui/components/RadioGroup"
+import {NumberInput} from "@/ui/components/NumberInput"
+import {Checkbox} from "@/ui/components/Checkbox"
+import {Icon} from "@/ui/components/Icon"
+
+export interface VideoExportConfig {
+    readonly width: number
+    readonly height: number
+    readonly frameRate: number
+    readonly sampleRate: number
+    readonly duration: number
+    readonly overlay: boolean
+    readonly videoBitrate: number
+}
+
+type QualityPreset = {
+    readonly label: string
+    readonly bitrate: number
+}
+
+const QUALITY_PRESETS: ReadonlyArray<QualityPreset> = [
+    {label: "Medium", bitrate: 8_000_000},
+    {label: "High", bitrate: 16_000_000},
+    {label: "Very High", bitrate: 32_000_000}
+]
+
+type DimensionPreset = {
+    readonly label: string
+    readonly width: number
+    readonly height: number
+}
+
+const PRESETS: ReadonlyArray<DimensionPreset> = [
+    {label: "HD", width: 1280, height: 720},
+    {label: "Full HD", width: 1920, height: 1080},
+    {label: "4K", width: 3840, height: 2160},
+    {label: "Vertical", width: 1080, height: 1920}
+]
+
+const FPS_OPTIONS: ReadonlyArray<number> = [30, 60, 120]
+
+const widthModel = new DefaultObservableValue(1280)
+const heightModel = new DefaultObservableValue(720)
+const fpsModel = new DefaultObservableValue(60)
+const durationModel = new DefaultObservableValue(0)
+const overlayModel = new DefaultObservableValue(true)
+const qualityModel = new DefaultObservableValue(QUALITY_PRESETS[1].bitrate)
+
+export const showVideoExportDialog = async (sampleRate: number): Promise<VideoExportConfig> => {
+    const {resolve, reject, promise} = Promise.withResolvers<VideoExportConfig>()
+    const lifecycle = new Terminator()
+
+    const setDimensions = (width: number, height: number): void => {
+        widthModel.setValue(width)
+        heightModel.setValue(height)
+    }
+
+    const dialog: HTMLDialogElement = (
+        <Dialog headline="Export Video"
+                icon={IconSymbol.Film}
+                style={{minWidth: "24em"}}
+                buttons={[
+                    {
+                        text: "Cancel",
+                        onClick: handler => {
+                            handler.close()
+                            reject(Errors.AbortError)
+                        }
+                    },
+                    {
+                        text: "Export",
+                        primary: true,
+                        onClick: handler => {
+                            if (isInstanceOf(document.activeElement, HTMLElement)) {
+                                document.activeElement.blur()
+                            }
+                            handler.close()
+                            resolve({
+                                width: widthModel.getValue(),
+                                height: heightModel.getValue(),
+                                frameRate: fpsModel.getValue(),
+                                sampleRate,
+                                duration: durationModel.getValue(),
+                                overlay: overlayModel.getValue(),
+                                videoBitrate: qualityModel.getValue()
+                            })
+                        }
+                    }
+                ]}
+                cancelable={true}>
+            <div style={{padding: "1em 0", display: "flex", flexDirection: "column", gap: "1em"}}>
+                <div>
+                    <div style={{marginBottom: "0.5em", fontWeight: "bold"}}>Dimensions</div>
+                    <div style={{display: "flex", gap: "0.5em", alignItems: "center"}}>
+                        <NumberInput lifecycle={lifecycle} model={widthModel} maxChars={5}/>
+                        <span>×</span>
+                        <NumberInput lifecycle={lifecycle} model={heightModel} maxChars={5}/>
+                        <span style={{opacity: "0.5"}}>px</span>
+                    </div>
+                    <div style={{
+                        display: "flex",
+                        gap: "0.25em",
+                        flexWrap: "wrap",
+                        marginTop: "0.5em",
+                        fontSize: "0.75em"
+                    }}>
+                        {PRESETS.map(preset => (
+                            <Button lifecycle={lifecycle}
+                                    onClick={() => setDimensions(preset.width, preset.height)}>
+                                <span>{preset.label}</span>
+                            </Button>
+                        ))}
+                    </div>
+                </div>
+                <div>
+                    <div style={{marginBottom: "0.5em", fontWeight: "bold"}}>Frame Rate</div>
+                    <div style={{display: "flex", gap: "0.5em", alignItems: "center", fontSize: "10px"}}>
+                        <RadioGroup lifecycle={lifecycle}
+                                    model={fpsModel}
+                                    elements={FPS_OPTIONS.map(fps => ({value: fps, element: <span>{fps}</span>}))}/>
+                        <span style={{opacity: "0.5"}}>fps</span>
+                    </div>
+                </div>
+                <div>
+                    <div style={{marginBottom: "0.5em", fontWeight: "bold"}}>Quality</div>
+                    <div style={{display: "flex", gap: "0.5em", alignItems: "center", fontSize: "10px"}}>
+                        <RadioGroup lifecycle={lifecycle}
+                                    model={qualityModel}
+                                    elements={QUALITY_PRESETS.map(preset => ({
+                                        value: preset.bitrate,
+                                        element: <span>{preset.label}</span>
+                                    }))}/>
+                    </div>
+                </div>
+                <div>
+                    <div style={{marginBottom: "0.5em", fontWeight: "bold"}}>Duration</div>
+                    <div style={{display: "flex", gap: "0.5em", alignItems: "center"}}>
+                        <NumberInput lifecycle={lifecycle} model={durationModel} maxChars={4}/>
+                        <span style={{fontSize: "0.875em", opacity: "0.5"}}>seconds (0 = full)</span>
+                    </div>
+                </div>
+                <div style={{fontSize: "0.875em", marginTop: "1em"}}>
+                    <Checkbox lifecycle={lifecycle} model={overlayModel}>
+                        <span>Render Overlay</span>
+                        <Icon symbol={IconSymbol.Checkbox}/>
+                    </Checkbox>
+                </div>
+                {!isDefined(window.showSaveFilePicker) && (
+                    <div style={{
+                        fontSize: "0.875em",
+                        opacity: "0.8",
+                        marginTop: "0.5em",
+                        color: Colors.orange.toString()
+                    }}>For larger video files, Chrome is recommended.</div>
+                )}
+            </div>
+        </Dialog>
+    )
+    dialog.oncancel = () => reject(Errors.AbortError)
+    Surface.get().flyout.appendChild(dialog)
+    dialog.showModal()
+    return promise.finally(() => lifecycle.terminate())
+}

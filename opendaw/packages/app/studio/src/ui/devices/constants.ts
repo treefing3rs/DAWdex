@@ -1,0 +1,1 @@
+export const LKR = [0.625, 2, 0.625]

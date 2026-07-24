@@ -1,0 +1,76 @@
+@use "@/mixins"
+
+component
+  display: grid
+  grid-template-columns: 2.75em 1em repeat(5, 3.75em)
+  column-gap: 2px
+  row-gap: 2px
+  align-content: start
+  position: relative
+  @include mixins.Control
+
+  > div.label
+    top: 2px
+    left: 2px
+    width: calc(100% - 4px)
+    height: calc(50% - 4px)
+    position: absolute
+    pointer-events: none
+    border-radius: 2px
+    //outline: 1px color-mix(in srgb, var(--color) 10%, transparent) solid
+    background: color-mix(in srgb, var(--color) 7%, transparent)
+    z-index: 0
+
+    &.unisono-section
+      grid-row: 1 / 1
+      grid-column: 5 / -1
+      --color: var(--color-orange)
+
+    &.oscillator-section
+      grid-row: 2 / 2
+      grid-column: 3 / -2
+      --color: var(--color-blue)
+
+    &.filter-section
+      grid-row: 3 / 3
+      grid-column: 3 / -1
+      --color: var(--color-green)
+
+    &.lfo-section
+      grid-row: 4 / 4
+      grid-column: 3 / -1
+      --color: var(--color-purple)
+
+    &.env-section
+      grid-row: 5 / 5
+      grid-column: 3 / -2
+      --color: var(--color-yellow)
+
+  > div
+    > *:first-child
+      grid-column: 1
+      grid-row: span 1
+      position: relative
+
+    > header
+      padding: 2px
+      border-radius: 6px
+      outline: 0.5px solid hsla(200, 40%, 70%, 0.08)
+      outline-offset: -1px
+      position: relative
+
+    > div
+      padding: 3px 0 0 0
+      display: grid
+      grid-template-rows: auto auto
+      row-gap: 1px
+      white-space: nowrap
+      justify-content: center
+
+      > h3
+        font-size: 9px
+        height: 12px
+        letter-spacing: 0.5px
+        text-align: center
+        color: var(--color-shadow)
+        z-index: 1

@@ -1,0 +1,273 @@
+import {
+    DefaultObservableValue,
+    Errors,
+    MutableObservableOption,
+    Observer,
+    Option,
+    RuntimeNotifier,
+    RuntimeSignal,
+    Terminable,
+    UUID
+} from "@opendaw/lib-std"
+import {ProjectDialogs} from "@/project/ProjectDialogs"
+import {Dialogs} from "@/ui/components/dialogs"
+import {Promises} from "@opendaw/lib-runtime"
+import {Files} from "@opendaw/lib-dom"
+import {
+    FilePickerAcceptTypes,
+    Project,
+    ProjectBundle,
+    ProjectEnv,
+    ProjectMeta,
+    ProjectMigration,
+    ProjectProfile,
+    ProjectSignals,
+    ProjectStorage,
+    SampleService,
+    SoundfontService,
+    TemplateStorage
+} from "@opendaw/studio-core"
+import {ProjectSkeleton, SampleLoaderManager, SoundfontLoaderManager} from "@opendaw/studio-adapters"
+import {BoxGraph} from "@opendaw/lib-box"
+import {BoxIO} from "@opendaw/studio-boxes"
+
+export class ProjectProfileService {
+    readonly #profile: MutableObservableOption<ProjectProfile>
+
+    readonly #env: ProjectEnv
+    readonly #sampleService: SampleService
+    readonly #sampleManager: SampleLoaderManager
+    readonly #soundfontService: SoundfontService
+    readonly #soundfontManager: SoundfontLoaderManager
+
+    constructor({env, sampleService, sampleManager, soundfontService, soundfontManager}: {
+        env: ProjectEnv,
+        sampleService: SampleService,
+        sampleManager: SampleLoaderManager,
+        soundfontService: SoundfontService,
+        soundfontManager: SoundfontLoaderManager
+    }) {
+        this.#env = env
+        this.#sampleService = sampleService
+        this.#sampleManager = sampleManager
+        this.#soundfontService = soundfontService
+        this.#soundfontManager = soundfontManager
+        this.#profile = new MutableObservableOption<ProjectProfile>()
+    }
+
+    getValue(): Option<ProjectProfile> {return this.#profile}
+    setValue(value: Option<ProjectProfile>): void {this.#profile.wrapOption(value)}
+    subscribe(observer: Observer<Option<ProjectProfile>>): Terminable {
+        return this.#profile.subscribe(observer)
+    }
+    catchupAndSubscribe(observer: Observer<Option<ProjectProfile>>): Terminable {
+        observer(this.#profile)
+        return this.#profile.subscribe(observer)
+    }
+
+    async save(): Promise<void> {
+        return this.#profile.ifSome(async profile => {
+            if (!profile.saved()) {return this.saveAs()}
+            // OPFS can go unavailable AFTER a successful boot probe (Safari/Firefox flakiness, storage eviction),
+            // so the write can reject even though startup passed. Fail soft and retryable: the profile and its
+            // unsaved changes stay intact, the user can save again.
+            const {status, error} = await Promises.tryCatch(profile.save())
+            if (status === "rejected") {
+                console.warn(error)
+                RuntimeNotifier.notify({
+                    message: "Could not save project (storage temporarily unavailable). Please try again.",
+                    icon: "Warning"
+                })
+            }
+        })
+    }
+
+    async approveLosingChanges(): Promise<boolean> {
+        const hasChanges = this.#profile.mapOr(profile => profile.hasUnsavedChanges(), false)
+        if (!hasChanges) {return true}
+        return RuntimeNotifier.approve({
+            headline: "Closing Project?",
+            message: "You will lose all progress!"
+        })
+    }
+
+    async saveAs(): Promise<void> {
+        return this.#profile.ifSome(async profile => {
+            const {status, value: meta} = await Promises.tryCatch(ProjectDialogs.showSaveDialog({
+                headline: "Save Project",
+                meta: profile.meta
+            }))
+            if (status === "rejected") {return}
+            const {status: saveStatus, value: optProfile, error} = await Promises.tryCatch(profile.saveAs(meta))
+            if (saveStatus === "rejected") {
+                console.warn(error)
+                RuntimeNotifier.notify({
+                    message: "Could not save project (storage temporarily unavailable). Please try again.",
+                    icon: "Warning"
+                })
+                return
+            }
+            optProfile.ifSome(profile => this.#profile.wrap(profile))
+        })
+    }
+
+    async saveAsTemplate(): Promise<void> {
+        return this.#profile.ifSome(async profile => {
+            const {status, value: name} = await Promises.tryCatch(
+                ProjectDialogs.showTemplateNameDialog(profile.meta.name))
+            if (status === "rejected") {return}
+            const {status: saveStatus, error} = await Promises.tryCatch(TemplateStorage.saveAsTemplate(profile, name))
+            if (saveStatus === "rejected") {
+                console.warn(error)
+                RuntimeNotifier.notify({message: "Could not save template.", icon: "Warning"})
+                return
+            }
+            RuntimeSignal.dispatch(ProjectSignals.StorageUpdated)
+        })
+    }
+
+    async openTemplate(uuid: UUID.Bytes, meta: ProjectMeta) {
+        if (!await this.approveLosingChanges()) {return}
+        const {status, value: project, error} = await Promises.tryCatch(
+            TemplateStorage.loadTemplate(uuid)
+                .then(buffer => Project.loadAnyVersion(this.#env, buffer))
+                .then(template => template.copyWithNewIdentities()))
+        if (status === "rejected") {
+            console.warn(error)
+            RuntimeNotifier.notify({message: "Could not open template.", icon: "Warning"})
+            return
+        }
+        await this.#sampleService.replaceMissingFiles(project.boxGraph, this.#sampleManager)
+        await this.#soundfontService.replaceMissingFiles(project.boxGraph, this.#soundfontManager)
+        const cover = await TemplateStorage.loadCover(uuid)
+        this.#setProfile(UUID.generate(), project, ProjectMeta.copy(meta), cover)
+    }
+
+    async load(uuid: UUID.Bytes, meta: ProjectMeta) {
+        if (!await this.approveLosingChanges()) {return}
+        const {status, value: project, error} = await Promises.tryCatch(
+            ProjectStorage.loadProject(uuid).then(buffer => Project.loadAnyVersion(this.#env, buffer)))
+        if (status === "rejected") {
+            console.warn(error)
+            RuntimeNotifier.notify({message: "Could not load project.", icon: "Warning"})
+            return
+        }
+        await this.#sampleService.replaceMissingFiles(project.boxGraph, this.#sampleManager)
+        await this.#soundfontService.replaceMissingFiles(project.boxGraph, this.#soundfontManager)
+        const cover = await ProjectStorage.loadCover(uuid)
+        this.#setProfile(uuid, project, meta, cover, true)
+    }
+
+    async exportBundle() {
+        return this.#profile.ifSome(async profile => {
+            const progressValue = new DefaultObservableValue(0.0)
+            const processDialog = RuntimeNotifier.progress({headline: "Bundling Project...", progress: progressValue})
+            const {status, value: arrayBuffer, error} = await Promises.tryCatch(
+                ProjectBundle.encode(profile, progress => progressValue.setValue(progress)))
+            processDialog.terminate()
+            if (status === "rejected") {
+                console.warn(error)
+                RuntimeNotifier.notify({message: "Export failed.", icon: "Warning"})
+                return
+            }
+            const {status: approveStatus} = await Promises.tryCatch(Dialogs.approve({
+                headline: "Save Project Bundle",
+                message: "",
+                approveText: "Save"
+            }))
+            if (approveStatus === "rejected") {return}
+            try {
+                await Files.save(arrayBuffer, {
+                    suggestedName: `${profile.meta.name}.odb`,
+                    types: [FilePickerAcceptTypes.ProjectBundleFileType],
+                    startIn: "desktop"
+                })
+            } catch (error) {
+                if (!Errors.isAbort(error)) {
+                    console.warn(error)
+                    RuntimeNotifier.notify({message: "Could not export project.", icon: "Warning"})
+                }
+            }
+        })
+    }
+
+    async importBundle() {
+        if (!await this.approveLosingChanges()) {return}
+        try {
+            const [file] = await Files.open({types: [FilePickerAcceptTypes.ProjectBundleFileType]})
+            const arrayBuffer = await file.arrayBuffer()
+            const exclude = this.#profile.map(({uuid}) => uuid).unwrapOrUndefined()
+            const profile = await ProjectBundle.decode(this.#env, arrayBuffer, exclude)
+            this.#profile.wrap(profile)
+        } catch (error) {
+            if (!Errors.isAbort(error)) {
+                console.warn(error)
+                RuntimeNotifier.notify({message: "Could not load project.", icon: "Warning"})
+            }
+        }
+    }
+
+    async saveFile() {
+        this.#profile.ifSome(async profile => {
+            const arrayBuffer = profile.project.toArrayBuffer() as ArrayBuffer
+            try {
+                const fileName = await Files.save(arrayBuffer, {
+                    suggestedName: "project.od",
+                    types: [FilePickerAcceptTypes.ProjectFileType]
+                })
+                RuntimeNotifier.notify({message: `Project '${fileName}' saved successfully!`, icon: "Checkbox"})
+            } catch (error) {
+                if (!Errors.isAbort(error)) {
+                    console.warn(error)
+                RuntimeNotifier.notify({message: "Could not save project.", icon: "Warning"})
+                }
+            }
+        })
+    }
+
+    async loadFile() {
+        if (!await this.approveLosingChanges()) {return}
+        try {
+            const [file] = await Files.open({
+                types: [
+                    FilePickerAcceptTypes.ProjectFileType, FilePickerAcceptTypes.JsonFileType
+                ]
+            })
+            if (file.name.endsWith(".json")) {
+                console.debug("importing json file")
+                const jsonString = await file.text()
+                const json = JSON.parse(jsonString)
+                console.debug("parsed json", json)
+                const boxGraph = new BoxGraph<BoxIO.TypeMap>(Option.wrap(BoxIO.create))
+                boxGraph.fromJSON(json, false)
+                boxGraph.debugBoxes()
+                const mandatoryBoxes = ProjectSkeleton.findMandatoryBoxes(boxGraph)
+                const skeleton: ProjectSkeleton = {boxGraph, mandatoryBoxes}
+                await ProjectMigration.migrate(this.#env, skeleton)
+                boxGraph.verifyPointers()
+                const project = Project.fromSkeleton(this.#env, skeleton, false)
+                this.setProject(project, file.name)
+            } else {
+                const project = await Project.loadAnyVersion(this.#env, await file.arrayBuffer())
+                this.#setProfile(UUID.generate(), project, ProjectMeta.init(file.name), Option.None)
+            }
+        } catch (error) {
+            if (!Errors.isAbort(error)) {
+                console.warn(error)
+                RuntimeNotifier.notify({message: "Could not load JSON.", icon: "Warning"})
+            }
+        }
+    }
+
+    setProject(project: Project, name: string): void {
+        this.#setProfile(UUID.generate(), project, ProjectMeta.init(name), Option.None)
+    }
+
+    #setProfile(...args: ConstructorParameters<typeof ProjectProfile>): void {
+        this.#profile.wrap(this.#createProfile(...args))
+    }
+
+    #createProfile(...args: ConstructorParameters<typeof ProjectProfile>): ProjectProfile {
+        return new ProjectProfile(...args)
+    }
+}

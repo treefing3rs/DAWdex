@@ -1,0 +1,26 @@
+@use "@/colors"
+
+component
+  display: grid
+  grid-template-columns: auto 1fr
+  row-gap: 1em
+  column-gap: 1em
+  align-items: center
+  align-content: start
+  overflow: auto
+  font-size: 0.625em
+  padding: 1em 0.5em 1em 1em
+  color: var(--color-shadow)
+  @include colors.panel-background
+
+  > span.label
+    text-align: right
+
+  > .waveform-offset
+    display: flex
+    flex-direction: row
+    align-items: center
+    column-gap: 0.25em
+
+    > .input
+      font-size: 1em

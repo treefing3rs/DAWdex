@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": true,
+    "declarationMap": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "inlineSources": false,
+    "isolatedModules": true,
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "noFallthroughCasesInSwitch": true,
+    "lib": [
+      "ESNext"
+    ],
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "allowUnusedLabels": true,
+    "preserveWatchOutput": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "baseUrl": ".",
+    "paths": {
+      "@test-files/*": [
+        "test-files/*"
+      ]
+    }
+  },
+  "exclude": [
+    "node_modules"
+  ]
+}

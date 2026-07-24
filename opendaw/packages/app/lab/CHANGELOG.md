@@ -1,0 +1,500 @@
+# Change Log
+
+All notable changes to this project will be documented in this file.
+See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
+
+## [0.0.160](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.159...@opendaw/lab@0.0.160) (2026-07-23)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.159](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.158...@opendaw/lab@0.0.159) (2026-07-22)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.158](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.157...@opendaw/lab@0.0.158) (2026-07-16)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.157](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.156...@opendaw/lab@0.0.157) (2026-07-15)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.156](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.155...@opendaw/lab@0.0.156) (2026-07-14)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.155](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.154...@opendaw/lab@0.0.155) (2026-07-07)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.154](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.153...@opendaw/lab@0.0.154) (2026-06-29)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.153](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.152...@opendaw/lab@0.0.153) (2026-06-23)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.152](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.151...@opendaw/lab@0.0.152) (2026-06-05)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.151](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.150...@opendaw/lab@0.0.151) (2026-06-05)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.150](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.149...@opendaw/lab@0.0.150) (2026-06-03)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.149](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.148...@opendaw/lab@0.0.149) (2026-06-03)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.148](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.147...@opendaw/lab@0.0.148) (2026-05-22)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.147](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.146...@opendaw/lab@0.0.147) (2026-05-22)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.146](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.145...@opendaw/lab@0.0.146) (2026-05-22)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.145](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.144...@opendaw/lab@0.0.145) (2026-05-18)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.144](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.143...@opendaw/lab@0.0.144) (2026-05-15)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.143](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.142...@opendaw/lab@0.0.143) (2026-05-14)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.142](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.141...@opendaw/lab@0.0.142) (2026-05-14)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.141](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.140...@opendaw/lab@0.0.141) (2026-05-14)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.140](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.139...@opendaw/lab@0.0.140) (2026-05-13)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.139](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.138...@opendaw/lab@0.0.139) (2026-05-13)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## 0.0.138 (2026-05-11)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.137](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.136...@opendaw/lab@0.0.137) (2026-05-04)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.136](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.135...@opendaw/lab@0.0.136) (2026-04-30)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.135](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.134...@opendaw/lab@0.0.135) (2026-04-29)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.134](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.133...@opendaw/lab@0.0.134) (2026-04-26)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.133](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.132...@opendaw/lab@0.0.133) (2026-04-22)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.132](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.131...@opendaw/lab@0.0.132) (2026-04-22)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.131](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.130...@opendaw/lab@0.0.131) (2026-04-15)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.130](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.129...@opendaw/lab@0.0.130) (2026-04-01)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.129](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.128...@opendaw/lab@0.0.129) (2026-04-01)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.128](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.127...@opendaw/lab@0.0.128) (2026-04-01)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.127](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.126...@opendaw/lab@0.0.127) (2026-03-27)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.126](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.125...@opendaw/lab@0.0.126) (2026-03-12)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.125](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.124...@opendaw/lab@0.0.125) (2026-03-12)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.124](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.123...@opendaw/lab@0.0.124) (2026-03-11)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.123](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.122...@opendaw/lab@0.0.123) (2026-03-11)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.122](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.121...@opendaw/lab@0.0.122) (2026-03-10)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.121](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.120...@opendaw/lab@0.0.121) (2026-03-07)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.120](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.119...@opendaw/lab@0.0.120) (2026-03-06)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.119](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.118...@opendaw/lab@0.0.119) (2026-03-04)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.118](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.117...@opendaw/lab@0.0.118) (2026-03-04)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.117](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.116...@opendaw/lab@0.0.117) (2026-03-03)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.116](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.115...@opendaw/lab@0.0.116) (2026-03-03)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.115](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.114...@opendaw/lab@0.0.115) (2026-03-03)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.114](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.113...@opendaw/lab@0.0.114) (2026-03-02)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.113](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.112...@opendaw/lab@0.0.113) (2026-03-02)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.112](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.111...@opendaw/lab@0.0.112) (2026-02-25)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.111](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.110...@opendaw/lab@0.0.111) (2026-02-19)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.110](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.109...@opendaw/lab@0.0.110) (2026-02-19)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.109](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.108...@opendaw/lab@0.0.109) (2026-02-18)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.108](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.107...@opendaw/lab@0.0.108) (2026-02-18)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.107](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.106...@opendaw/lab@0.0.107) (2026-02-16)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.106](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.105...@opendaw/lab@0.0.106) (2026-02-14)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.105](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.104...@opendaw/lab@0.0.105) (2026-02-13)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.104](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.103...@opendaw/lab@0.0.104) (2026-02-13)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.103](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.102...@opendaw/lab@0.0.103) (2026-02-12)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.102](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.101...@opendaw/lab@0.0.102) (2026-02-06)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.101](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.100...@opendaw/lab@0.0.101) (2026-02-03)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.100](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.99...@opendaw/lab@0.0.100) (2026-01-27)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.99](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.98...@opendaw/lab@0.0.99) (2026-01-23)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.98](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.97...@opendaw/lab@0.0.98) (2026-01-22)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.97](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.96...@opendaw/lab@0.0.97) (2026-01-20)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.96](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.95...@opendaw/lab@0.0.96) (2026-01-20)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.95](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.94...@opendaw/lab@0.0.95) (2026-01-16)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.94](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.93...@opendaw/lab@0.0.94) (2026-01-14)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.93](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.92...@opendaw/lab@0.0.93) (2026-01-13)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.92](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.91...@opendaw/lab@0.0.92) (2026-01-08)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.91](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.90...@opendaw/lab@0.0.91) (2026-01-08)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.90](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.89...@opendaw/lab@0.0.90) (2026-01-08)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.89](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.88...@opendaw/lab@0.0.89) (2026-01-08)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.88](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.87...@opendaw/lab@0.0.88) (2026-01-08)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.87](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.86...@opendaw/lab@0.0.87) (2026-01-07)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.86](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.85...@opendaw/lab@0.0.86) (2026-01-06)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.85](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.84...@opendaw/lab@0.0.85) (2025-12-28)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.84](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.83...@opendaw/lab@0.0.84) (2025-12-17)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.83](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.82...@opendaw/lab@0.0.83) (2025-12-11)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.82](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.81...@opendaw/lab@0.0.82) (2025-12-11)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.81](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.80...@opendaw/lab@0.0.81) (2025-12-10)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.80](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.79...@opendaw/lab@0.0.80) (2025-12-10)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.79](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.78...@opendaw/lab@0.0.79) (2025-12-10)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.78](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.77...@opendaw/lab@0.0.78) (2025-12-10)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.77](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.76...@opendaw/lab@0.0.77) (2025-12-10)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.76](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.75...@opendaw/lab@0.0.76) (2025-12-10)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.75](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.74...@opendaw/lab@0.0.75) (2025-12-10)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.74](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.73...@opendaw/lab@0.0.74) (2025-12-10)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.73](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.72...@opendaw/lab@0.0.73) (2025-12-10)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.72](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.71...@opendaw/lab@0.0.72) (2025-12-09)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.71](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.70...@opendaw/lab@0.0.71) (2025-12-09)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.70](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.69...@opendaw/lab@0.0.70) (2025-12-09)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.69](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.68...@opendaw/lab@0.0.69) (2025-12-09)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.68](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.67...@opendaw/lab@0.0.68) (2025-12-09)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.67](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.66...@opendaw/lab@0.0.67) (2025-12-09)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.66](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.65...@opendaw/lab@0.0.66) (2025-12-09)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.65](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.64...@opendaw/lab@0.0.65) (2025-12-08)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.64](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.63...@opendaw/lab@0.0.64) (2025-12-08)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.63](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.62...@opendaw/lab@0.0.63) (2025-12-04)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.62](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.61...@opendaw/lab@0.0.62) (2025-12-04)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.61](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.60...@opendaw/lab@0.0.61) (2025-12-04)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.60](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.59...@opendaw/lab@0.0.60) (2025-12-04)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.59](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.58...@opendaw/lab@0.0.59) (2025-11-17)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.58](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.57...@opendaw/lab@0.0.58) (2025-11-17)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.57](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.56...@opendaw/lab@0.0.57) (2025-11-17)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.56](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.55...@opendaw/lab@0.0.56) (2025-10-30)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.55](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.54...@opendaw/lab@0.0.55) (2025-10-29)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.54](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.53...@opendaw/lab@0.0.54) (2025-10-29)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.53](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.52...@opendaw/lab@0.0.53) (2025-10-28)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.52](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.51...@opendaw/lab@0.0.52) (2025-10-28)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.51](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.50...@opendaw/lab@0.0.51) (2025-10-28)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.50](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.49...@opendaw/lab@0.0.50) (2025-10-27)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.49](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.48...@opendaw/lab@0.0.49) (2025-10-27)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.48](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.47...@opendaw/lab@0.0.48) (2025-10-24)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.47](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.46...@opendaw/lab@0.0.47) (2025-10-24)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.46](https://github.com/andremichelle/openDAW/compare/@opendaw/lab@0.0.45...@opendaw/lab@0.0.46) (2025-10-23)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## 0.0.45 (2025-10-21)
+
+**Note:** Version bump only for package @opendaw/lab
+
+## [0.0.44](https://github.com/andremichelle/openDAW/compare/@opendaw/example-import-sample@0.0.43...@opendaw/example-import-sample@0.0.44) (2025-10-16)
+
+**Note:** Version bump only for package @opendaw/example-import-sample
+
+## [0.0.43](https://github.com/andremichelle/openDAW/compare/@opendaw/example-import-sample@0.0.42...@opendaw/example-import-sample@0.0.43) (2025-10-13)
+
+**Note:** Version bump only for package @opendaw/example-import-sample
+
+## [0.0.42](https://github.com/andremichelle/openDAW/compare/@opendaw/example-import-sample@0.0.41...@opendaw/example-import-sample@0.0.42) (2025-10-11)
+
+**Note:** Version bump only for package @opendaw/example-import-sample
+
+## [0.0.41](https://github.com/andremichelle/openDAW/compare/@opendaw/example-import-sample@0.0.40...@opendaw/example-import-sample@0.0.41) (2025-10-07)
+
+**Note:** Version bump only for package @opendaw/example-import-sample
+
+## [0.0.40](https://github.com/andremichelle/openDAW/compare/@opendaw/example-import-sample@0.0.39...@opendaw/example-import-sample@0.0.40) (2025-10-07)
+
+**Note:** Version bump only for package @opendaw/example-import-sample
+
+## [0.0.39](https://github.com/andremichelle/openDAW/compare/@opendaw/example-import-sample@0.0.38...@opendaw/example-import-sample@0.0.39) (2025-10-02)
+
+**Note:** Version bump only for package @opendaw/example-import-sample
+
+## [0.0.38](https://github.com/andremichelle/openDAW/compare/@opendaw/example-import-sample@0.0.37...@opendaw/example-import-sample@0.0.38) (2025-10-01)
+
+**Note:** Version bump only for package @opendaw/example-import-sample
+
+## 0.0.37 (2025-09-24)
+
+**Note:** Version bump only for package @opendaw/example-import-sample

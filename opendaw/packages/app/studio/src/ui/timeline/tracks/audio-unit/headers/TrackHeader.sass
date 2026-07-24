@@ -1,0 +1,45 @@
+@use "@/colors"
+
+component
+  padding: 0 0.25em 0 0.5em
+  display: grid
+  grid-template-columns: 28px 1fr auto 20px
+  align-items: center
+  position: relative
+  color: var(--color-dark)
+  outline: none
+  pointer-events: all
+
+  &.accept-drop
+    background-color: rgba(white, 0.04)
+
+  > div.icon-container
+    position: relative
+    place-self: center
+    display: grid
+    place-items: center
+
+    > svg
+      font-size: 1.25em
+
+    > svg.lock-icon
+      position: absolute
+      font-size: 0.75em
+      color: var(--color-dark)
+      bottom: -3px
+      right: -5px
+      filter: drop-shadow(0 1px 2px black)
+
+  > div.labels
+    padding: 0 0.5em
+    display: flex
+    flex-direction: column
+    min-width: 0
+
+    > h5
+      padding: 0 1em 0 0
+      font-size: 0.625em
+      overflow: hidden
+      text-overflow: ellipsis
+      white-space: nowrap
+      text-transform: capitalize

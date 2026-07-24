@@ -1,0 +1,47 @@
+{
+  "name": "opendaw",
+  "version": "0.0.0",
+  "private": true,
+  "license": "LGPL-3.0-or-later",
+  "engines": {
+    "node": ">=23"
+  },
+  "scripts": {
+    "cert": "bash ./scripts/cert.sh",
+    "clean": "bash ./scripts/clean.sh",
+    "build": "turbo build --output-logs=full",
+    "build-wasm": "npm run build:wasm -w @opendaw/studio-core-wasm",
+    "dev:studio": "turbo run dev --filter=@opendaw/app-studio",
+    "dev:dawdex-studio": "vite packages/app/studio --clearScreen false --host",
+    "dev:dawdex-agent": "npm run dev -w @dawdex/agent-server",
+    "dev:lab": "turbo run dev --filter=@opendaw/lab",
+    "dev:nam-test": "turbo run dev --filter=@opendaw/nam-test",
+    "dev:yjs-server": "turbo run dev --filter=yjs-server",
+    "test": "turbo run test --concurrency=1",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "publish-sdk": "lerna publish"
+  },
+  "devDependencies": {
+    "@types/ssh2-sftp-client": "^9.0.5",
+    "@typescript-eslint/eslint-plugin": "^7.1.0",
+    "@typescript-eslint/parser": "^7.1.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "lerna": "^8.2.3",
+    "prettier": "^3.6.2",
+    "ssh2-sftp-client": "^12.0.1",
+    "ts-node": "^10.1.0",
+    "turbo": "^2.8.9",
+    "typescript": "^5.9.2",
+    "vitest": "^3.1.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/andremichelle/opendaw"
+  },
+  "packageManager": "npm@11.4.2",
+  "workspaces": [
+    "packages/**/*"
+  ]
+}

@@ -1,0 +1,38 @@
+@use "@/colors"
+
+component
+  display: flex
+  flex-direction: column
+  flex: 1
+  position: relative
+  @include colors.panel-background
+
+  .content
+    display: flex
+    flex-direction: column
+    flex: 1
+    overflow: hidden
+
+  header
+    height: 30px
+    padding: 1em
+    display: flex
+    align-items: center
+    column-gap: 3em
+    flex-direction: row
+    column-gap: 1em
+    background-color: black
+    font-size: 11px
+    margin-bottom: 1px
+    border-top: 1px solid rgba(white, 0.1)
+
+    > *, span
+      padding: 0.125em 0.125em
+      width: min-content
+      white-space: nowrap
+
+  .monaco-host
+    flex: 1
+    position: relative
+    overflow: hidden
+    min-height: 0
