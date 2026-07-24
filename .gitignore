@@ -43,6 +43,7 @@ third_party/ableton-mcp-upstream/
 tmp/
 temp/
 .cache/
+midi/.dawdex/
 
 # Editors / OS
 .idea/

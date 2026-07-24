@@ -86,6 +86,14 @@ component
         background: #4ade80
         box-shadow: 0 0 10px rgba(74, 222, 128, 0.8)
 
+        &.checking
+          background: #64748b
+          box-shadow: none
+
+        &.local
+          background: #f59e0b
+          box-shadow: 0 0 9px rgba(245, 158, 11, 0.55)
+
     > .agent-content
       flex: 1
       min-height: 0
@@ -95,7 +103,7 @@ component
       padding: 12px
       overflow-y: auto
 
-      > .context-card, > .plan-card, > .empty-state
+      > .context-card, > .provider-card, > .plan-card, > .empty-state
         border: 1px solid rgba(255, 255, 255, 0.08)
         border-radius: 10px
         background: rgba(255, 255, 255, 0.035)
@@ -119,6 +127,80 @@ component
             font-size: 0.76rem
             text-transform: none
             letter-spacing: 0
+
+      > .provider-card
+        display: grid
+        grid-template-columns: 30px minmax(0, 1fr) auto
+        align-items: center
+        gap: 9px
+        padding: 9px 10px
+
+        > .provider-icon
+          display: grid
+          place-items: center
+          width: 27px
+          height: 27px
+          border-radius: 8px
+          color: #d8ccff
+          background: rgba(139, 92, 246, 0.17)
+          font-size: 0.67rem
+          font-weight: 800
+
+        > div
+          min-width: 0
+
+          > strong, > span
+            display: block
+            overflow: hidden
+            text-overflow: ellipsis
+            white-space: nowrap
+
+          > strong
+            color: #f4f2f8
+            font-size: 0.68rem
+
+          > span
+            margin-top: 3px
+            color: #817b89
+            font-size: 0.57rem
+
+        > button
+          height: 27px
+          padding: 0 9px
+          border: 1px solid rgba(167, 139, 250, 0.42)
+          border-radius: 7px
+          color: #eee9ff
+          background: rgba(139, 92, 246, 0.16)
+          font: inherit
+          font-size: 0.59rem
+          cursor: pointer
+
+          &:disabled
+            opacity: 0.5
+            cursor: default
+
+        > .provider-active
+          color: #4ade80
+          font-size: 0.55rem
+          text-transform: uppercase
+          letter-spacing: 0.08em
+
+        &.connected
+          border-color: rgba(74, 222, 128, 0.2)
+
+          > .provider-icon
+            color: #86efac
+            background: rgba(34, 197, 94, 0.12)
+
+        &.checking
+          grid-template-columns: 30px minmax(0, 1fr)
+
+        &.unavailable
+          grid-template-columns: 30px minmax(0, 1fr)
+
+          > .provider-icon
+            color: #fbbf24
+            background: rgba(245, 158, 11, 0.13)
 
       > .empty-state
         display: flex
@@ -159,6 +241,28 @@ component
           color: #aaa4b3
           font-size: 0.66rem
           line-height: 1.5
+
+        > .reasoning
+          display: flex
+          flex-direction: column
+          gap: 4px
+          margin-top: 10px
+          padding: 9px
+          border: 1px solid rgba(103, 232, 249, 0.13)
+          border-radius: 7px
+          background: rgba(103, 232, 249, 0.045)
+
+          > strong
+            color: #a5f3fc
+            font-size: 0.61rem
+
+          > span
+            color: #aaa4b3
+            font-size: 0.6rem
+            line-height: 1.4
+
+            &.reason
+              color: #898391
 
         > .actions
           display: flex
