@@ -3,6 +3,12 @@
 MIDI assets are grouped by instrument family while preserving their original
 library-relative directory structure.
 
+The licensed MIDI asset pack is intentionally installed locally and is not
+stored in Git. Each developer must provision `bass/`, `drums/`, and `keys/`
+under this directory while preserving their relative paths. MIDI files under
+this directory are ignored; this README remains tracked as the library
+contract.
+
 | Category | MIDI files | Bytes |
 |---|---:|---:|
 | `bass/` | 8,053 | 4,832,398 |
