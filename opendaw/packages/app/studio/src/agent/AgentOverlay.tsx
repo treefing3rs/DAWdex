@@ -86,9 +86,13 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         performerEls.set(id, el)
         return el
     })
+    const roleStates = new Map<RoleId, RoleState>()
+    const audibleRoles = new Set<RoleId>()
+    const pendingPerforming = new Map<RoleId, string | undefined>()
     const setRoleState = (role: RoleId, state: RoleState, reason?: string) => {
         const el = performerEls.get(role)
         if (el === undefined) {return}
+        roleStates.set(role, state)
         el.dataset.state = state
         el.title = reason ?? state
         if (state === "failed") {flashNoise()}
@@ -99,6 +103,10 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         onAirLamp.classList.toggle("lit", playing)
         recBadge.classList.toggle("standby", !playing)
         recBadge.textContent = playing ? "● REC" : "STANDBY"
+        // 走带暂停 = 角色动画冻结（诚实状态：没有声音就没有演奏）
+        root.classList.toggle("transport-paused", !playing)
+        // 角色演奏动画的一拍时长由权威 BPM 驱动，不写死
+        root.style.setProperty("--beat", `${(60 / bpm).toFixed(3)}s`)
     }
 
     // ── 弹幕层 ──────────────────────────────────────────────────────────────
@@ -124,17 +132,29 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         setTimeout(() => noise.classList.add("hidden"), 480)
     }
 
-    // ── 权威时钟 + 循环进度（本地时钟，TransportChanged 校准） ────────────────
-    let bpm = 128, barsPerLoop = 4, keySig = "A minor"
+    // ── 权威时钟 + 循环进度（以最近一次 TransportChanged 校准，暂停时冻结） ──
+    let bpm = 128, barsPerLoop = 4, keySig = "A minor", currentBar = 1
+    let isPlaying = false, transportSynced = false
     let clockStopped = false
     lifecycle.own({terminate: () => {clockStopped = true}})
     const loopSeconds = () => barsPerLoop * 4 * 60 / bpm
-    const clockStart = performance.now()
+    let syncedAt = performance.now()
+    let syncedLoopPos = 0
+    const resyncClock = () => {
+        syncedAt = performance.now()
+        syncedLoopPos = ((currentBar - 1) % barsPerLoop) / barsPerLoop
+    }
     const tick = () => {
         if (clockStopped) {return}
-        const loopPos = ((performance.now() - clockStart) / 1000 / loopSeconds()) % 1
+        const loopPos = isPlaying
+            ? (syncedLoopPos + (performance.now() - syncedAt) / 1000 / loopSeconds()) % 1
+            : syncedLoopPos
         const bar = Math.floor(loopPos * barsPerLoop) + 1
-        transportReadout.textContent = `BAR ${bar}/${barsPerLoop} · ${Math.round(bpm)} BPM · ${keySig}`
+        transportReadout.textContent = !transportSynced
+            ? "STANDBY · 等待走带同步"
+            : isPlaying
+                ? `BAR ${bar}/${barsPerLoop} · ${Math.round(bpm)} BPM · ${keySig}`
+                : `⏸ 已暂停 · BAR ${bar}/${barsPerLoop} · ${Math.round(bpm)} BPM · ${keySig}`
         transportBar.style.width = `${(loopPos * 100).toFixed(1)}%`
         requestAnimationFrame(tick)
     }
@@ -178,13 +198,37 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
                 appendReceipt(event.role, event.summary, event.audibleResult, event.operationRef)
                 break
             case "RoleStateChanged":
-                setRoleState(event.role, event.state, event.reason)
+                if (event.state === "performing" && !audibleRoles.has(event.role)) {
+                    // 契约铁律：performing 以 openDAW 真实发声为唯一依据（TrackAudibleChanged 闸门）
+                    pendingPerforming.set(event.role, event.reason)
+                    setRoleState(event.role, "queued", "已就绪，等待轨道发声确认")
+                } else {
+                    if (event.state !== "performing") {pendingPerforming.delete(event.role)}
+                    setRoleState(event.role, event.state, event.reason)
+                }
                 break
             case "TransportChanged":
                 bpm = event.bpm; barsPerLoop = event.barsPerLoop; keySig = event.key
+                currentBar = event.currentBar
+                isPlaying = event.isPlaying
+                transportSynced = true
+                resyncClock()
                 setPlaying(event.isPlaying)
                 break
             case "TrackAudibleChanged":
+                if (event.audible) {
+                    audibleRoles.add(event.role)
+                    const pendingReason = pendingPerforming.get(event.role)
+                    if (pendingPerforming.delete(event.role)) {
+                        setRoleState(event.role, "performing", pendingReason)
+                    }
+                } else {
+                    audibleRoles.delete(event.role)
+                    pendingPerforming.delete(event.role)
+                    if (roleStates.get(event.role) === "performing") {
+                        setRoleState(event.role, "waiting", "轨道已静音")
+                    }
+                }
                 appendEvent(event.audible ? `${event.role} 轨道确认发声（BAR ${event.enteredAtBar ?? "?"}）` : `${event.role} 静音`,
                     event.audible ? "success" : "normal")
                 break
@@ -204,8 +248,20 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         marquee.classList.remove("hidden")
         setTimeout(() => marquee.classList.add("hidden"), 11000)
     }
-    let cancelMock = playMockTimeline(emit)
-    lifecycle.own({terminate: () => cancelMock()})
+    // Mock 只在显式演示模式（?mock=1）或手动点 ↻ 时播放——绝不默认启动，避免与真实 Agent 并行
+    const demoMode = new URLSearchParams(window.location.search).has("mock")
+    let cancelMock: (() => void) | null = null
+    const startMock = () => {
+        cancelMock?.()
+        danmakuText.clear()
+        Html.empty(receiptList)
+        audibleRoles.clear()
+        pendingPerforming.clear()
+        STAGE_ROLES.forEach(({id}) => setRoleState(id, "waiting"))
+        cancelMock = playMockTimeline(emit)
+    }
+    if (demoMode) {startMock()}
+    lifecycle.own({terminate: () => cancelMock?.()})
 
     // ── Provider 状态（Codex 连接，v0.2.0 链路） ────────────────────────────
     let providerStatus = Option.None as Option<AgentProviderStatus>
@@ -326,8 +382,26 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
             return
         }
         const label = INTERVENTIONS.find(i => i.kind === kind)?.label ?? kind
-        launchDanmaku(`制作人：「${label}」收到，下一循环生效`, "producer")
-        appendEvent(`用户干预：${label}`, "working")
+        if (kind === "keep") {
+            // 保留 = 放弃待批准的修改计划，确认当前版本
+            if (currentPlan.nonEmpty()) {
+                currentPlan = Option.None
+                renderPlanSlot()
+                appendEvent("已放弃待批准的修改，保留当前版本", "success")
+            } else {
+                appendEvent("已确认保留当前版本", "success")
+            }
+            launchDanmaku("制作人：收到，保持现在的样子", "producer")
+            return
+        }
+        // FR-09 干预 → 真实链路：翻译成新的计划请求，批准后真实改音乐
+        //（契约 UserIntervention 的前端映射；B 的 /v1/intervention 就绪后改为直发）
+        if (isBusy) {
+            appendEvent(`「${label}」请稍后：上一个计划仍在生成中`, "working")
+            return
+        }
+        appendEvent(`用户干预：${label} — 正在生成修改计划…`, "working")
+        requestPlan(`【干预】${label}（在保留当前工程结构的前提下调整音乐）`)
     }
 
     // ── plan/apply 链路（v0.2.0 真实链路，收入证据抽屉） ─────────────────────
@@ -454,6 +528,9 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         </div>
     )
 
+    root.classList.add("transport-paused")
+    root.style.setProperty("--beat", `${(60 / bpm).toFixed(3)}s`)
+
     lifecycle.ownAll(
         Events.subscribe(sendButton, "click", submitDanmaku),
         Events.subscribe(input, "keydown", (event: KeyboardEvent) => {
@@ -464,17 +541,17 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
             presentButton.classList.toggle("active", on)
         }),
         Events.subscribe(replayButton, "click", () => {
-            cancelMock()
-            danmakuText.clear()
-            Html.empty(receiptList)
-            STAGE_ROLES.forEach(({id}) => setRoleState(id, "waiting"))
-            cancelMock = playMockTimeline(emit)
+            appendEvent("回放 90 秒演示（Mock 驱动）", "working")
+            startMock()
         }),
         Terminable.create(stopLoginPolling)
     )
 
     renderProviderSlot()
     refreshProviderStatus(true).catch(reason => appendEvent(`模型状态检查失败：${String(reason)}`))
-    appendEvent("DAWdex 舞台就绪（Mock 驱动）", "success")
+    appendEvent(demoMode
+        ? "DAWdex 舞台就绪（演示模式 · Mock 驱动）"
+        : "DAWdex 舞台就绪 — 发送弹幕开始创作，或点 ↻ 回放 90 秒演示", "success")
+    if (!demoMode) {launchDanmaku("发送弹幕指挥乐队 · 点 ↻ 可回放 90 秒演示", "system")}
     return root
 }

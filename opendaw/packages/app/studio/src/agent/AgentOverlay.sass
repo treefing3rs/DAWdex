@@ -222,7 +222,7 @@ component
         animation: lamp-blink 0.5s steps(2) infinite
     &[data-state="performing"]
       filter: none
-      animation: performer-bob 0.469s steps(2) infinite // 128BPM 一拍
+      animation: performer-bob var(--beat, 0.469s) steps(2) infinite // 一拍，--beat 由权威 BPM 驱动
       .lamp
         background: var(--role-color)
         box-shadow: 0 0 12px var(--role-color)
@@ -232,6 +232,11 @@ component
         background: $red
         box-shadow: 0 0 12px $red
         animation: lamp-blink 0.3s steps(2) infinite
+
+  // 走带暂停：冻结角色与状态灯动画（诚实状态：没有声音就没有演奏）
+  &.transport-paused
+    .performer, .performer .lamp
+      animation-play-state: paused
 
   // 雪花噪点（失败/回退）
   .noise
