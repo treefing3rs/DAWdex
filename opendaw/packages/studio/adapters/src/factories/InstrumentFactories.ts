@@ -1,0 +1,202 @@
+import {
+    ApparatDeviceBox,
+    AudioFileBox,
+    BoxIO,
+    MIDIOutputDeviceBox,
+    NanoDeviceBox,
+    PlayfieldDeviceBox,
+    PlayfieldSampleBox,
+    SoundfontDeviceBox,
+    SoundfontFileBox,
+    TapeDeviceBox,
+    VaporisateurDeviceBox
+} from "@opendaw/studio-boxes"
+import {byte, isDefined, UUID} from "@opendaw/lib-std"
+import {ClassicWaveform} from "@opendaw/lib-dsp"
+import {BoxGraph, Field} from "@opendaw/lib-box"
+import {IconSymbol, Pointers, VoicingMode} from "@opendaw/studio-enums"
+import {DeviceManualUrls} from "../DeviceManualUrls"
+import {InstrumentFactory} from "./InstrumentFactory"
+import {TrackType} from "../timeline/TrackType"
+
+export namespace InstrumentFactories {
+    export const Tape: InstrumentFactory<void, TapeDeviceBox> = {
+        defaultName: "Tape",
+        defaultIcon: IconSymbol.Tape,
+        briefDescription: "Audio Player",
+        description: "Plays audio regions & clips",
+        manualPage: DeviceManualUrls.Tape,
+        trackType: TrackType.Audio,
+        create: (boxGraph: BoxGraph,
+                 host: Field<Pointers.InstrumentHost | Pointers.AudioOutput>,
+                 name: string,
+                 icon: IconSymbol,
+                 _attachment?: void): TapeDeviceBox => TapeDeviceBox.create(boxGraph, UUID.generate(), box => {
+            box.label.setValue(name)
+            box.icon.setValue(IconSymbol.toName(icon))
+            box.flutter.setValue(0.2)
+            box.wow.setValue(0.05)
+            box.noise.setValue(0.02)
+            box.saturation.setValue(0.5)
+            box.host.refer(host)
+        })
+    }
+
+    export const Nano: InstrumentFactory<AudioFileBox, NanoDeviceBox> = {
+        defaultName: "Nano",
+        defaultIcon: IconSymbol.NanoWave,
+        briefDescription: "Simple Sampler",
+        description: "Simple sampler",
+        manualPage: DeviceManualUrls.Nano,
+        trackType: TrackType.Notes,
+        create: (boxGraph: BoxGraph,
+                 host: Field<Pointers.InstrumentHost | Pointers.AudioOutput>,
+                 name: string,
+                 icon: IconSymbol,
+                 attachment?: AudioFileBox): NanoDeviceBox => NanoDeviceBox.create(boxGraph, UUID.generate(), box => {
+            box.label.setValue(name)
+            box.icon.setValue(IconSymbol.toName(icon))
+            if (isDefined(attachment)) {box.file.refer(attachment)}
+            box.host.refer(host)
+        })
+    }
+
+    export type PlayfieldAttachment = ReadonlyArray<{
+        note: byte
+        uuid: UUID.Bytes
+        name: string
+        durationInSeconds: number
+        exclude: boolean
+    }>
+
+    export const Playfield: InstrumentFactory<PlayfieldAttachment, PlayfieldDeviceBox> = {
+        defaultName: "Playfield",
+        defaultIcon: IconSymbol.Playfield,
+        briefDescription: "Drum Machine",
+        description: "Drum computer",
+        manualPage: DeviceManualUrls.Playfield,
+        trackType: TrackType.Notes,
+        create: (boxGraph: BoxGraph,
+                 host: Field<Pointers.InstrumentHost | Pointers.AudioOutput>,
+                 name: string,
+                 icon: IconSymbol,
+                 attachment?: PlayfieldAttachment): PlayfieldDeviceBox => {
+            const deviceBox = PlayfieldDeviceBox.create(boxGraph, UUID.generate(), box => {
+                box.label.setValue(name)
+                box.icon.setValue(IconSymbol.toName(icon))
+                box.host.refer(host)
+            })
+            if (isDefined(attachment)) {
+                attachment.filter(({note, uuid, name, durationInSeconds, exclude}) => {
+                    const fileBox = useAudioFile(boxGraph, uuid, name, durationInSeconds)
+                    PlayfieldSampleBox.create(boxGraph, UUID.generate(), box => {
+                        box.device.refer(deviceBox.samples)
+                        box.file.refer(fileBox)
+                        box.index.setValue(note)
+                        box.exclude.setValue(exclude)
+                    })
+                })
+            }
+            return deviceBox
+        }
+    }
+
+    export const Vaporisateur: InstrumentFactory<void, VaporisateurDeviceBox> = {
+        defaultName: "Vaporisateur",
+        defaultIcon: IconSymbol.Piano,
+        briefDescription: "Subtractive Synth",
+        description: "Classic subtractive synthesizer",
+        manualPage: DeviceManualUrls.Vaporisateur,
+        trackType: TrackType.Notes,
+        create: (boxGraph: BoxGraph<BoxIO.TypeMap>,
+                 host: Field<Pointers.InstrumentHost | Pointers.AudioOutput>,
+                 name: string,
+                 icon: IconSymbol,
+                 _attachment?: void): VaporisateurDeviceBox =>
+            VaporisateurDeviceBox.create(boxGraph, UUID.generate(), box => {
+                box.label.setValue(name)
+                box.icon.setValue(IconSymbol.toName(icon))
+                box.cutoff.setInitValue(8000.0)
+                box.resonance.setInitValue(0.1)
+                box.attack.setInitValue(0.005)
+                box.decay.setInitValue(0.100)
+                box.sustain.setInitValue(0.5)
+                box.release.setInitValue(0.5)
+                box.voicingMode.setInitValue(VoicingMode.Polyphonic)
+                box.lfo.rate.setInitValue(1.0)
+                box.oscillators.fields()[0].waveform.setInitValue(ClassicWaveform.saw)
+                box.oscillators.fields()[0].volume.setInitValue(-6.0)
+                box.oscillators.fields()[1].volume.setInitValue(Number.NEGATIVE_INFINITY)
+                box.oscillators.fields()[1].waveform.setInitValue(ClassicWaveform.square)
+                box.host.refer(host)
+                box.version.setValue(2) // for removing the -15db in voice and extended osc
+            })
+    }
+
+    export const MIDIOutput: InstrumentFactory<void, MIDIOutputDeviceBox> = {
+        defaultName: "MIDIOutput",
+        defaultIcon: IconSymbol.Midi,
+        briefDescription: "Send MIDI",
+        description: "MIDI Output",
+        manualPage: DeviceManualUrls.MIDIOutput,
+        trackType: TrackType.Notes,
+        create: (boxGraph: BoxGraph<BoxIO.TypeMap>,
+                 host: Field<Pointers.InstrumentHost | Pointers.AudioOutput>,
+                 name: string,
+                 icon: IconSymbol,
+                 _attachment?: void): MIDIOutputDeviceBox =>
+            MIDIOutputDeviceBox.create(boxGraph, UUID.generate(), box => {
+                box.label.setValue(name)
+                box.icon.setValue(IconSymbol.toName(icon))
+                box.host.refer(host)
+            })
+    }
+
+    export const Soundfont: InstrumentFactory<{ uuid: UUID.String, name: string }, SoundfontDeviceBox> = {
+        defaultName: "Soundfont",
+        defaultIcon: IconSymbol.SoundFont,
+        briefDescription: "Soundfont Player",
+        description: "Soundfont Player",
+        manualPage: DeviceManualUrls.Soundfont,
+        trackType: TrackType.Notes,
+        create: (boxGraph: BoxGraph<BoxIO.TypeMap>,
+                 host: Field<Pointers.InstrumentHost | Pointers.AudioOutput>,
+                 name: string,
+                 icon: IconSymbol): SoundfontDeviceBox => SoundfontDeviceBox.create(boxGraph, UUID.generate(), box => {
+            box.label.setValue(name)
+            box.icon.setValue(IconSymbol.toName(icon))
+            box.host.refer(host)
+        })
+    }
+
+    export const Apparat: InstrumentFactory<void, ApparatDeviceBox> = {
+        defaultName: "Apparat",
+        defaultIcon: IconSymbol.Code,
+        briefDescription: "Scriptable Instrument",
+        description: "User-scripted instrument",
+        manualPage: DeviceManualUrls.Apparat,
+        trackType: TrackType.Notes,
+        create: (boxGraph: BoxGraph,
+                 host: Field<Pointers.InstrumentHost | Pointers.AudioOutput>,
+                 name: string,
+                 icon: IconSymbol): ApparatDeviceBox => ApparatDeviceBox.create(boxGraph, UUID.generate(), box => {
+            box.label.setValue(name)
+            box.icon.setValue(IconSymbol.toName(icon))
+            box.host.refer(host)
+        })
+    }
+
+    export const Named = {Apparat, MIDIOutput, Nano, Playfield, Soundfont, Tape, Vaporisateur}
+    export type Keys = keyof typeof Named
+
+    const useAudioFile = (boxGraph: BoxGraph, fileUUID: UUID.Bytes, name: string, duration: number) =>
+        boxGraph.findBox<AudioFileBox>(fileUUID)
+            .unwrapOrElse(() => AudioFileBox.create(boxGraph, fileUUID, box => {
+                box.fileName.setValue(name)
+                box.endInSeconds.setValue(duration)
+            }))
+
+    const useSoundfontFile = (boxGraph: BoxGraph, fileUUID: UUID.Bytes, name: string) =>
+        boxGraph.findBox<SoundfontFileBox>(fileUUID)
+            .unwrapOrElse(() => SoundfontFileBox.create(boxGraph, fileUUID, box => box.fileName.setValue(name)))
+}

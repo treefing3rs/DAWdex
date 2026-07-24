@@ -1,0 +1,42 @@
+@use "@/colors"
+
+component
+  display: flex
+  flex-direction: row
+  column-gap: 0.75em
+  padding: 0.25em 0.75em
+  border-radius: 0.25em
+
+  .no-project &
+    opacity: 0.6
+    pointer-events: none
+
+  > .number-display
+    flex: 0 0 28px
+    display: flex
+    flex-direction: column
+    align-items: center
+    row-gap: 1px
+
+    &.negative
+      color: var(--color-red) !important
+
+    &.float > div:nth-child(1)::after
+      visibility: visible
+
+    > div
+      &:nth-child(1)
+        text-align: center
+        font-size: 14px
+        line-height: 1.125em
+        position: relative
+
+        &::after
+          content: "."
+          position: absolute
+          visibility: hidden
+
+      &:nth-child(2)
+        color: hsla(200, 80%, 60%, 0.75)
+        font-size: 8px
+        line-height: 1em

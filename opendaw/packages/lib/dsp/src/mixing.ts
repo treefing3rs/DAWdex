@@ -1,0 +1,1 @@
+export enum Mixing {Linear, EqualPower}

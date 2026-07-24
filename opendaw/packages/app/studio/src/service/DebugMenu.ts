@@ -1,0 +1,109 @@
+import {isDefined, panic, RuntimeNotifier, RuntimeSignal} from "@opendaw/lib-std"
+import {MenuItem, ProjectSignals, StudioPreferences, Workers} from "@opendaw/studio-core"
+import {Promises} from "@opendaw/lib-runtime"
+import {RouteLocation} from "@opendaw/lib-jsx"
+import {Browser} from "@opendaw/lib-dom"
+import {CodecsUtils} from "@/CodecsUtils"
+import {StudioService} from "@/service/StudioService"
+import {IconSymbol} from "@opendaw/studio-enums"
+import {SyncLogService} from "@/service/SyncLogService"
+import {Dialogs} from "@/ui/components/dialogs"
+import {NextcloudDebug} from "@/service/NextcloudDebug"
+
+export const createDebugMenu = (service: StudioService) => MenuItem.default({
+    label: "Debug",
+    icon: IconSymbol.Bug,
+    hidden: !StudioPreferences.settings.debug["enable-debug-menu"]
+}).setRuntimeChildrenProcedure(parent => parent.addMenuItem(
+    MenuItem.header({label: "Debugging", icon: IconSymbol.System}),
+    MenuItem.default({
+        label: "New SyncLog...",
+        selectable: isDefined(window.showSaveFilePicker)
+    }).setTriggerProcedure(() => SyncLogService.start(service)),
+    MenuItem.default({
+        label: "Open SyncLog...",
+        selectable: isDefined(window.showOpenFilePicker)
+    }).setTriggerProcedure(() => SyncLogService.append(service)),
+    MenuItem.default({
+        label: "Show Boxes...",
+        selectable: service.hasProfile,
+        separatorBefore: true
+    }).setTriggerProcedure(() => Dialogs.debugBoxes(service.project.boxGraph)),
+    MenuItem.default({label: "Validate Project...", selectable: service.hasProfile})
+        .setTriggerProcedure(() => service.verifyProject()),
+    MenuItem.default({
+        label: "Load file...",
+        separatorBefore: true
+    }).setTriggerProcedure(() => service.projectProfileService.loadFile()),
+    MenuItem.default({
+        label: "Save file...",
+        selectable: service.hasProfile
+    }).setTriggerProcedure(() => service.projectProfileService.saveFile()),
+    MenuItem.header({label: "Pages", icon: IconSymbol.Box}),
+    MenuItem.default({label: "・ Icons"})
+        .setTriggerProcedure(() => RouteLocation.get().navigateTo("/icons")),
+    MenuItem.default({label: "・ Components"})
+        .setTriggerProcedure(() => RouteLocation.get().navigateTo("/components")),
+    MenuItem.default({label: "・ Automation"})
+        .setTriggerProcedure(() => RouteLocation.get().navigateTo("/automation")),
+    MenuItem.default({label: "・ Errors"})
+        .setTriggerProcedure(() => RouteLocation.get().navigateTo("/errors")),
+    MenuItem.default({label: "・ Graph"})
+        .setTriggerProcedure(() => RouteLocation.get().navigateTo("/graph")),
+    MenuItem.default({label: "・ Benchmark"})
+        .setTriggerProcedure(() => RouteLocation.get().navigateTo("/performance")),
+    MenuItem.default({label: "・ Tap Tempo"})
+        .setTriggerProcedure(() => RouteLocation.get().navigateTo("/tap")),
+    MenuItem.default({
+        label: "Throw an error in main-thread 💣",
+        separatorBefore: true,
+        hidden: !Browser.isLocalHost() && location.hash !== "#admin"
+    }).setTriggerProcedure(() => panic("An error has been emulated")),
+    MenuItem.default({
+        label: "Throw an error in audio-worklet 💣",
+        hidden: !Browser.isLocalHost()
+    }).setTriggerProcedure(() => service.panicEngine()),
+    MenuItem.default({label: "List Supported Codecs...", separatorBefore: true})
+        .setTriggerProcedure(() => CodecsUtils.listSupportedCodecs()),
+    MenuItem.default({label: "Show Playbackstats..."})
+        .setTriggerProcedure(() => {
+            const context = service.audioContext
+            const stats = context.playbackStats
+            if (!isDefined(stats)) {
+                RuntimeNotifier.info({
+                    headline: "Playback Stats",
+                    message: "AudioContext.playbackStats is not available in this browser."
+                }).finally()
+                return
+            }
+            const message = [
+                `context.state: ${context.state}`,
+                `sampleRate: ${context.sampleRate}`,
+                `baseLatency: ${context.baseLatency}`,
+                `outputLatency: ${context.outputLatency}`,
+                "",
+                JSON.stringify(stats.toJSON(), null, 2)
+            ].join("\n")
+            RuntimeNotifier.info({headline: "Playback Stats", message}).finally()
+        }),
+    MenuItem.default({label: "Validate Nextcloud Access...", separatorBefore: true})
+        .setTriggerProcedure(() => NextcloudDebug.validateAccess()),
+    MenuItem.default({label: "Clear Local Storage", separatorBefore: true})
+        .setTriggerProcedure(async () => {
+            const approved = await RuntimeNotifier.approve({
+                headline: "Clear Local Storage",
+                message: "Are you sure? All your samples and projects will be deleted.\nThis cannot be undone!"
+            })
+            if (approved) {
+                const {status, error} =
+                    await Promises.tryCatch(Workers.Opfs.delete(""))
+                if (status === "resolved") {
+                    RuntimeSignal.dispatch(ProjectSignals.StorageUpdated)
+                    RuntimeNotifier.notify({message: "Local storage cleared", icon: "Checkbox"})
+                } else {
+                    console.warn(error)
+                    RuntimeNotifier.notify({message: "Could not clear storage.", icon: "Warning"})
+                }
+            }
+        })
+))

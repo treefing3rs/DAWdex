@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Library name="Central Library" location="Downtown">
+    <Sections>
+        <Section id="sec1" name="Fiction">
+            <Shelf id="sh1">
+                <Novel title="Dune" author="Frank Herbert" pages="412">
+                    <Review score="5">Epic science fiction novel.</Review>
+                </Novel>
+                <Comic title="The Sandman" author="Neil Gaiman" illustrator="Sam Kieth">
+                    <Review score="4">Dark fantasy masterpiece.</Review>
+                </Comic>
+            </Shelf>
+            <Shelf id="sh2"/>
+        </Section>
+        <Section id="sec2" name="Non-Fiction">
+            <Shelf id="sh3">
+                <Textbook title="A Brief History of Time" author="Stephen Hawking" edition="2"/>
+            </Shelf>
+        </Section>
+    </Sections>
+</Library>

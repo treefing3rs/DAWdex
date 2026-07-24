@@ -1,0 +1,18 @@
+component
+  display: flex
+
+  > rect
+    will-change: fill
+    pointer-events: bounding-box
+
+    &.black
+      fill: var(--color-black)
+
+    &.white
+      fill: var(--color-gray)
+
+    &.active
+      fill: var(--color-blue)
+
+  > text
+    pointer-events: none

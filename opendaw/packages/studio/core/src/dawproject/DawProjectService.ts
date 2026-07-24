@@ -1,0 +1,61 @@
+import {Errors, isDefined, Option, panic, RuntimeNotifier} from "@opendaw/lib-std"
+import {Promises} from "@opendaw/lib-runtime"
+import {Files} from "@opendaw/lib-dom"
+import {Xml} from "@opendaw/lib-xml"
+import {MetaDataSchema} from "@opendaw/lib-dawproject"
+import {ProjectSkeleton} from "@opendaw/studio-adapters"
+import {DawProject} from "./DawProject"
+import {FilePickerAcceptTypes} from "../FilePickerAcceptTypes"
+import {DawProjectImport} from "./DawProjectImporter"
+import {ProjectProfile} from "../project"
+import {SampleService} from "../samples"
+
+export class DawProjectService {
+    static async importDawproject(sampleService: SampleService): Promise<Option<ProjectSkeleton>> {
+        const {status, value, error} =
+            await Promises.tryCatch(Files.open({types: [FilePickerAcceptTypes.DawprojectFileType]}))
+        if (status === "rejected") {
+            if (Errors.isAbort(error)) {return Option.None}
+            return panic(String(error))
+        }
+        const file = value.at(0)
+        if (!isDefined(file)) {return Option.None}
+        const arrayBuffer = await file.arrayBuffer()
+        const {project: projectSchema, resources} = await DawProject.decode(arrayBuffer)
+        const importResult = await Promises.tryCatch(DawProjectImport.read(projectSchema, resources))
+        if (importResult.status === "rejected") {
+            console.warn(importResult.error)
+            RuntimeNotifier.notify({message: "Import failed.", icon: "Warning"})
+            return Option.None
+        }
+        const {skeleton, audioIds} = importResult.value
+        await Promise.all(audioIds
+            .map(uuid => resources.fromUUID(uuid))
+            .map(resource => sampleService.importFile({
+                uuid: resource.uuid,
+                name: resource.name,
+                arrayBuffer: resource.buffer
+            })))
+        return Option.wrap(skeleton)
+    }
+
+    static async exportDawproject(profile: ProjectProfile): Promise<void> {
+        const dialog = RuntimeNotifier.progress({headline: "Exporting DawProject..."})
+        const {project, meta} = profile
+        const {status, error, value: zip} = await Promises.tryCatch(
+            DawProject.encode(project.skeleton, project.sampleManager, Xml.element({
+                title: meta.name,
+                year: new Date().getFullYear().toString(),
+                website: "https://opendaw.studio"
+            }, MetaDataSchema)))
+        dialog.terminate()
+        if (status === "rejected") {
+            return RuntimeNotifier.info({headline: "Export Error", message: String(error)})
+        }
+        const saveResult = await Promises.tryCatch(Files.save(zip,
+            {types: [FilePickerAcceptTypes.DawprojectFileType]}))
+        if (saveResult.status === "rejected" && !Errors.isAbort(saveResult.error)) {
+            throw saveResult.error
+        }
+    }
+}

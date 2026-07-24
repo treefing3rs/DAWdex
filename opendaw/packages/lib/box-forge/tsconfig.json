@@ -1,0 +1,17 @@
+{
+  "extends": "@opendaw/typescript-config/base.json",
+  "include": [
+    "src"
+  ],
+  "compilerOptions": {
+    "lib": [
+      "ESNext",
+      "DOM",
+      "DOM.Iterable",
+      "DOM.AsyncIterable"
+    ]
+  },
+  "exclude": [
+    "node_modules"
+  ]
+}

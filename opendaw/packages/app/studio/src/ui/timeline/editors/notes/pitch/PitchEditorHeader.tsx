@@ -1,0 +1,58 @@
+import css from "./PitchEditorHeader.sass?inline"
+import {Editing, int, Lifecycle, Selection} from "@opendaw/lib-std"
+import {ScaleSelector} from "@/ui/timeline/editors/notes/pitch/ScaleSelector.tsx"
+import {ScaleConfigurator} from "@/ui/timeline/editors/notes/pitch/ScaleConfigurator.tsx"
+import {MenuButton} from "@/ui/components/MenuButton.tsx"
+import {MenuItem} from "@opendaw/studio-core"
+import {MidiKeys} from "@opendaw/lib-dsp"
+import {Icon} from "@/ui/components/Icon.tsx"
+import {createElement} from "@opendaw/lib-jsx"
+import {ScaleConfig} from "@/ui/timeline/editors/notes/pitch/ScaleConfig.ts"
+import {NoteEventBoxAdapter} from "@opendaw/studio-adapters"
+import {Colors, IconSymbol} from "@opendaw/studio-enums"
+import {PropertyTable} from "@/ui/timeline/editors/notes/property/PropertyTable.tsx"
+import {ObservableModifyContext} from "@/ui/timeline/ObservableModifyContext.ts"
+import {NoteModifier} from "@/ui/timeline/editors/notes/NoteModifier.ts"
+import {Html} from "@opendaw/lib-dom"
+
+const className = Html.adoptStyleSheet(css, "PitchEditorHeader")
+
+type Construct = {
+    lifecycle: Lifecycle
+    editing: Editing
+    modifyContext: ObservableModifyContext<NoteModifier>
+    selection: Selection<NoteEventBoxAdapter>
+    scale: ScaleConfig
+}
+
+export const PitchEditorHeader = ({lifecycle, editing, modifyContext, selection, scale}: Construct) => {
+    return (
+        <div className={className}>
+            <Icon symbol={IconSymbol.Note} className="label"/>
+            <div className="row">
+                <ScaleSelector lifecycle={lifecycle} scale={scale}/>
+                <ScaleConfigurator lifecycle={lifecycle} scale={scale}/>
+                <MenuButton root={MenuItem.root()
+                    .setRuntimeChildrenProcedure(parent => parent
+                        .addMenuItem(MenuItem.default({label: "No Scale", checked: scale.isEmpty()})
+                            .setTriggerProcedure(() => scale.reset()))
+                        .addMenuItem(MenuItem.default({label: "From Selection", selectable: !selection.isEmpty()})
+                            .setTriggerProcedure(() =>
+                                scale.setBits(selection.selected().reduce((bits, event) => bits | 1 << (event.pitch % 12), 0))))
+                        .addMenuItem(...MidiKeys.StockScales.map((predefinedScale: MidiKeys.PredefinedScale, index: int) =>
+                            MenuItem.default({
+                                label: predefinedScale.name,
+                                checked: predefinedScale.equals(scale),
+                                separatorBefore: index === 0
+                            }).setTriggerProcedure(() => scale.setScale(predefinedScale)))))}
+                            style={{minWidth: "0"}}
+                            appearance={{color: Colors.dark}}
+                            horizontal="right">
+                    <Icon symbol={IconSymbol.FileList}/>
+                </MenuButton>
+            </div>
+            <Icon symbol={IconSymbol.Table} className="label"/>
+            <PropertyTable lifecycle={lifecycle} selection={selection} editing={editing} modifyContext={modifyContext}/>
+        </div>
+    )
+}

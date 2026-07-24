@@ -1,0 +1,150 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "globalEnv": [
+    "CI",
+    "BRANCH_NAME"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".env*"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
+    },
+    "@opendaw/studio-core-wasm#build": {
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".env*",
+        "$TURBO_ROOT$/crates/**",
+        "!$TURBO_ROOT$/crates/target/**"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
+    },
+    "@opendaw/app-wasm#build": {
+      "dependsOn": [
+        "^build",
+        "@opendaw/studio-core-wasm#build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".env*",
+        "$TURBO_ROOT$/crates/**",
+        "!$TURBO_ROOT$/crates/target/**"
+      ],
+      "outputs": [
+        "dist/**",
+        "public/wasm/**"
+      ]
+    },
+    "@opendaw/app-studio#build": {
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".env*"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
+    },
+    "@opendaw/studio-forge-boxes#build": {
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".env*",
+        "src/**"
+      ],
+      "outputs": [
+        "../boxes/src/**"
+      ]
+    },
+    "@opendaw/studio-boxes#build": {
+      "dependsOn": [
+        "@opendaw/studio-forge-boxes#build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".env*"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
+    },
+    "@opendaw/studio-core-workers#build": {
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".env*"
+      ],
+      "outputs": [
+        "../core/dist/workers-main.js",
+        "../core/dist/workers-main.js.map"
+      ]
+    },
+    "@opendaw/studio-core-processors#build": {
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".env*"
+      ],
+      "outputs": [
+        "../core/dist/processors.js",
+        "../core/dist/processors.js.map"
+      ]
+    },
+    "@opendaw/studio-core#build": {
+      "dependsOn": [
+        "^build",
+        "@opendaw/studio-core-workers#build",
+        "@opendaw/studio-core-processors#build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".env*"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
+    },
+    "lint": {},
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "test": {
+      "dependsOn": [
+        "^build"
+      ]
+    },
+    "@opendaw/app-wasm#test": {
+      "dependsOn": [
+        "^build"
+      ],
+      "cache": false
+    },
+    "@opendaw/studio-core-wasm#test": {
+      "dependsOn": [
+        "build"
+      ],
+      "cache": false
+    }
+  }
+}

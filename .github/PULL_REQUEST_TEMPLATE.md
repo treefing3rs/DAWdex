@@ -13,13 +13,14 @@ Closes #
 - [ ] I reviewed `git status` and the staged diff.
 - [ ] I ran the relevant tests or documented why they are not available.
 - [ ] I added screenshots/video for UI changes.
-- [ ] I included Ableton read-back evidence for DAW writes.
-- [ ] I checked that no secret, local config, generated output, or large DAW asset is included.
+- [ ] I verified that role messages match the structured music operations.
+- [ ] I included openDAW/MIDI evidence for music changes.
+- [ ] I checked that no secret, local config, build output, or unlicensed MIDI/audio asset is included.
 
 ## Risk
 
 - [ ] Read-only
-- [ ] Reversible write
+- [ ] Reversible openDAW write
 - [ ] Important or potentially destructive write
 
 ## Known limitations

@@ -1,0 +1,17 @@
+@use "@/mixins"
+
+component
+  min-width: 240px
+  display: flex
+  flex-direction: column
+  align-items: start
+  row-gap: 0.25em
+  @include mixins.Control
+
+  hr
+    padding: 0
+    margin: 0
+    border: none
+    width: 100%
+    height: 1px
+    background-color: rgba(white, 0.1)

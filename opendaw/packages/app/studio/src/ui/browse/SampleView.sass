@@ -1,0 +1,62 @@
+component
+  display: grid
+  grid-template-columns: subgrid
+  grid-column: 1 / -1
+  color: var(--color-dark)
+  align-items: center
+
+  &.selected
+    color: var(--color-gray)
+
+  > div.edit
+    display: flex
+    align-items: center
+    column-gap: 3px
+    grid-row: 1
+    grid-column: -1
+    margin-right: 8px
+
+    .edit-icon
+      cursor: pointer
+
+      &:hover
+        color: var(--color-bright)
+
+    .delete-icon
+      cursor: pointer
+
+      &:hover
+        color: var(--color-red)
+
+  > div.meta
+    display: grid
+    grid-template-columns: subgrid
+    grid-column: span 3
+    padding-left: 3px
+    border-left: 3px transparent solid
+
+    &:hover
+      border-left: 3px var(--color-blue) solid
+
+    &:active
+      cursor: grabbing
+
+    &.buffering
+      color: var(--color-black)
+      background-color: var(--color-shadow)
+
+    &.playing
+      color: var(--color-black)
+      background-color: var(--color-blue)
+
+    &.error
+      color: var(--color-black)
+      background-color: var(--color-red)
+
+    > span
+      overflow: hidden
+      white-space: nowrap
+      text-overflow: ellipsis
+
+      &.right
+        text-align: right

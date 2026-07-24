@@ -1,0 +1,97 @@
+@use "@/colors"
+@use "@/mixins"
+
+component
+  display: grid
+  grid-template-rows: repeat(10, 17px)
+  grid-template-columns: 4em repeat(2, 4.5em)
+  row-gap: 1px
+  align-content: start
+  position: relative
+  @include mixins.Control
+
+  > div.outline
+    grid-area: 1 / 1 / -1 / 2
+    outline: 1px rgba(white, 0.04) solid
+    outline-offset: -1px
+    border-radius: 3px
+
+  > h3
+    font-size: 9px
+    font-weight: 400
+    letter-spacing: 0.2px
+    padding: 0 1px
+    text-align: center
+    white-space: nowrap
+    justify-self: end
+    color: rgba(black, 0.8)
+    background-color: color-mix(in srgb, var(--color) 66%, black)
+    position: relative
+
+    &::after
+      content: ''
+      position: absolute
+
+    &.rotated
+      writing-mode: vertical-rl
+      justify-self: end
+
+    &.lfo
+      border-radius: 0 2px 0 0
+
+    &.mix
+      border-radius: 0 0 2px 0
+
+    &.head
+      height: min-content
+      width: 100%
+      padding: 1px 4px
+
+      &:first-of-type
+        border-radius: 2px 2px 0 0
+
+      &::after
+        left: 0
+        bottom: -16px
+        width: 100%
+        height: 16px
+        background: linear-gradient(to bottom, var(--color) -1500%, transparent 16px)
+
+  > section
+    margin: 0 0 0 0.5em
+    border-left: 1px color-mix(in srgb, var(--color) 6%, transparent) solid
+    background-color: color-mix(in srgb, var(--color) 3%, transparent)
+    pointer-events: none
+    --color: red
+
+    &.lfo
+      grid-area: 1 / 2 / 3 / 4
+      --color: var(--color-purple)
+      border-top: 1px color-mix(in srgb, var(--color) 6%, transparent) solid
+      border-radius: 3px 0 0 0
+
+    &.delay
+      grid-area: 3 / 2 / 9 / 4
+      --color: var(--color-blue)
+
+    &.mix
+      grid-area: 9 / 2 / 11 / 4
+      --color: var(--color-green)
+      border-radius: 0 0 0 3px
+      border-bottom: 1px color-mix(in srgb, var(--color) 6%, transparent) solid
+
+  > div.control
+    display: grid
+    grid-template-rows: auto auto
+    white-space: nowrap
+    justify-content: center
+    padding: 4px 4px 1px 4px
+
+    > h3
+      font-size: 9px
+      height: 12px
+      letter-spacing: 0.5px
+      text-align: center
+      text-transform: capitalize
+      color: var(--color-shadow)
+      z-index: 1

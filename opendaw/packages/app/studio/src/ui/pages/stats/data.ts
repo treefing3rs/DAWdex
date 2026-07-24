@@ -1,0 +1,278 @@
+import {isAbsent, Nullable, Option} from "@opendaw/lib-std"
+
+export type DailySeries = ReadonlyArray<readonly [date: string, value: number]>
+
+export type RoomStats = {
+    count: DailySeries
+    duration: DailySeries
+}
+
+export type GitHubStats = {
+    stars: number
+    forks: number
+    watchers: number
+    openIssues: number
+    lastCommit: number
+}
+
+export type DiscordStats = {
+    name: string
+    total: number
+    online: number
+}
+
+export type ErrorStats = {
+    total: number
+    fixed: number
+    unfixed: number
+    ratio: string
+}
+
+export type BuildInfo = {
+    date: number
+    uuid: string
+    env: string
+}
+
+export type Sponsor = {
+    type: "User" | "Organization"
+    login: string
+    name: Nullable<string>
+    avatarUrl: string
+    url: string
+}
+
+export type SponsorStats = {
+    fetchedAt: Nullable<string>
+    totalCount: number
+    sponsors: ReadonlyArray<Sponsor>
+}
+
+const sortByDate = (record: Record<string, number>): DailySeries =>
+    Object.entries(record).sort(([a], [b]) => a.localeCompare(b))
+
+const cacheGet = <T>(key: string, ttlMs: number): Option<T> => {
+    const raw = sessionStorage.getItem(key)
+    if (isAbsent(raw)) return Option.None
+    const parsed = JSON.parse(raw) as { at: number, value: T }
+    if (Date.now() - parsed.at > ttlMs) return Option.None
+    return Option.wrap(parsed.value)
+}
+
+const cacheSet = <T>(key: string, value: T): void => sessionStorage.setItem(key, JSON.stringify({
+    at: Date.now(),
+    value
+}))
+
+const fetchJson = async <T>(url: string, init?: RequestInit): Promise<T> => {
+    const response = await fetch(url, init)
+    if (!response.ok) {throw new Error(`${response.status} ${response.statusText}`)}
+    return await response.json() as T
+}
+
+type RoomResultBreakdown = {
+    success?: number
+    sync_timeout?: number
+    socket_error?: number
+    abort?: number
+    unknown?: number
+}
+
+export const fetchRoomStats = async (): Promise<RoomStats> => {
+    const [results, duration] = await Promise.all([
+        fetchJson<Record<string, RoomResultBreakdown>>(
+            "https://api.opendaw.studio/rooms/rooms-result.json", {mode: "cors", cache: "no-store"}).catch(() => ({})),
+        fetchJson<Record<string, number>>(
+            "https://api.opendaw.studio/rooms/rooms-duration.json", {mode: "cors", cache: "no-store"}).catch(() => ({}))
+    ])
+    const counts: Record<string, number> = {}
+    for (const [date, breakdown] of Object.entries(results)) {
+        counts[date] = breakdown.success ?? 0
+    }
+    return {count: sortByDate(counts), duration: sortByDate(duration)}
+}
+
+export const fetchUserStats = async (): Promise<DailySeries> => {
+    const data = await fetchJson<Record<string, number>>("https://api.opendaw.studio/users/graph.json", {
+        mode: "cors",
+        credentials: "include"
+    })
+    return sortByDate(data)
+}
+
+const GITHUB_REPO = "andremichelle/openDAW"
+const GITHUB_CACHE_KEY = "stats:github:v2"
+const GITHUB_TTL = 10 * 60 * 1000
+
+export const fetchGitHubStats = async (): Promise<GitHubStats> => {
+    const cached = cacheGet<GitHubStats>(GITHUB_CACHE_KEY, GITHUB_TTL)
+    if (cached.nonEmpty()) return cached.unwrap()
+    type RepoResponse = {
+        stargazers_count: number
+        forks_count: number
+        subscribers_count: number
+        open_issues_count: number
+        pushed_at: string
+    }
+    const repo = await fetchJson<RepoResponse>(`https://api.github.com/repos/${GITHUB_REPO}`)
+    const stats: GitHubStats = {
+        stars: repo.stargazers_count,
+        forks: repo.forks_count,
+        watchers: repo.subscribers_count,
+        openIssues: repo.open_issues_count,
+        lastCommit: new Date(repo.pushed_at).getTime()
+    }
+    cacheSet(GITHUB_CACHE_KEY, stats)
+    return stats
+}
+
+const DISCORD_INVITE = "ZRm8du7vn4"
+const DISCORD_CACHE_KEY = "stats:discord"
+const DISCORD_TTL = 5 * 60 * 1000
+
+export const fetchDiscordStats = async (): Promise<DiscordStats> => {
+    const cached = cacheGet<DiscordStats>(DISCORD_CACHE_KEY, DISCORD_TTL)
+    if (cached.nonEmpty()) return cached.unwrap()
+    type InviteResponse = {
+        approximate_member_count: number
+        approximate_presence_count: number
+        guild: { name: string }
+    }
+    const data = await fetchJson<InviteResponse>(
+        `https://discord.com/api/v10/invites/${DISCORD_INVITE}?with_counts=true`)
+    const stats: DiscordStats = {
+        name: data.guild.name,
+        total: data.approximate_member_count,
+        online: data.approximate_presence_count
+    }
+    cacheSet(DISCORD_CACHE_KEY, stats)
+    return stats
+}
+
+export const fetchSponsorStats = async (): Promise<SponsorStats> =>
+    fetchJson<SponsorStats>(`/sponsors.json?t=${Date.now()}`)
+
+export const fetchBuildInfo = async (): Promise<BuildInfo> =>
+    fetchJson<BuildInfo>(`/build-info.json?t=${Date.now()}`)
+
+export const formatRelativeDate = (timestamp: number): string => {
+    const diff = Date.now() - timestamp
+    const days = Math.floor(diff / (24 * 60 * 60 * 1000))
+    if (days === 0) return "today"
+    if (days === 1) return "1 day ago"
+    if (days < 30) return `${days} days ago`
+    const months = Math.floor(days / 30)
+    if (months === 1) return "1 month ago"
+    return `${months} months ago`
+}
+
+const NPM_CACHE_KEY = "stats:npm"
+const NPM_TTL = 60 * 60 * 1000
+
+export const fetchNpmWeeklyDownloads = async (packageName: string): Promise<number> => {
+    const key = `${NPM_CACHE_KEY}:${packageName}`
+    const cached = cacheGet<number>(key, NPM_TTL)
+    if (cached.nonEmpty()) return cached.unwrap()
+    type NpmResponse = { downloads: number }
+    const data = await fetchJson<NpmResponse>(
+        `https://api.npmjs.org/downloads/point/last-week/${packageName}`)
+    cacheSet(key, data.downloads)
+    return data.downloads
+}
+
+export const bestColumnCount = (totalCells: number): number => {
+    if (totalCells <= 1) return 1
+    let bestCols = totalCells
+    for (let rows = 1; rows * rows <= totalCells; rows++) {
+        if (totalCells % rows === 0) bestCols = totalCells / rows
+    }
+    return bestCols
+}
+
+const ERROR_CACHE_KEY = "stats:errors"
+const ERROR_TTL = 5 * 60 * 1000
+
+export const fetchErrorStats = async (): Promise<ErrorStats> => {
+    const cached = cacheGet<ErrorStats>(ERROR_CACHE_KEY, ERROR_TTL)
+    if (cached.nonEmpty()) return cached.unwrap()
+    type StatusResponse = { Total: number, Fixed: number, Unfixed: number, Ratio: string }
+    const data = await fetchJson<StatusResponse>("https://logs.opendaw.studio/status.php")
+    const stats: ErrorStats = {
+        total: data.Total,
+        fixed: data.Fixed,
+        unfixed: data.Unfixed,
+        ratio: data.Ratio
+    }
+    cacheSet(ERROR_CACHE_KEY, stats)
+    return stats
+}
+
+export type LatencyStats = { distribution: DailySeries, unsupported: number, total: number }
+
+const LATENCY_OVERFLOW_MS = 50
+
+export const fetchLatencyStats = async (): Promise<LatencyStats> => {
+    const data = await fetchJson<Record<string, number>>(
+        "https://api.opendaw.studio/latency/latency.json", {mode: "cors"})
+    const unsupported = data["-1"] ?? 0
+    const buckets = new Map<number, number>()
+    let overflow = 0
+    for (const [key, count] of Object.entries(data)) {
+        const ms = parseInt(key, 10)
+        if (!(ms > 0)) continue
+        if (ms >= LATENCY_OVERFLOW_MS) {overflow += count} else {buckets.set(ms, count)}
+    }
+    const total = overflow + [...buckets.values()].reduce((sum, count) => sum + count, 0)
+    if (total === 0) return {distribution: [], unsupported, total: 0}
+    const minMs = buckets.size === 0 ? 1 : Math.min(...buckets.keys())
+    const counts: Array<readonly [string, number]> = []
+    for (let ms = minMs; ms < LATENCY_OVERFLOW_MS; ms++) {
+        counts.push([`${ms}`, buckets.get(ms) ?? 0] as const)
+    }
+    counts.push([`${LATENCY_OVERFLOW_MS}+`, overflow] as const)
+    const distribution = counts.map(([label, count]) => [label, (count / total) * 100] as const)
+    return {distribution, unsupported, total}
+}
+
+export const fetchVisitorStats = async (): Promise<DailySeries> => {
+    const data = await fetchJson<Record<string, ReadonlyArray<string>>>(
+        "https://api.opendaw.studio/users/visitors.json", {mode: "cors"})
+    const counts: Record<string, number> = {}
+    for (const [date, ids] of Object.entries(data)) {
+        counts[date] = ids.length
+    }
+    return sortByDate(counts)
+}
+
+export const fetchVisitStats = async (): Promise<DailySeries> => {
+    const data = await fetchJson<Record<string, number>>(
+        "https://api.opendaw.studio/users/visits.json", {mode: "cors"})
+    return sortByDate(data)
+}
+
+export const sumValues = (series: DailySeries): number =>
+    series.reduce((acc, [, value]) => acc + value, 0)
+
+export const lastValue = (series: DailySeries): number =>
+    series.length === 0 ? 0 : series[series.length - 1][1]
+
+// The most recent day in any DailySeries is still being written to, so its
+// value is always partial. Drop it before charting/trending — otherwise the
+// last point sits below the trend and skews any visual reading.
+export const dropPartialDay = (series: DailySeries): DailySeries =>
+    series.length > 0 ? series.slice(0, -1) : series
+
+export const minutesToHours = (series: DailySeries): DailySeries =>
+    series.map(([date, minutes]) => [date, minutes / 60] as const)
+
+export const formatHours = (hours: number): string => {
+    if (hours < 1) return `${Math.round(hours * 60)} min`
+    if (hours < 100) return `${hours.toFixed(1)} h`
+    return `${Math.round(hours)} h`
+}
+
+export const formatNumber = (value: number): string => {
+    if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`
+    if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`
+    return value.toString()
+}

@@ -1,0 +1,42 @@
+@use "@/mixins"
+
+component
+  display: grid
+  grid-template: 15px 1fr / 1fr 36px
+  row-gap: 0.25em
+  column-gap: 0.5em
+  padding: 0.5em 0.5em 0 0.5em
+  @include mixins.Control
+
+  > div.lookahead
+    grid-column: 1
+    grid-row: 1
+    display: flex
+    place-items: center
+    place-content: center
+    height: 15px
+    font-size: 9px
+    white-space: nowrap
+    border-radius: 2px
+    padding: 0 4px
+    margin-left: 20px
+    color: var(--color-shadow)
+    background-color: rgba(black, 0.33)
+    cursor: pointer
+
+    &.active
+      color: var(--color-background)
+      background-color: var(--color-blue)
+
+  > .meters
+    grid-column: 1
+    grid-row: 2
+
+  > div.slider-section
+    grid-column: 2
+    grid-row: 1 / 3
+    display: grid
+
+    .vertical-slider
+      place-self: center
+      width: 24px

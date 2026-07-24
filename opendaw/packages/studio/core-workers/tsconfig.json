@@ -1,0 +1,17 @@
+{
+  "extends": "@opendaw/typescript-config/base.json",
+  "include": [
+    "src"
+  ],
+  "compilerOptions": {
+    "declaration": true,
+    "declarationMap": true,
+    "lib": [
+      "ESNext",
+      "WebWorker"
+    ]
+  },
+  "exclude": [
+    "node_modules"
+  ]
+}

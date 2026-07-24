@@ -1,0 +1,43 @@
+component
+  display: flex
+  align-items: stretch
+  column-gap: 1px
+  border-radius: 2px
+  position: relative
+  overflow: hidden
+  background-color: color-mix(in srgb, var(--color-purple), transparent 99%)
+
+  > .power
+    position: absolute
+    inset: 0
+    display: flex
+    align-items: center
+    justify-content: center
+    cursor: pointer
+    font-size: 14px
+    opacity: 0.4
+    user-select: none
+    z-index: 1
+    background-color: transparent
+    &:hover
+      opacity: 0.8
+
+  > div:not(.power)
+    background-color: color-mix(in srgb, var(--color-purple), transparent 33%)
+    user-select: none
+
+    &.label
+      display: flex
+      justify-content: center
+      font-size: 9px
+      font-weight: bold
+      writing-mode: vertical-rl
+      transform: rotate(180deg)
+      color: black
+      letter-spacing: 0.8px
+
+    &.end
+      width: 2px
+
+  > canvas
+    background-color: transparent

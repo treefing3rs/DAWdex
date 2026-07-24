@@ -1,0 +1,45 @@
+component
+  display: flex
+  flex-direction: column
+  align-items: center
+  row-gap: 1px
+  position: relative
+
+  &:focus, &:focus-visible, :focus, :focus-visible
+    outline: none
+
+  .negative &, &.negative
+    color: var(--color-red) !important
+
+  .automated &, &.automated
+    &::before
+      content: ""
+      position: absolute
+      top: -4px
+      left: -4px
+      width: calc(100% + 8px)
+      height: calc(100% + 8px)
+      border-top: 1px color-mix(in srgb, var(--color-blue), transparent 25%) solid
+      background: linear-gradient(to bottom, var(--color-blue) -1500%, transparent 100%)
+
+  &.float > div:nth-child(1)::after
+    visibility: visible
+
+  > div
+    &:nth-child(1)
+      text-align: center
+      font-size: 15px
+      line-height: 16px
+      position: relative
+      color: white
+
+      &::after
+        content: "."
+        position: absolute
+        visibility: hidden
+
+    &:nth-child(2)
+      color: hsla(200, 80%, 60%, 0.75)
+      font-size: 8px
+      line-height: 1em
+      text-transform: uppercase

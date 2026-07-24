@@ -1,978 +1,555 @@
-﻿# DAWdex 技术方案
-## Electron + Open Agent Runtime + Ableton MCP
+# DAWdex 技术方案
 
-> 版本：v0.1 Hackathon MVP
-> 日期：2026-07-23
-> 状态：架构已确定，Agent Runtime 具体实现待 Spike 后选型
+## openDAW + 音乐意图编译器 + 多角色 Agent 编排
 
----
+| 项目 | 当前原型 | 黑客松目标 |
+|---|---|---|
+| 音乐引擎 | openDAW Studio | 保持 |
+| UI | 浏览器内全屏遮罩与 Agent 侧栏 | 角色乐队舞台 |
+| Agent | OpenAI Agents SDK + 本地 Planner | Provider 抽象、角色任务 |
+| 动作 | Tempo、四种固定 Pattern | MusicBrief、检索、变体、循环调度 |
+| 音乐素材 | 确定性音符生成 | 高质量 MIDI 库 |
+| 桌面封装 | 未完成 | P2，Demo 不依赖 |
 
-## 一、系统总览
+## 一、代码基线
 
-DAWdex 是 MCP Host，也是一个为音乐制作定制的桌面 Agent UI。
-
-```text
-┌──────────────────────────────────────────────────────────────┐
-│ Electron Renderer                                           │
-│                                                              │
-│ Conversation | DAW Context | Plan | Roles | Tool Calls      │
-│ Range Select | Action Log | Before/After | Transport         │
-└───────────────────────┬──────────────────────────────────────┘
-                        │ typed IPC
-┌───────────────────────▼──────────────────────────────────────┐
-│ Electron Main / Application Host                            │
-│                                                              │
-│ Session Service     Approval Service     Project Store       │
-│ Agent Runtime Host  Event Stream         Process Manager      │
-└───────────────┬───────────────────────────────┬──────────────┘
-                │                               │
-                ▼                               ▼
-┌─────────────────────────────┐   ┌────────────────────────────┐
-│ Open Agent Runtime Adapter  │   │ MCP Client Manager         │
-│                             │   │                            │
-│ LLM / Loop / Tools / Tasks  │   │ Tool registry / lifecycle  │
-│ Subagents / Skills / Events │   │ stdio or local process     │
-└──────────────┬──────────────┘   └──────────────┬─────────────┘
-               │                                 │
-               └──────────────┬──────────────────┘
-                              ▼
-┌──────────────────────────────────────────────────────────────┐
-│ ableton-mcp Python Server                                   │
-│                ↓ TCP JSON 127.0.0.1:8765                    │
-│ AbletonMCP Remote Script                                    │
-│                ↓ Live API                                   │
-│ Ableton Live 12                                             │
-└──────────────────────────────────────────────────────────────┘
-```
-
-### 核心边界
-
-- Renderer 只负责 UI；
-- Main Process 是本地可信 Host；
-- Agent Runtime 负责推理循环，不直接拥有 UI；
-- MCP Client Manager 负责工具连接；
-- Ableton 写操作经过单一执行队列；
-- 音乐领域规则位于独立 package；
-- 弹幕只是输入适配器 / Skill。
-
----
-
-## 二、建议技术栈
-
-### Desktop
-
-| 层 | 建议 |
-|---|---|
-| Shell | Electron |
-| Renderer | React + TypeScript |
-| Build | Vite |
-| UI State | Zustand 或 reducer |
-| Validation | Zod |
-| Local DB | SQLite 或 v0.1 JSON store |
-| Test | Vitest + Playwright |
-| Packaging | Electron Forge 或 Electron Builder，Spike 后选择 |
-
-### Agent
-
-具体 Runtime 待选，但必须满足能力合同：
-
-- 开源且可嵌入或可作为子进程运行；
-- 多轮 Session；
-- 流式事件；
-- Provider 可替换；
-- Tool Calling；
-- MCP Client 或可接入 MCP；
-- Approval / Cancellation；
-- Skills / System Prompt；
-- 子任务或子 Agent；
-- 会话持久化；
-- Windows 可运行；
-- 许可证允许产品集成。
-
-候选方向包括 OpenCode-like Agent Runtime。不要在选型完成前把业务代码绑定到某个内部 API。
-
-### DAW
-
-v0.1：
-
-- Ableton Live 12；
-- 已有 `ableton-mcp`；
-- Ableton Remote Script；
-- localhost TCP 8765。
-
-后续：
-
-- FL Studio Adapter；
-- Reaper Adapter；
-- MIDI 文件 Adapter。
-
----
-
-## 三、Electron 进程设计
-
-### Main Process
-
-负责：
-
-- 应用生命周期；
-- Window；
-- 本地配置；
-- Agent Runtime 子进程；
-- MCP Server 子进程；
-- IPC；
-- 文件系统；
-- 安全存储；
-- Session persistence；
-- 日志；
-- 自动恢复。
-
-### Renderer Process
-
-负责：
-
-- 对话；
-- DAW Context；
-- Plan；
-- Tool Call；
-- Approval；
-- Roles；
-- Action Log；
-- Transport 控制；
-- Settings。
-
-Renderer 禁止：
-
-- 直接 `spawn`；
-- 直接读写任意文件；
-- 直接持有 API Key；
-- 直接连接 localhost socket；
-- 直接调用 Ableton MCP；
-- 导入 Node 内置模块。
-
-### Preload
-
-只暴露白名单 API：
-
-```ts
-export interface MusicAgentDesktopApi {
-  session: {
-    create(input: CreateSessionInput): Promise<SessionSummary>;
-    sendMessage(input: SendMessageInput): Promise<void>;
-    cancel(sessionId: string): Promise<void>;
-    approve(input: ApprovalDecision): Promise<void>;
-    subscribe(
-      listener: (event: AgentUiEvent) => void
-    ): () => void;
-  };
-  daw: {
-    diagnose(): Promise<DawDiagnostic>;
-    refreshContext(): Promise<DawContextSnapshot>;
-    control(command: TransportCommand): Promise<void>;
-  };
-  settings: {
-    read(): Promise<PublicSettings>;
-    update(patch: PublicSettingsPatch): Promise<PublicSettings>;
-  };
-}
-```
-
-不向 Renderer 暴露通用 `ipcRenderer.send(channel, payload)`。
-
-### Utility / Child Process
-
-Agent Runtime 和 MCP Server 建议运行在独立进程：
-
-- 崩溃不带走 UI；
-- 可单独重启；
-- stdout / stderr 可采集；
-- 可设置工作目录和环境变量；
-- 可限制暴露接口；
-- 可以检测僵尸进程。
-
----
-
-## 四、Monorepo 结构
+当前 DAWdex 原型位于：
 
 ```text
-/
-├─ apps/
-│  └─ desktop/
-│     ├─ src/main/
-│     ├─ src/preload/
-│     └─ src/renderer/
-├─ packages/
-│  ├─ agent-runtime/
-│  │  ├─ ports.ts
-│  │  ├─ runtime-adapter.ts
-│  │  └─ candidates/
-│  ├─ mcp-client/
-│  ├─ ableton-adapter/
-│  ├─ music-domain/
-│  │  ├─ intent/
-│  │  ├─ planning/
-│  │  ├─ roles/
-│  │  └─ schemas/
-│  ├─ session-domain/
-│  ├─ shared-contracts/
-│  └─ test-fixtures/
-├─ skills/
-│  ├─ music-director/
-│  ├─ arranger/
-│  ├─ composer/
-│  ├─ players/
-│  ├─ mix-engineer/
-│  └─ danmaku-arrangement/
-├─ docs/
-├─ third_party/
-│  └─ ableton-mcp-upstream/
-└─ package.json
+opendaw/
+├─ packages/app/studio/src/agent/
+│  ├─ AgentClient.ts
+│  ├─ AgentOverlay.tsx
+│  ├─ AgentOverlay.sass
+│  ├─ AgentProtocol.ts
+│  ├─ DawProjectAdapter.ts
+│  ├─ LocalMusicPlanner.ts
+│  └─ LocalMusicPlanner.test.ts
+└─ packages/server/dawdex-agent/
+   ├─ src/server.ts
+   ├─ .env.example
+   └─ package.json
 ```
 
-依赖方向：
+Studio 默认请求：
 
 ```text
-renderer → shared-contracts
-main → session-domain / agent-runtime / mcp-client
-ableton-adapter → mcp-client / music-domain
-agent-runtime → shared-contracts / ports
-music-domain → 无 Electron、无 React、无具体 Runtime
+POST http://localhost:8787/v1/plan
 ```
 
----
-
-## 五、Agent Runtime Adapter
-
-### 为什么必须抽象
-
-当前只确定使用 OpenCode-like 开源 Agent，尚未确定：
-
-- 嵌入库还是启动 CLI / Server；
-- Provider；
-- Session 格式；
-- MCP 支持方式；
-- 子 Agent 模型；
-- Event Stream 格式。
-
-因此先定义产品所需合同。
-
-### Runtime Port
-
-```ts
-export interface AgentRuntimePort {
-  start(config: AgentRuntimeConfig): Promise<void>;
-  stop(): Promise<void>;
-  createSession(input: CreateRuntimeSessionInput): Promise<string>;
-  resumeSession(sessionId: string): Promise<void>;
-  send(input: RuntimeUserMessage): Promise<void>;
-  cancel(sessionId: string): Promise<void>;
-  approve(decision: RuntimeApprovalDecision): Promise<void>;
-  subscribe(listener: (event: RuntimeEvent) => void): Unsubscribe;
-  getCapabilities(): Promise<RuntimeCapabilities>;
-}
-```
-
-### 必需事件
-
-```ts
-export type RuntimeEvent =
-  | { type: "session.started"; sessionId: string }
-  | { type: "assistant.delta"; sessionId: string; text: string }
-  | { type: "plan.updated"; plan: AgentPlan }
-  | { type: "task.started"; task: AgentTask }
-  | { type: "tool.requested"; call: ToolCallRequest }
-  | { type: "approval.requested"; approval: ApprovalRequest }
-  | { type: "tool.completed"; result: ToolCallResult }
-  | { type: "subagent.started"; agent: AgentRoleRun }
-  | { type: "subagent.completed"; agent: AgentRoleRun }
-  | { type: "session.completed"; summary: string }
-  | { type: "session.failed"; error: PublicAgentError };
-```
-
-### Runtime Spike
-
-每个候选必须完成同一 Spike：
-
-1. 创建 Session；
-2. 使用两个不同 Provider；
-3. 注册一个 Mock Tool；
-4. 连接 Ableton MCP；
-5. 流式显示 Tool Call；
-6. 发起 Approval；
-7. Cancel；
-8. 恢复 Session；
-9. 运行一个子任务；
-10. Windows 打包后运行。
-
-### 选择矩阵
-
-| 维度 | 权重 |
-|---|---:|
-| MCP 集成 | 20% |
-| 可嵌入与事件流 | 20% |
-| Session / Cancel / Approval | 15% |
-| Provider 可替换 | 10% |
-| 子 Agent / Skill | 10% |
-| Windows 稳定性 | 10% |
-| 许可证 | 10% |
-| 维护活跃度 | 5% |
-
----
-
-## 六、MCP Host 与 Ableton Adapter
-
-### MCP 角色
-
-DAWdex 是 MCP Host：
-
-- 管理 MCP Client；
-- 启动或连接 MCP Server；
-- 获取 Tools；
-- 把 Tools 注册给 Agent Runtime；
-- 对工具做权限分级；
-- 把 Tool Call 事件映射到 UI。
-
-### Ableton 连接
-
-当前：
-
-```text
-MCP executable:
-C:\Users\27751\.local\bin\ableton-mcp.exe
-
-Host:
-127.0.0.1
-
-Port:
-8765
-```
-
-### 已验证工具类别
-
-读取：
-
-- `get_session_info`
-- `get_track_info`
-- `get_arrangement_clips`
-- `get_browser_tree`
-- `get_browser_items_at_path`
-
-写入：
-
-- `create_midi_track`
-- `set_track_name`
-- `create_clip`
-- `add_notes_to_clip`
-- `set_clip_name`
-- `duplicate_to_arrangement`
-- `load_instrument_or_effect`
-- `load_drum_kit`
-- `set_tempo`
-
-播放：
-
-- `switch_to_arrangement_view`
-- `set_arrangement_time`
-- `start_playback`
-- `stop_playback`
-- `fire_clip`
-- `stop_clip`
-
-### 工具包装
-
-不要把原始 MCP Tool 直接暴露给音乐角色。
-
-上层使用稳定动作：
-
-```ts
-export interface DawMusicPort {
-  inspectProject(): Promise<DawContextSnapshot>;
-  inspectRange(range: BarRange): Promise<DawRangeContext>;
-  createTrack(input: CreateMusicTrackInput): Promise<DawWriteReceipt>;
-  createClip(input: CreateMusicClipInput): Promise<DawWriteReceipt>;
-  writeNotes(input: WriteNotesInput): Promise<DawWriteReceipt>;
-  loadSound(input: LoadSoundInput): Promise<DawWriteReceipt>;
-  placeInArrangement(input: PlaceClipInput): Promise<DawWriteReceipt>;
-  verify(receipt: DawWriteReceipt): Promise<VerificationResult>;
-  preview(range: BarRange): Promise<void>;
-}
-```
-
-Adapter 负责把它们映射到 MCP。
-
----
-
-## 七、DAW Context
-
-### Snapshot
-
-```ts
-export interface DawContextSnapshot {
-  capturedAt: string;
-  connection: {
-    daw: "ableton-live";
-    version?: string;
-    host: string;
-    port: number;
-  };
-  transport: {
-    tempoBpm: number;
-    timeSignature: [number, number];
-    isPlaying: boolean;
-    currentBeat: number;
-  };
-  tracks: DawTrackSummary[];
-  arrangement: DawClipSummary[];
-  selection?: BarRange;
-}
-```
-
-### Track
-
-```ts
-export interface DawTrackSummary {
-  index: number;
-  name: string;
-  type: "midi" | "audio" | "return" | "master" | "unknown";
-  devices: string[];
-  clips: DawClipSummary[];
-  role?: MusicTrackRole;
-}
-```
-
-### Context Policy
-
-- 每个任务开始时读取；
-- 写操作后局部刷新；
-- 长任务在关键阶段重新读取；
-- UI 显示 snapshot 时间；
-- Agent 不假设 Track Index 永远不变；
-- 优先通过稳定标识与名称再次确认。
-
----
-
-## 八、音乐意图与计划
-
-### UserMusicRequest
-
-```ts
-export interface UserMusicRequest {
-  text: string;
-  target?: {
-    range?: BarRange;
-    sectionName?: string;
-    trackNames?: string[];
-  };
-  constraints: {
-    preserve: string[];
-    avoid: string[];
-    allowedTracks?: string[];
-  };
-  mode: "plan_only" | "apply_after_approval";
-}
-```
-
-### MusicIntent
-
-```ts
-export interface MusicIntent {
-  targetRange: BarRange;
-  goals: {
-    energyDelta?: number;
-    densityDelta?: number;
-    tensionDelta?: number;
-    emotionalDirection?: string;
-  };
-  preserve: MusicReference[];
-  trackIntent: TrackIntent[];
-  confidence: number;
-  assumptions: string[];
-  clarificationNeeded: boolean;
-}
-```
-
-### AgentPlan
-
-```ts
-export interface AgentPlan {
-  id: string;
-  requestId: string;
-  understanding: string;
-  assumptions: string[];
-  targetRange: BarRange;
-  steps: PlanStep[];
-  affectedTracks: string[];
-  preserve: string[];
-  risk: "read_only" | "reversible_write" | "important_write";
-  requiresApproval: boolean;
-  status: "draft" | "awaiting_approval" | "running" | "completed" | "failed";
-}
-```
-
-### PlanStep
-
-```ts
-export interface PlanStep {
-  id: string;
-  ownerRole: MusicAgentRole;
-  description: string;
-  operation: MusicOperation;
-  dependencies: string[];
-  verification: VerificationSpec;
-}
-```
-
----
-
-## 九、多 Agent Orchestration
-
-### 推荐模型
-
-```text
-User
-  ↓
-Music Director
-  ├─ Composer task
-  ├─ Arranger task
-  ├─ Drum Player task
-  ├─ Bass Player task
-  ├─ Guitar Player task
-  └─ Mix Engineer task
-  ↓
-Plan Merge
-  ↓ User Approval
-  ↓
-Single DAW Execution Queue
-  ↓
-QA / Verification
-```
-
-### 角色输出
-
-角色 Agent 默认输出结构化建议，不直接调用写工具：
-
-```ts
-export interface RoleProposal {
-  role: MusicAgentRole;
-  summary: string;
-  actions: ProposedMusicAction[];
-  constraints: string[];
-  confidence: number;
-}
-```
-
-Music Director 负责：
-
-- 去重；
-- 冲突；
-- 排序；
-- 预算；
-- 形成最终 Plan。
-
-### 并发限制
-
-可以并行：
-
-- 读取同一 Snapshot 后的角色分析；
-- Composer 与 Arranger 的建议；
-- 不同 Player 的 MIDI proposal；
-- QA 规则检查。
-
-禁止并行：
-
-- Ableton 写操作；
-- 轨道创建与立即依赖其 index 的写入；
-- 设备加载与后续设备参数读取；
-- 播放头移动和播放控制序列。
-
----
-
-## 十、执行队列
-
-### Queue
-
-```ts
-export interface DawCommandQueue {
-  enqueue(command: DawCommand): Promise<DawCommandReceipt>;
-  cancelPending(reason: string): void;
-  subscribe(listener: (event: DawQueueEvent) => void): Unsubscribe;
-}
-```
-
-### 每个写操作
-
-```text
-validate input
-→ wait for dependencies
-→ execute MCP tool
-→ store raw response
-→ read back DAW state
-→ compare expectation
-→ emit verified / partial / failed
-```
-
-### 超时
-
-超时不等于失败。处理顺序：
-
-1. 停止发送依赖写操作；
-2. 读取当前 Track / Arrangement；
-3. 判断操作是否已实际生效；
-4. 若已生效，标记 `succeeded_after_timeout`；
-5. 若未生效，再决定是否重试；
-6. 不自动重复非幂等创建。
-
-### Result
-
-```ts
-export interface DawWriteReceipt {
-  commandId: string;
-  toolName: string;
-  requestedAt: string;
-  completedAt?: string;
-  rawStatus: "success" | "timeout" | "error";
-  verificationStatus: "pending" | "verified" | "partial" | "failed";
-  affectedEntities: DawEntityRef[];
-}
-```
-
----
-
-## 十一、Approval 与安全
-
-### Approval Policy
-
-```ts
-export type ApprovalMode =
-  | "always_ask"
-  | "ask_for_writes"
-  | "ask_for_important"
-  | "never_auto_write";
-```
-
-v0.1 默认 `ask_for_writes`。
-
-### 重要操作
-
-必须单独确认：
-
-- 删除 Track / Clip / Note；
-- 覆盖已有片段；
-- 批量修改；
-- 工程保存 / 另存；
-- 导出覆盖；
-- 改变全局 Tempo；
-- 操作第三方插件；
-- 运行外部脚本。
-
-### Renderer Security
-
-- `contextIsolation: true`；
-- `nodeIntegration: false`；
-- Preload 方法级白名单；
-- IPC payload schema；
-- 禁止任意 channel；
-- 禁止加载远程页面作为主 UI；
-- 外链在系统浏览器打开；
-- CSP；
-- API Key 只在 Main / Runtime；
-- 子进程参数不拼接 shell 字符串。
-
----
-
-## 十二、Session 与持久化
-
-### Session
-
-```ts
-export interface MusicAgentSession {
-  id: string;
-  title: string;
-  createdAt: string;
-  updatedAt: string;
-  dawProjectIdentity?: DawProjectIdentity;
-  runtimeSessionId?: string;
-  messages: ConversationMessage[];
-  plans: AgentPlan[];
-  toolCalls: ToolCallRecord[];
-  roleRuns: AgentRoleRun[];
-  approvals: ApprovalRecord[];
-}
-```
-
-### 本地保存
-
-v0.1 保存：
-
-- 会话；
-- 用户设置；
-- Runtime 选择；
-- MCP 配置；
-- Action Log；
-- 最近工程摘要；
-- Demo 状态。
-
-不保存：
-
-- Ableton 工程完整内容；
-- 商业音频；
-- 未经用户允许的 MIDI 副本；
-- 明文 API Key。
-
-### Secret
-
-优先使用系统凭据存储。若 v0.1 未完成，允许只从环境变量读取，不允许写进 JSON。
-
----
-
-## 十三、UI Event Model
-
-Main 将 Runtime 和 MCP 事件归一为：
-
-```ts
-export type AgentUiEvent =
-  | { type: "connection.changed"; value: ConnectionState }
-  | { type: "context.updated"; value: DawContextSnapshot }
-  | { type: "message.delta"; value: MessageDelta }
-  | { type: "plan.updated"; value: AgentPlan }
-  | { type: "role.updated"; value: AgentRoleRun }
-  | { type: "tool.updated"; value: ToolCallRecord }
-  | { type: "approval.requested"; value: ApprovalRequest }
-  | { type: "action.logged"; value: ActionLogEntry }
-  | { type: "session.completed"; value: SessionCompletion }
-  | { type: "error"; value: PublicAppError };
-```
-
-Renderer 只消费该事件，不解析 Runtime 原始 stdout。
-
----
-
-## 十四、弹幕 Skill
-
-### 边界
-
-弹幕只是 `Input Adapter + Skill`：
-
-```text
-DanmakuEvent[]
-  → DanmakuAggregator
-  → UserMusicRequest
-  → 标准 DAWdex 流程
-```
-
-### 不单独维护第二套音乐引擎
-
-弹幕功能不得：
-
-- 绕过 Music Director；
-- 直接调用 Ableton MCP；
-- 使用独立 CueScript 后端与主产品割裂；
-- 让 UI 主导航围绕直播设计。
-
-### 输出示例
+请求：
 
 ```json
 {
-  "text": "观众希望下一段先切一拍，再打开副歌，并让吉他做短回答。",
-  "target": {
-    "range": {
-      "startBar": 8,
-      "endBar": 16
-    }
-  },
-  "constraints": {
-    "preserve": ["lead theme"],
-    "avoid": ["all tracks becoming dense"]
-  },
-  "mode": "apply_after_approval"
+  "prompt": "副歌更炸一点，但不要太满",
+  "snapshot": {
+    "hasProject": true,
+    "bpm": 120,
+    "tracks": [
+      {
+        "name": "Keys",
+        "trackCount": 1,
+        "regionCount": 1
+      }
+    ]
+  }
 }
 ```
 
----
+网络、HTTP 或 Schema 失败时，`AgentClient` 自动调用 `LocalMusicPlanner`。
 
-## 十五、现有 Ableton 能力与缺口
+## 二、当前协议
 
-### 已验证
+```ts
+type DawAction =
+    | {
+        readonly type: "set-tempo"
+        readonly bpm: number
+    }
+    | {
+        readonly type: "create-instrument"
+        readonly name: string
+        readonly pattern: "bass" | "chords" | "pulse" | "lead"
+        readonly startBar: number
+        readonly bars: number
+        readonly rootMidi: number
+        readonly velocity: number
+        readonly density: number
+    }
+```
 
-- 连接；
-- 读取工程；
-- 浏览音色；
-- 加载原生设备；
-- 创建 MIDI Track；
-- 创建 Clip；
-- 写入音符；
-- 复制到 Arrangement；
-- 播放与停止；
-- 104 BPM / D minor / 32 小节多轨 Demo。
+当前 `compilePattern` 使用固定四和弦循环和确定性规则。它适合验证工程写入，但不能承担正式音乐生成。
 
-### 已知限制
+## 三、目标数据模型
 
-- 删除 / 替换指定音符不完整；
-- 精确编辑已有音符能力不足；
-- 通用 Undo / Rollback 不完整；
-- 保存新工程版本不完整；
-- Arrangement Loop 不可靠；
-- Automation 和混音控制不足；
-- 第三方插件参数控制不足；
-- 真实音频监听闭环未完成；
-- 当前底层请求 / 响应在并行时可能错位。
+### ProjectSnapshot
 
-### v0.1 设计响应
+```ts
+type ProjectSnapshot = {
+    readonly transport: {
+        readonly isPlaying: boolean
+        readonly bpm: number
+        readonly timeSignature: readonly [number, number]
+        readonly loopStartPpqn: number
+        readonly loopLengthPpqn: number
+    }
+    readonly harmony: {
+        readonly key: string
+        readonly scale: string
+        readonly chordProgression: ReadonlyArray<string>
+    }
+    readonly tracks: ReadonlyArray<TrackSnapshot>
+}
+```
 
-- 串行；
-- 新建而非覆盖；
-- 固定 Demo；
-- 计划确认；
-- 写后读回；
-- Partial Success；
-- 备用工程；
-- 不宣传未验证能力。
+后续快照必须读取实际音符摘要，而不是只统计 Region 数量：
 
----
+```ts
+type TrackSnapshot = {
+    readonly id: string
+    readonly role: MusicRole | "unknown"
+    readonly name: string
+    readonly instrument: string
+    readonly range: readonly [number, number]
+    readonly regions: ReadonlyArray<RegionSnapshot>
+}
+```
 
-## 十六、测试
+### MusicBrief
+
+```ts
+type MusicBrief = {
+    readonly requestId: string
+    readonly selectedAudienceIntent: {
+        readonly originalText: string
+        readonly normalizedText: string
+        readonly summary: string
+        readonly score: number
+    }
+    readonly global: {
+        readonly bpm: number
+        readonly key: string
+        readonly scale: string
+        readonly timeSignature: readonly [number, number]
+        readonly bars: 4 | 8
+        readonly energy: number
+        readonly tension: number
+        readonly preserve: ReadonlyArray<string>
+    }
+    readonly roleTasks: ReadonlyArray<RoleTask>
+}
+```
+
+### RoleTask
+
+```ts
+type RoleTask = {
+    readonly id: string
+    readonly role: MusicRole
+    readonly professionalSummary: string
+    readonly listenerExplanation: string
+    readonly operation: MusicOperation
+    readonly constraints: ReadonlyArray<string>
+    readonly confidence: number
+}
+```
+
+### MusicOperation
+
+MVP 只开放有界操作：
+
+```ts
+type MusicOperation =
+    | RetrieveAndTransformMidi
+    | CreatePattern
+    | ReplaceRoleTrack
+    | ChangeRoleDensity
+    | ChangeVoicing
+    | SetTempo
+```
+
+不允许模型生成任意函数名、脚本或文件路径。
+
+## 四、弹幕管线
+
+```text
+RawDanmaku[]
+→ normalizeText
+→ repairTranscription
+→ rejectGarbage
+→ deduplicate
+→ clusterIntent
+→ scoreCandidate
+→ ProducerDecision
+```
+
+### NormalizedDanmaku
+
+```ts
+type NormalizedDanmaku = {
+    readonly id: string
+    readonly source: "human" | "ai-fan" | "preset"
+    readonly rawText: string
+    readonly normalizedText: string
+    readonly language: string
+    readonly createdAtMs: number
+}
+```
+
+第一版不需要复杂向量数据库。少量弹幕可以使用模型或 Embedding 加阈值聚类；单用户 Demo 可以直接跳过聚类，但数据结构必须保留来源。
+
+### ProducerScore
+
+```ts
+type ProducerScore = {
+    readonly relevance: number
+    readonly consensus: number
+    readonly feasibility: number
+    readonly novelty: number
+    readonly continuity: number
+    readonly total: number
+}
+```
+
+评分结果用于解释选中原因，不展示模型私有思维链。
+
+## 五、Agent 编排
+
+### 稳定模式
+
+一次请求返回完整 `MusicBrief`：
+
+```text
+prompt + project snapshot
+→ Producer Agent
+→ structured MusicBrief
+→ Zod validation
+→ role messages staged in UI
+```
+
+优点：
+
+- 一次模型延迟；
+- 全局约束一致；
+- 角色不互相打架；
+- 适合现场 Demo。
+
+### 独立角色模式
+
+后续：
+
+```text
+Producer Brief
+  ├─ Drummer Agent
+  ├─ Bassist Agent
+  ├─ Keyboard Agent
+  └─ Lead Agent
+        ↓
+Arranger merge
+        ↓
+Producer approval
+```
+
+即使独立调用同一个基础模型，只要上下文、职责、输出和生命周期独立，也可以视为多 Agent。若一次调用同时写完全部角色，只称多角色编排。
+
+## 六、Provider 与 Runtime
+
+### 配置
+
+```ts
+type ProviderConfig = {
+    readonly id: "openai" | "qwen" | "custom"
+    readonly protocol: "responses" | "chat-completions"
+    readonly baseUrl: string
+    readonly model: string
+    readonly apiKeyRef: string
+}
+```
+
+`apiKeyRef` 指向服务端或未来 Electron Main 的安全存储，不包含 Key 本身。
+
+### API Runtime
+
+必须验证：
+
+- 目标路径是 `/responses` 还是 `/chat/completions`；
+- Tool Calling；
+- Structured Outputs 或可靠 JSON；
+- 流式事件格式；
+- 错误响应；
+- 超时与取消；
+- 模型 ID。
+
+“OpenAI-compatible”不是充分条件。
+
+### CLI Runtime
+
+可参考 Open Design 的 Runtime Adapter：
+
+```text
+detect binary
+→ detect auth
+→ launch child process
+→ send prompt through stdin
+→ parse JSONL/plain stream
+→ normalize AgentEvent
+→ capture session id
+→ cancel/resume
+```
+
+Codex CLI 目标命令形态：
+
+```text
+codex exec --json --output-schema <schema> --sandbox read-only
+```
+
+CLI Runtime 只返回结构化计划，不直接修改 openDAW，也不使用 `danger-full-access`。
+
+### Demo 决策
+
+- 默认：OpenAI API；
+- 回退：LocalMusicPlanner；
+- P1：千问/自定义中转；
+- P2：Codex CLI 等本地 Runtime。
+
+## 七、MIDI 素材库
+
+### 元数据
+
+每个素材至少包含：
+
+```ts
+type MidiAssetMetadata = {
+    readonly id: string
+    readonly path: string
+    readonly role: MusicRole
+    readonly styleTags: ReadonlyArray<string>
+    readonly moodTags: ReadonlyArray<string>
+    readonly bpm: number
+    readonly key: string
+    readonly scale: string
+    readonly timeSignature: readonly [number, number]
+    readonly bars: number
+    readonly energy: number
+    readonly density: number
+    readonly pitchRange: readonly [number, number]
+    readonly license: string
+    readonly source: string
+    readonly redistributionAllowed: boolean
+}
+```
+
+### 检索
+
+MVP 可以使用加权打分：
+
+```text
+role match       30%
+style/mood       25%
+key/scale        15%
+energy/density   15%
+bars/meter       10%
+bpm               5%
+```
+
+调性和 BPM 可以变换，因此不是绝对拒绝条件；拍号和角色必须严格匹配。
+
+### 变体
+
+允许的第一版变换：
+
+- transpose；
+- octave fit；
+- crop/repeat to 4 or 8 bars；
+- quantize；
+- velocity curve；
+- density reduction；
+- last-bar variation；
+- motif inversion 或受限 pitch substitution。
+
+每次变换保留：
+
+```ts
+type MidiTransformReceipt = {
+    readonly sourceAssetId: string
+    readonly seed: number
+    readonly operations: ReadonlyArray<MidiTransformOperation>
+}
+```
+
+这样可以复现，也能避免每次都添加同一段固定音乐。
+
+## 八、质量闸门
+
+### 硬校验
+
+代码检查：
+
+- BPM 30–240；
+- 4/4 Demo；
+- 4 或 8 小节；
+- Note position/duration 有效；
+- Pitch 0–127 且符合角色音域；
+- Velocity 0–1；
+- 与工程 Key/Scale 一致或属于允许的经过音；
+- Track 数和同时发声密度不超限；
+- 加入位置是下一量化边界。
+
+### 软校验
+
+候选评分：
+
+- 意图符合；
+- 与已有轨道互补；
+- 过度重复检测；
+- 结尾是否支持循环；
+- 能量变化是否达到目标。
+
+软校验失败可以选择第二候选，不应无限重试模型。
+
+## 九、循环调度
+
+逐轨体验的关键状态：
+
+```ts
+type RolePlaybackState =
+    | "waiting"
+    | "planning"
+    | "preparing"
+    | "queued"
+    | "performing"
+    | "failed"
+```
+
+调度：
+
+```text
+role task ready
+→ compile MIDI
+→ quality gate
+→ calculate next loop boundary
+→ queue openDAW edit
+→ apply region
+→ verify
+→ set role performing
+```
+
+第一版可以先顺序创建所有 Region，再按进入时间安排播放或显示；无论实现方式如何，听觉进入点和角色状态必须一致。
+
+## 十、UI 事件
+
+```ts
+type AgentUiEvent =
+    | { readonly type: "danmaku.received"; readonly item: NormalizedDanmaku }
+    | { readonly type: "producer.selected"; readonly decision: ProducerDecision }
+    | { readonly type: "brief.ready"; readonly brief: MusicBrief }
+    | { readonly type: "role.started"; readonly taskId: string }
+    | { readonly type: "role.ready"; readonly taskId: string }
+    | { readonly type: "role.queued"; readonly taskId: string }
+    | { readonly type: "role.performing"; readonly taskId: string }
+    | { readonly type: "plan.failed"; readonly error: PublicAgentError }
+```
+
+Renderer 只消费稳定事件，不解析 SDK 或 CLI 的原始输出。
+
+## 十一、API 与安全
+
+- Server 只监听 `127.0.0.1`；
+- CORS 只允许 Studio Origin；
+- Body 大小受限；
+- Prompt 和 Schema 有最大长度；
+- 所有外部输入视为 `unknown`；
+- Key 不进入响应、日志和 UI；
+- `.env` 不提交；
+- 不发送完整工程文件和未授权 MIDI；
+- 错误返回公开消息，详细堆栈仅在开发日志。
+
+## 十二、测试
 
 ### Unit
 
-- Runtime Event 归一；
-- IPC schema；
-- MusicIntent；
-- Plan；
-- Role Proposal merge；
-- Approval；
-- Queue；
-- Timeout reconciliation；
-- Action Log；
-- Danmaku → UserMusicRequest。
+- 中文转写纠错与乱码拒绝；
+- 去重和来源标记；
+- Producer 评分；
+- MusicBrief Schema；
+- MIDI 检索权重；
+- 移调、长度、音域和变体；
+- 循环边界计算；
+- 本地 Planner；
+- 计划到角色文案的确定性映射。
 
 ### Contract
 
-所有 Runtime Adapter 通过：
-
-- Session；
-- Stream；
-- Tool；
-- Approval；
-- Cancel；
-- Resume；
-- Capabilities。
-
-所有 DAW Adapter 通过：
-
-- Inspect；
-- Write；
-- Verify；
-- Partial；
-- Timeout；
-- Preview。
+- Agent Server Request/Response；
+- Provider Responses/Chat Completions；
+- RoleTask → MusicOperation；
+- MusicOperation → openDAW Adapter；
+- UI Event 判别联合。
 
 ### Integration
 
-使用 Mock MCP：
+- 模型返回合法计划；
+- 模型返回非法 JSON；
+- API 超时转本地回退；
+- 三轨依次创建；
+- Undo 恢复；
+- 旧 Loop 在新轨失败时继续。
+
+### Demo Smoke
+
+固定测试：
 
 ```text
-User message
-→ Runtime
-→ Plan
-→ Approval
-→ Tool Call
-→ Queue
-→ Mock Ableton state
-→ Verification
-→ UI Event
+输入：“像最终 Boss 一样炸，但保留钢琴和弦”
+→ 制作人采用
+→ Drums/Bass/Keys 三个任务
+→ 三条可编辑轨道
+→ 统一 4 小节
+→ 在循环中依次进入
+→ Undo 成功
 ```
 
-### Real Ableton Smoke
+## 十三、实现顺序
 
-- App 启动；
-- Diagnose；
-- Get Session；
-- Get Track；
-- 创建测试 Track；
-- 加载原生音色；
-- 创建 Clip；
-- 写小规模 MIDI；
-- 复制 Arrangement；
-- 读回；
-- 播放；
-- Stop。
+### Phase 0：当前原型
 
-### E2E
+- [x] openDAW 可运行；
+- [x] Agent 全屏层；
+- [x] Prompt → Plan；
+- [x] OpenAI Server；
+- [x] Local fallback；
+- [x] openDAW 写入；
+- [x] Undo。
 
-- 打开 App；
-- 连接状态；
-- 发送修改请求；
-- 查看 Plan；
-- Approve；
-- 查看 Tool Call；
-- Before / After；
-- 新一轮修改；
-- Cancel；
-- 重开 Session。
+### Phase 1：可展示的音乐意图编译
 
----
+- [ ] 修复全部中文 UI 编码；
+- [ ] MusicBrief/RoleTask Schema；
+- [ ] 制作人、总编曲师、鼓手、贝斯手、键盘手工作回执；
+- [ ] 对话从结构化任务派生；
+- [ ] 专业术语与通俗解释。
 
-## 十七、开发阶段
+### Phase 2：逐轨舞台
 
-### Phase 0：Runtime Spike
+- [ ] 角色状态；
+- [ ] 固定基础 Loop；
+- [ ] 轨道按顺序进入；
+- [ ] 角色 Loop 动画；
+- [ ] 新轨加入与动画同步。
 
-- 两个候选；
-- MCP；
-- Event；
-- Approval；
-- Cancel；
-- Windows；
-- 选型记录。
+### Phase 3：质量与素材
 
-### Phase 1：Desktop Shell
+- [ ] MIDI 素材索引；
+- [ ] 检索与至少三种变换；
+- [ ] 音域/调性/长度硬校验；
+- [ ] 固定安全回退；
+- [ ] 过度重复检测。
 
-- Main / Preload / Renderer；
-- typed IPC；
-- Session；
-- Settings；
-- Process Manager。
+### Phase 4：集成与提交
 
-### Phase 2：Ableton Host
-
-- MCP lifecycle；
-- Diagnose；
-- Tool registry；
-- DAW Context；
-- Serial Queue；
-- Verification。
-
-### Phase 3：DAWdex
-
-- Music Director Skill；
-- Intent；
-- Plan；
-- Approval；
-- Action Log；
-- 固定编曲任务。
-
-### Phase 4：Music UX
-
-- Context Panel；
-- Range；
-- Roles；
-- Tool Cards；
-- Before / After；
-- Transport。
-
-### Phase 5：Demo
-
-- 固定工程；
-- 重置；
-- 弹幕 Skill；
-- 90 秒脚本；
-- 备用视频。
-
----
-
-## 十八、技术参考
-
-- Electron Process Model：`https://www.electronjs.org/docs/latest/tutorial/process-model`
-- Electron IPC：`https://www.electronjs.org/docs/latest/tutorial/ipc`
-- Electron Context Isolation：`https://www.electronjs.org/docs/latest/tutorial/context-isolation`
-- MCP Architecture：`https://modelcontextprotocol.io/docs/learn/architecture`
-- OpenCode 候选参考：`https://github.com/anomalyco/opencode`
-- Ableton MCP 本地参考：`third_party/ableton-mcp-upstream/`
+- [ ] 90 秒固定脚本；
+- [ ] 现场冷启动测试；
+- [ ] 模型断网测试；
+- [ ] 预录视频；
+- [ ] README 与提交材料；
+- [ ] 打包或固定本地启动方式。

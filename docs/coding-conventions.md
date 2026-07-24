@@ -1,856 +1,302 @@
-﻿# DAWdex 编码与架构规范
+# DAWdex 编码与架构规范
 
-> 适用范围：Electron、Renderer、Agent Runtime Adapter、MCP、Ableton Adapter、音乐领域和测试。
+> 适用范围：`opendaw/` 中的 DAWdex UI、Agent Server、音乐意图、MIDI 素材、角色编排与测试。
 
----
+## 一、基本原则
 
-## 一、目录规范
+1. 结构化数据是角色对话与音乐执行的唯一事实源。
+2. 模型负责创意，代码负责音乐硬规则和工程安全。
+3. Renderer 不接触 API Key、供应商 SDK 或任意文件系统权限。
+4. 角色不能绕过编排器直接修改工程。
+5. 当前行为、目标行为和模拟行为必须在 UI 与文档中区分。
+6. 不为了“多 Agent”增加无法解释的调用。
+7. 现场 Demo 的确定性高于功能数量。
 
-```text
-apps/desktop/
-├─ src/main/       # Electron Main
-├─ src/preload/    # 白名单 bridge
-└─ src/renderer/   # React UI
+## 二、目录
 
-packages/
-├─ shared-contracts/
-├─ session-domain/
-├─ music-domain/
-├─ agent-runtime/
-├─ mcp-client/
-└─ ableton-adapter/
-
-skills/
-├─ music-director/
-├─ composer/
-├─ arranger/
-├─ players/
-├─ mix-engineer/
-└─ danmaku-arrangement/
-```
-
-### 放置规则
-
-- UI 不放 Agent 逻辑；
-- Music Domain 不依赖 Electron；
-- Runtime Adapter 不定义产品类型；
-- MCP 原始类型不泄漏到 Renderer；
-- Ableton Tool 映射只放 Adapter；
-- Skill 内容不与基础设施混放；
-- 弹幕不建立第二套执行架构。
-
----
-
-## 二、命名
-
-文件使用 kebab-case：
+当前增量代码继续放在 openDAW Monorepo 内：
 
 ```text
-runtime-adapter.ts
-daw-command-queue.ts
-action-log-panel.tsx
-music-director.skill.md
+opendaw/packages/app/studio/src/agent/
+├─ protocol/          # MusicBrief、RoleTask、AgentEvent
+├─ intent/            # 弹幕规范化、Producer、Compiler
+├─ roles/             # 角色定义和工作回执映射
+├─ midi/              # 索引、检索、变体、质量闸门
+├─ playback/          # 循环边界与角色状态
+├─ ui/                # Overlay 和角色组件
+└─ adapters/          # openDAW Project Adapter
+
+opendaw/packages/server/dawdex-agent/
+├─ src/providers/
+├─ src/runtime/
+├─ src/schemas/
+└─ src/server.ts
 ```
 
-类型使用 PascalCase：
+不要求在黑客松期间机械搬迁当前文件；新增模块按上述职责拆分，避免继续把全部逻辑放进 `AgentOverlay.tsx` 或 `server.ts`。
+
+## 三、TypeScript 风格
+
+遵循 openDAW 现有风格：
+
+- 4 空格缩进；
+- 无分号；
+- 双引号；
+- `readonly` 优先；
+- 外部输入使用 `unknown`；
+- 判别联合表示状态；
+- 不传播 `any`；
+- 单位写进变量名。
 
 ```ts
-interface DawContextSnapshot {}
-type MusicAgentRole = "arranger";
-class OpenAgentRuntimeAdapter {}
+type LoopSchedule = {
+    readonly startPpqn: number
+    readonly lengthPpqn: number
+    readonly queuedAtMs: number
+}
 ```
 
-变量与函数使用 camelCase：
-
-```ts
-const activeSessionId = "...";
-async function verifyDawWrite() {}
-```
-
-常量：
-
-```ts
-const DEFAULT_ABLETON_PORT = 8765;
-```
-
-Boolean：
+Boolean 使用：
 
 ```text
-isConnected
-hasPendingApproval
+isPlaying
+hasSelectedIntent
 canApplyPlan
-shouldRefreshContext
+shouldUseFallback
 ```
 
-### 单位
+## 四、Schema 边界
 
-名称必须携带单位：
+以下输入必须经过 Zod 或等价 Schema：
 
-```text
-timeoutMs
-tempoBpm
-startBeat
-durationBeats
-receivedAt
-```
-
----
-
-## 三、TypeScript
-
-### 严格模式
-
-必须：
-
-```json
-{
-  "compilerOptions": {
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
-    "useUnknownInCatchVariables": true,
-    "noImplicitOverride": true
-  }
-}
-```
-
-### 外部输入
-
-以下都视为 `unknown`：
-
-- IPC payload；
-- Runtime Event；
-- MCP Result；
+- HTTP Body；
 - LLM 输出；
-- 本地 JSON；
-- Skill manifest；
-- 配置。
+- CLI 事件；
+- Provider 配置；
+- MIDI 元数据文件；
+- 本地缓存；
+- IPC 消息；
+- 用户导入的工程信息。
 
-必须通过 schema。
+Schema 不只用于 TypeScript 推断，还必须限制：
 
-### 不使用 `any`
+- 字符串长度；
+- 数组数量；
+- BPM、Pitch、Velocity 和 Bars 范围；
+- 允许的角色；
+- 允许的动作；
+- 嵌套深度。
 
-若第三方类型缺失，先写最小边界类型，不把 `any` 传播到业务层。
+## 五、角色规则
 
-### 判别联合
-
-```ts
-export type ToolCallState =
-  | { kind: "pending" }
-  | { kind: "running"; startedAt: string }
-  | { kind: "succeeded"; result: ToolCallResult }
-  | { kind: "failed"; error: PublicAppError };
-```
-
-避免多个可能矛盾的 Boolean。
-
-### Result
-
-领域中的可预期失败：
+每个角色定义：
 
 ```ts
-export type Result<T, E> =
-  | { ok: true; value: T }
-  | { ok: false; error: E };
-```
-
----
-
-## 四、Electron 安全
-
-### BrowserWindow
-
-必须：
-
-```ts
-webPreferences: {
-  contextIsolation: true,
-  nodeIntegration: false,
-  sandbox: true,
-  preload
+type RoleDefinition = {
+    readonly id: MusicRole
+    readonly displayName: string
+    readonly responsibility: string
+    readonly allowedOperations: ReadonlyArray<MusicOperation["type"]>
 }
-```
-
-若某项因第三方限制无法开启，必须记录 ADR 与替代缓解措施。
-
-### Preload
-
-按方法暴露：
-
-```ts
-contextBridge.exposeInMainWorld("musicAgent", {
-  diagnoseDaw: () => ipcRenderer.invoke("daw:diagnose"),
-  sendMessage: (input) => ipcRenderer.invoke("session:send", input)
-});
-```
-
-禁止暴露：
-
-```ts
-send: ipcRenderer.send
-invoke: ipcRenderer.invoke
-on: ipcRenderer.on
-```
-
-Renderer 不能自选 channel。
-
-### IPC
-
-每个 channel：
-
-- 常量定义；
-- Request schema；
-- Response schema；
-- 权限说明；
-- 错误映射；
-- 单元测试。
-
-### 子进程
-
-- 使用参数数组；
-- 不拼 shell 字符串；
-- 固定 executable 或经验证路径；
-- 明确 cwd；
-- 最小环境变量；
-- 采集退出码；
-- App 退出时清理；
-- 不打印 API Key。
-
-### 导航
-
-- 主窗口只加载本地应用；
-- 阻止任意导航；
-- 外链使用系统浏览器；
-- 禁止新窗口获得 Node 权限；
-- CSP 不允许任意 inline script。
-
----
-
-## 五、Renderer
-
-### 组件职责
-
-组件可以：
-
-- 展示；
-- 发送 typed command；
-- 订阅 UI Event；
-- 本地交互状态。
-
-组件不可以：
-
-- 调用 MCP；
-- 解析 Runtime stdout；
-- 生成音乐计划；
-- 管理 API Key；
-- 启动子进程；
-- 修改 Ableton。
-
-### Store
-
-保存可序列化 View Model：
-
-- Session；
-- Messages；
-- Plan；
-- Roles；
-- Tool Calls；
-- Approval；
-- Connection；
-- DAW Context；
-- Action Log。
-
-不保存：
-
-- ChildProcess；
-- MCP Client；
-- Database handle；
-- Secret；
-- Node stream。
-
-### 流式事件
-
-- 事件有单调序号；
-- 忽略旧 Session 的晚到事件；
-- Message Delta 合并有测试；
-- Tool Call 以 ID 更新；
-- 取消后不把晚到结果显示为新的成功任务。
-
-### 音乐 UI
-
-- 小节从 1 开始显示；
-- 轨道使用真实名称；
-- Context 显示采集时间；
-- Plan 和执行结果分开；
-- Partial Success 明确；
-- 不以动画伪装实际 Tool Call；
-- 角色 UI 只显示真实发生的 Role Run。
-
----
-
-## 六、Agent Runtime Adapter
-
-### 单一入口
-
-产品只能依赖：
-
-```ts
-AgentRuntimePort
-```
-
-禁止在 Renderer、Music Domain 或 Session 中 import 具体 Runtime 内部模块。
-
-### Event Mapping
-
-具体 Runtime Event 在 Adapter 内转成统一事件。
-
-禁止让 UI：
-
-- 解析终端 ANSI；
-- 依赖某个 CLI 文案；
-- 依赖某个 Provider 消息格式；
-- 直接使用 Runtime Session object。
-
-### Capabilities
-
-Runtime 启动后报告：
-
-```ts
-interface RuntimeCapabilities {
-  supportsMcp: boolean;
-  supportsApproval: boolean;
-  supportsCancel: boolean;
-  supportsResume: boolean;
-  supportsSubagents: boolean;
-  supportsSkills: boolean;
-}
-```
-
-UI 根据能力降级，不假设所有候选都有同样功能。
-
-### Cancel
-
-Cancel 必须：
-
-- 停止模型生成；
-- 取消未执行 Tool Call；
-- 调用 Queue cancelPending；
-- 不强杀正在进行且可能已写入 DAW 的操作；
-- 之后触发状态核验。
-
----
-
-## 七、MCP 与 Tool
-
-### MCP Client
-
-只有 Main / MCP package 持有。
-
-### Tool Registry
-
-每个 Tool 包含：
-
-- 名称；
-- 描述；
-- 输入 schema；
-- 风险级别；
-- 是否只读；
-- Verification strategy；
-- UI label。
-
-### 原始 Tool 与领域动作
-
-角色使用领域动作：
-
-```text
-createMusicTrack
-writeMusicClip
-loadSound
-placeSection
-previewRange
-```
-
-Adapter 使用原始 Tool：
-
-```text
-create_midi_track
-add_notes_to_clip
-load_instrument_or_effect
-duplicate_to_arrangement
-```
-
-不要让 Skill Prompt 依赖一长串不稳定的原始 Tool 参数。
-
-### 串行
-
-Ableton 写 Tool 必须进入 `DawCommandQueue`。
-
-禁止：
-
-```ts
-await Promise.all([
-  createTrack(),
-  loadInstrument(),
-  createClip()
-]);
-```
-
-### 写后核验
-
-每个写操作必须定义 Verification：
-
-```ts
-interface VerificationSpec {
-  readTool: string;
-  expectation: string;
-  compare: VerificationComparator;
-}
-```
-
-工具返回文本不是最终成功依据。
-
----
-
-## 八、音乐领域
-
-### 领域对象
-
-- UserMusicRequest；
-- DawContextSnapshot；
-- MusicIntent；
-- RoleProposal；
-- AgentPlan；
-- MusicAction；
-- VerificationResult。
-
-### 意图与执行分离
-
-禁止：
-
-```text
-用户文本 → 原始 MCP Tool Call
 ```
 
 必须：
 
-```text
-用户文本
-→ MusicIntent
-→ RoleProposal
-→ AgentPlan
-→ Approval
-→ MusicAction
-→ Adapter
-```
+- 只在职责范围内操作；
+- 输出专业摘要和通俗解释；
+- 引用全局 Music Brief；
+- 声明保留项；
+- 返回结构化任务；
+- 被制作人或编排器合并。
 
-### Preserve
+禁止：
 
-所有计划显式携带：
+- 输出模型私有思维链；
+- 角色自由发明工程能力；
+- 鼓手修改全局调性；
+- 混音师重写旋律；
+- 工作回执与实际操作分开生成；
+- 多个角色并发写工程。
 
-- 保留轨道；
-- 保留 Clip；
-- 保留主题；
-- 禁止修改；
-- 允许范围。
+## 六、音乐规则
 
-### 角色
+### 硬规则进入代码
 
-每个角色：
+不得只靠 Prompt 保证：
 
-- 有独立 Skill；
-- 输出 schema；
-- 不越权；
-- 不编造工程状态；
-- 不直接并行写 DAW；
-- 不宣称听见未提供的音频。
+- BPM；
+- Key/Scale；
+- 拍号；
+- 小节长度；
+- 音域；
+- MIDI 合法性；
+- 量化边界；
+- 最大轨道数；
+- 最大默认音量；
+- Undo 事务。
 
-### 不夸大听觉
+### 可复现
 
-没有 Bounce / Audio Input / Audio Model 时，只能基于：
-
-- MIDI；
-- 工程结构；
-- 轨道名；
-- 设备名；
-- 用户语言；
-- 音乐规则。
-
-用户文案不能写“Agent 听完了你的歌”。
-
----
-
-## 九、Plan 与 Approval
-
-### Plan 必须包含
-
-- 目标；
-- 范围；
-- 假设；
-- Preserve；
-- 受影响轨道；
-- 步骤；
-- 角色；
-- Verification；
-- 风险；
-- 是否确认。
-
-### Approval 不得复用
-
-一次 Approval 只覆盖：
-
-- 特定 Plan ID；
-- 特定步骤；
-- 特定参数范围；
-- 有效时间。
-
-Plan 改变后重新确认。
-
-### Plan Status
-
-```text
-draft
-awaiting_approval
-approved
-running
-partially_completed
-completed
-failed
-cancelled
-```
-
-状态只能通过集中 reducer。
-
----
-
-## 十、Action Log
-
-### 结构化
+随机变体必须使用显式 `seed`：
 
 ```ts
-interface ActionLogEntry {
-  id: string;
-  sequence: number;
-  timestamp: string;
-  sessionId: string;
-  planId?: string;
-  stage:
-    | "request"
-    | "context"
-    | "role"
-    | "plan"
-    | "approval"
-    | "tool"
-    | "verification"
-    | "preview";
-  level: "info" | "warning" | "error";
-  message: string;
-  data?: Record<string, unknown>;
-}
+createVariation({assetId, seed, operations})
 ```
 
-### 用户文案
+测试不能依赖未固定的 `Math.random()`。
 
-推荐：
+### 素材来源
 
-> 已在 “Dream Drums” 创建 8 小节副歌变体，并通过 Arrangement 读回确认。
+每个 MIDI 素材必须有来源和许可证字段。未确认可分发的素材不得提交到公开仓库。
 
-不推荐：
+## 七、openDAW Adapter
 
-> tool call returned success.
+只有 Adapter 可以：
 
-### 敏感信息
+- 创建 Instrument；
+- 创建 Note Region；
+- 创建 Note Event；
+- 修改 Transport；
+- 执行 Undo；
+- 读取工程快照。
 
-不记录：
+业务层使用稳定的 `MusicOperation`，不直接依赖 openDAW Box 或 Adapter 类型。
+
+所有动作：
+
+```text
+validate
+→ open one editing transaction
+→ apply
+→ read back
+→ emit result
+```
+
+一次计划默认是一个 Undo 单元。
+
+## 八、Provider
+
+Provider 配置不得进入 Renderer Bundle。
+
+环境变量使用：
+
+```text
+DAWDEX_PROVIDER
+DAWDEX_API_PROTOCOL
+DAWDEX_API_BASE_URL
+DAWDEX_API_KEY
+DAWDEX_MODEL
+DAWDEX_AGENT_PORT
+DAWDEX_STUDIO_ORIGIN
+```
+
+为了兼容当前实现，可以暂时读取 `OPENAI_API_KEY` 和 `OPENAI_MODEL`，但新代码以统一配置为目标。
+
+日志禁止出现：
 
 - API Key；
-- 完整环境变量；
-- 凭据路径；
-- 用户未授权的音频内容；
-- 不必要的模型内部推理。
+- Authorization Header；
+- 完整私有 Prompt；
+- 完整 MIDI 文件；
+- 用户本地绝对路径；
+- CLI 登录 Token。
 
----
+## 九、Renderer
 
-## 十一、错误
+UI 组件只负责：
 
-### Error Code
+- 展示状态；
+- 发送用户意图；
+- 渲染角色工作回执；
+- 控制保留、重做和撤销；
+- 显示公开错误。
 
-```ts
-type AppErrorCode =
-  | "RUNTIME_START_FAILED"
-  | "RUNTIME_CAPABILITY_MISSING"
-  | "MCP_START_FAILED"
-  | "ABLETON_NOT_CONNECTED"
-  | "DAW_READ_FAILED"
-  | "DAW_WRITE_FAILED"
-  | "DAW_WRITE_UNCERTAIN"
-  | "VERIFICATION_FAILED"
-  | "APPROVAL_REJECTED"
-  | "SESSION_CANCELLED";
-```
+不要在 UI 中：
 
-### Uncertain
+- 解析 LLM JSON；
+- 推断音乐动作；
+- 保存 Key；
+- 直接构造 openDAW Note Event；
+- 使用定时文案假装操作已成功。
 
-Tool timeout 后工程状态未知时，使用：
+角色进入演奏状态必须由真实工程事件或成功回执驱动。
 
-```text
-DAW_WRITE_UNCERTAIN
-```
+## 十、中文与编码
 
-不能直接显示“失败”后自动重试创建。
+所有源码和 Markdown 使用 UTF-8。提交前必须检查：
 
-### 用户错误
+- 中文占位文案；
+- 正则表达式中的中文关键词；
+- 箭头、引号和省略号；
+- Windows PowerShell 读取是否造成误判；
+- 文件本身是否真的出现乱码。
 
-错误文案包含：
+禁止提交 `锛`、`鈫`、`绔` 等明显 mojibake。检查命令可以使用支持 UTF-8 的编辑器或脚本，不要仅依赖旧版 PowerShell 默认编码。
 
-- 发生了什么；
-- 是否可能已经写入；
-- 已停止哪些后续步骤；
-- 如何自检；
-- 是否可以重试。
+## 十一、错误与回退
 
----
-
-## 十二、配置与 Secret
-
-### 配置
+错误必须是可区分状态：
 
 ```ts
-interface AppSettings {
-  runtime: RuntimeSettings;
-  model: ModelSettings;
-  mcp: {
-    abletonExecutable?: string;
-    host: string;
-    port: number;
-  };
-  approvalMode: ApprovalMode;
-}
+type PublicAgentError =
+    | { readonly code: "SERVER_UNAVAILABLE"; readonly message: string }
+    | { readonly code: "MODEL_TIMEOUT"; readonly message: string }
+    | { readonly code: "INVALID_PLAN"; readonly message: string }
+    | { readonly code: "NO_MIDI_CANDIDATE"; readonly message: string }
+    | { readonly code: "QUALITY_GATE_FAILED"; readonly message: string }
+    | { readonly code: "DAW_APPLY_FAILED"; readonly message: string }
 ```
 
-### 默认
+每种错误必须有明确回退或终止策略，不能无限重试。
+
+## 十二、测试
+
+每个新增动作至少测试：
+
+1. 合法输入；
+2. 边界输入；
+3. 非法模型输出；
+4. openDAW 执行；
+5. Undo；
+6. UI 工作回执一致性；
+7. 本地回退。
+
+影响音乐生成时，补充固定 Seed Snapshot 或音符列表断言。
+
+影响 UI 时，提交截图或短视频。
+
+## 十三、Git
+
+提交信息使用 Conventional Commits：
 
 ```text
-ABLETON_HOST=127.0.0.1
-ABLETON_PORT=8765
-ABLETON_MCP_DISABLE_TELEMETRY=true
+feat(agent): compile audience intent into role tasks
+feat(midi): add weighted material retrieval
+feat(ui): show virtual player handoffs
+fix(playback): queue tracks on loop boundary
+fix(text): restore utf-8 chinese labels
+docs(prd): align plan with virtual band direction
 ```
 
-### Secret
+不提交：
 
-- 系统凭据存储或环境变量；
-- 不进入 Renderer；
-- 不进入日志；
-- 不进入 Session export；
-- 不提交 `.env`；
-- `.env.example` 只放键名。
+- `.env`；
+- API Key；
+- `node_modules`；
+- `dist`、`target` 和构建缓存；
+- 本地 Codex/GitHub 认证信息；
+- 未确认许可证的 MIDI/音频；
+- 大型临时测试工程。
 
----
+## 十四、PR 检查
 
-## 十三、依赖
-
-### 原则
-
-- Runtime 可替换；
-- Electron 安全默认；
-- 同一职责一个库；
-- 锁定版本；
-- 检查许可证；
-- 不修改上游 vendored 代码而无记录；
-- 第三方 Agent 更新前跑 Contract Test。
-
-### 候选变更
-
-所有 Runtime 版本升级必须验证：
-
-- Event；
-- MCP；
-- Approval；
-- Cancel；
-- Resume；
-- Subagent；
-- Windows package。
-
----
-
-## 十四、Git
-
-分支：
-
-```text
-feature/electron-shell
-feature/runtime-adapter
-feature/ableton-host
-feature/music-director
-feature/music-agent-ui
-feature/danmaku-skill
-```
-
-Commit：
-
-```text
-feat(runtime): add provider-neutral session adapter
-feat(ableton): serialize write tool calls
-feat(ui): show plan approval and affected tracks
-fix(queue): reconcile timeout with read-back state
-docs(prd): make daw agent the primary product
-```
-
-提交前：
-
-- typecheck；
-- lint；
-- unit；
-- contract；
-- integration；
-- Electron build；
-- Mock E2E；
-- Ableton smoke（影响 DAW 时）。
-
----
-
-## 十五、测试
-
-### 必测
-
-- IPC 白名单；
-- IPC schema；
-- Runtime Event mapping；
-- Runtime capability 降级；
-- Session resume；
-- Cancel；
-- Approval；
-- MusicIntent；
-- Role merge；
-- Plan；
-- Queue；
-- Timeout reconciliation；
-- Verification；
-- Action Log；
-- Danmaku Skill 走标准链路。
-
-### 禁止测试依赖
-
-- 当前时间；
-- 随机 Session ID；
-- 真实付费模型；
-- Ableton 一直打开；
-- 网络。
-
-### Fixture
-
-固定：
-
-- 104 BPM；
-- 4/4；
-- D minor；
-- 32 小节；
-- 4 条 MIDI Track；
-- Bar 9–16 修改任务；
-- Bells preserve。
-
-### Real Smoke
-
-真实 Ableton 测试必须使用：
-
-- 专用 Demo 工程；
-- 可恢复内容；
-- 少量音符；
-- 串行；
-- 写后核验；
-- 不操作用户其他工程。
-
----
-
-## 十六、Skill 规范
-
-每个 Skill 至少包含：
-
-```text
-name
-role
-purpose
-inputs
-output schema
-available tools
-constraints
-failure behavior
-examples
-```
-
-### Music Director
-
-- 唯一最终计划合并者；
-- 不编造已执行结果；
-- 不跳过 Approval。
-
-### Player
-
-- 输出指定乐器 Proposal；
-- 不修改其他乐器；
-- 不直接写 DAW。
-
-### Mix Engineer
-
-- 没有混音 Tool 时只给计划；
-- 不声称已修改。
-
-### Danmaku
-
-- 聚合弹幕；
-- 输出标准 UserMusicRequest；
-- 不直接操作 MCP；
-- UI 标记为 Demo Skill。
-
----
-
-## 十七、快速 Checklist
-
-### 新 Runtime
-
-- [ ] 实现 Port
-- [ ] Event mapping
-- [ ] MCP
-- [ ] Approval
-- [ ] Cancel
-- [ ] Resume
-- [ ] Capabilities
-- [ ] Windows
-- [ ] License
-
-### 新 MCP Tool
-
-- [ ] Input schema
-- [ ] Risk
-- [ ] Domain wrapper
-- [ ] Queue policy
-- [ ] Verification
-- [ ] UI label
-- [ ] Error mapping
-
-### 新 Role
-
-- [ ] Skill
-- [ ] Output schema
-- [ ] Tool scope
-- [ ] No direct parallel writes
-- [ ] Merge rule
-- [ ] UI truthful
-
-### 新 UI
-
-- [ ] Renderer only
-- [ ] Typed API
-- [ ] No secret
-- [ ] Plan vs result distinct
-- [ ] Partial state visible
-- [ ] Accessibility
-
-### 发布
-
-- [ ] Electron security
-- [ ] Child process cleanup
-- [ ] No secret in bundle
-- [ ] Offline mock mode
-- [ ] Ableton diagnose
-- [ ] Fixed demo
-- [ ] Backup video
+- [ ] 角色对话是否来自实际结构化任务；
+- [ ] 外部输入是否经过 Schema；
+- [ ] 音乐硬规则是否进入代码；
+- [ ] 失败时旧 Loop 是否继续；
+- [ ] 是否提供本地回退；
+- [ ] 中文是否无乱码；
+- [ ] 是否泄漏密钥或路径；
+- [ ] 是否增加不必要的模型调用；
+- [ ] 是否更新测试和相关文档；
+- [ ] 是否在固定 Demo 工程验证。

@@ -1,0 +1,59 @@
+@use "@/colors"
+
+component
+  width: 100%
+  height: 248px
+  flex: 0 0 auto
+  display: flex
+  flex-direction: row
+  gap: 1px
+
+  > div.devices
+    flex: 1 0 0
+    display: flex
+    flex-direction: row
+    overflow: hidden
+    position: relative
+    @include colors.panel-background
+
+    > div.editors
+      margin: 0.25rem 1px 0.75rem 0.25rem
+      flex: 1 0 0
+      display: flex
+      overflow: hidden
+
+      > div.containers
+        display: flex
+        pointer-events: none
+        width: max-content
+        column-gap: 0.125em
+
+        > div
+          display: flex
+          pointer-events: auto
+
+        &.frozen
+          filter: saturate(0) opacity(0.3)
+
+          *
+            pointer-events: none !important
+
+        > div.midi-container
+          border-top: 1px var(--color-orange) solid
+          background: linear-gradient(to bottom, var(--color-orange) -500%, transparent 20%)
+
+        > div.source-container
+          border-top: 1px var(--color-green) solid
+          background: linear-gradient(to bottom, var(--color-green) -500%, transparent 20%)
+
+          &.as-audio
+            border-top-color: var(--color-blue)
+            background: linear-gradient(to bottom, var(--color-blue) -500%, transparent 20%)
+
+        > div.audio-container
+          border-top: 1px var(--color-blue) solid
+          background: linear-gradient(to bottom, var(--color-blue) -500%, transparent 20%)
+
+  > div.channel-strip-container
+    overflow: hidden
+    @include colors.panel-background

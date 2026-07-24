@@ -1,0 +1,36 @@
+@use "@/colors"
+
+component
+  padding: 0 0.5em
+  white-space: nowrap
+  max-width: 100%
+  color: var(--color-gray)
+  position: relative
+  text-align: right
+  font-size: 8px
+  overflow: hidden
+  display: flex
+  column-gap: 0.25em
+  justify-content: end
+
+  &.center
+    justify-content: center
+
+  &[unit]:not([unit=""]):after
+    content: attr(unit)
+    color: var(--color-dark)
+    flex: 0 0 1em
+    text-align: left
+
+  &.modifying, .modifying &
+    color: var(--color-blue)
+
+  &.framed
+    min-width: 44px
+    border-radius: 0.25em
+    text-align: right
+    line-height: 18px
+
+    &.modifying, .modifying &
+      box-shadow: 0 0 0 0.5px rgba(white, 0.1)
+      background-color: var(--color-black)

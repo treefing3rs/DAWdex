@@ -1,655 +1,388 @@
-﻿# DAWdex Architecture Breakdown
+# DAWdex 系统架构
 
-> 产品定位：直接操控 DAW 的 Codex-like Electron Agent App。
-> v0.1：Ableton Live + 现有 Ableton MCP。
-> 设计重点：Agent Runtime 可替换、音乐 UX 独立、DAW 写操作安全串行。
+> 架构目标：把观众语言编译为受约束的音乐操作，并让同一份结构化决策同时驱动角色对话、MIDI 处理和 openDAW 执行。
 
----
-
-## 一、模块总览
+## 一、总体架构
 
 ```text
-┌───────────────────────────────────────────────────────────┐
-│ Experience                                                │
-│                                                           │
-│ Conversation  DAW Context  Plan  Roles  Tool Calls       │
-│ Range  Approvals  Action Log  Before/After  Transport     │
-└──────────────────────┬────────────────────────────────────┘
-                       │ typed IPC
-┌──────────────────────▼────────────────────────────────────┐
-│ Desktop Host                                              │
-│                                                           │
-│ SessionService  EventHub  ApprovalService  ProcessManager │
-└───────────┬───────────────────────────────┬───────────────┘
-            │                               │
-            ▼                               ▼
-┌────────────────────────┐       ┌──────────────────────────┐
-│ Agent Runtime Adapter  │       │ MCP Client Manager       │
-│                        │       │                          │
-│ Loop / LLM / Tasks     │       │ Lifecycle / Tools        │
-│ Skills / Subagents     │       │ Permissions / Events     │
-└───────────┬────────────┘       └────────────┬─────────────┘
-            │                                 │
-            └──────────────┬──────────────────┘
-                           ▼
-┌───────────────────────────────────────────────────────────┐
-│ Music Application Layer                                  │
-│                                                           │
-│ Intent → Role Proposals → Plan → Execution → Verification │
-└──────────────────────┬────────────────────────────────────┘
-                       ▼
-┌───────────────────────────────────────────────────────────┐
-│ Ableton Adapter → ableton-mcp → Remote Script → Live API │
-└───────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│ Experience                                                   │
+│ 全屏弹幕 · 角色对话 · 乐手状态 · 循环播放 · 用户干预        │
+└──────────────────────────────┬───────────────────────────────┘
+                               │
+┌──────────────────────────────▼───────────────────────────────┐
+│ Producer Orchestrator                                       │
+│ 纠错/去重 · 聚类/评分 · 制作人裁决 · 全局 Music Brief       │
+└───────────────┬──────────────────────────────┬───────────────┘
+                │                              │
+┌───────────────▼──────────────┐  ┌────────────▼──────────────┐
+│ Role Task Compiler           │  │ Agent Runtime Gateway     │
+│ Arranger / Drums / Bass /    │  │ Local / OpenAI / Qwen /   │
+│ Keys / Lead                  │  │ Compatible API / CLI      │
+└───────────────┬──────────────┘  └────────────┬──────────────┘
+                └───────────────┬───────────────┘
+                                ▼
+┌──────────────────────────────────────────────────────────────┐
+│ Music Material Engine                                        │
+│ MIDI Index → Retrieve → Transform → Music Quality Gate       │
+└──────────────────────────────┬───────────────────────────────┘
+                               ▼
+┌──────────────────────────────────────────────────────────────┐
+│ openDAW Application Adapter                                  │
+│ Plan Validation · Undo Transaction · Loop-boundary Schedule  │
+└──────────────────────────────┬───────────────────────────────┘
+                               ▼
+┌──────────────────────────────────────────────────────────────┐
+│ openDAW Project                                               │
+│ Tracks · Note Regions · Instruments · Transport · Playback    │
+└──────────────────────────────────────────────────────────────┘
 ```
 
----
+## 二、当前实现
 
-## 二、分层职责
+当前原型不是 Electron，也不再依赖外部 Ableton MCP。它由两部分组成：
+
+```text
+openDAW Studio（浏览器）
+  → POST /v1/plan
+  → 本地 DAWdex Agent Server
+  → OpenAI Agents SDK
+```
+
+网络或模型失败时：
+
+```text
+openDAW Studio
+  → LocalMusicPlanner
+  → AgentPlan
+```
+
+`DawProjectAdapter` 将计划作为一次 openDAW 编辑事务应用，因此可以一步 Undo。
+
+当前计划协议只允许：
+
+- `set-tempo`；
+- `create-instrument`；
+- `bass | chords | pulse | lead` 四种 Pattern。
+
+当前架构已经验证“自然语言计划可以写入内置 DAW”，但尚未实现正式音乐意图编译器、角色任务、MIDI 检索和循环调度。
+
+## 三、核心边界
 
 ### Experience Layer
 
 负责：
 
-- 对话；
-- DAW Context；
-- 计划；
-- Tool Call；
-- Agent Roles；
-- Approval；
-- Action Log；
-- Before / After；
-- Transport。
+- 全屏弹幕；
+- 制作人和乐手角色；
+- 专业术语与通俗解释；
+- 编译过程可视化；
+- 轨道和角色状态；
+- 用户批准、重做和撤销；
+- Demo 叙事。
 
 不负责：
 
-- Agent 推理；
-- MCP；
-- 进程管理；
-- 文件系统；
-- API Key；
-- 直接操作 Ableton。
+- 保存 API Key；
+- 调用模型供应商 SDK；
+- 自己修改 openDAW 工程；
+- 自己决定音乐硬规则；
+- 根据自由文本伪造执行结果。
 
-### Desktop Host
-
-Electron Main Process，负责：
-
-- 应用生命周期；
-- 可信本地能力；
-- typed IPC；
-- Runtime / MCP 子进程；
-- Session；
-- EventHub；
-- 设置与凭据；
-- 恢复。
-
-### Agent Runtime Layer
+### Producer Orchestrator
 
 负责：
 
-- 多轮会话；
-- LLM；
-- Agent Loop；
-- Tools；
-- Skills；
-- Task；
-- Subagent；
-- Approval 请求；
-- Cancel；
-- Event Stream。
+- 转写纠错与乱码过滤；
+- 弹幕去重、聚类和排序；
+- 结合当前工程选择最有意义的意见；
+- 发布唯一权威 `MusicBrief`；
+- 合并角色建议；
+- 批准可以进入音乐引擎的计划。
 
-该层通过 Adapter 隔离具体 OpenCode-like 实现。
-
-### Music Application Layer
-
-负责：
-
-- 音乐意图；
-- 角色定义；
-- 计划；
-- 冲突消解；
-- 权限与风险；
-- DAW 操作语义；
-- 结果解释。
-
-它是产品差异的核心，不能塞进 Runtime Prompt 的一大段字符串后失去类型和测试。
-
-### MCP Layer
-
-负责：
-
-- 连接 MCP Server；
-- Tools；
-- Capability；
-- 生命周期；
-- 原始事件；
-- Tool Result。
-
-### Ableton Adapter
-
-负责：
-
-- 把音乐动作映射到 MCP Tool；
-- 串行队列；
-- 参数校验；
-- 写后读回；
-- Timeout reconciliation；
-- Partial Success；
-- 连接诊断。
-
----
-
-## 三、模块依赖
-
-允许：
+制作人评分至少考虑：
 
 ```text
-Renderer → shared-contracts
-Main → session / runtime-port / mcp-client
-Music Application → music-domain / ports
-Ableton Adapter → daw-port / mcp-client
-Runtime Adapter → runtime-port
+relevance      与当前作品相关性
+consensus      观众共识
+feasibility    下一阶段可实现性
+novelty        是否带来有效变化
+continuity     是否破坏作品连续性
+```
+
+### Music Intent Compiler
+
+负责把模糊语言转换为：
+
+- 情绪与能量变化；
+- BPM、调性、拍号和小节数；
+- 保留项；
+- 乐器角色任务；
+- 可执行操作；
+- 质量要求。
+
+它是产品领域层，不等同于某一段 Prompt。模型、规则和 Schema 都只是实现手段。
+
+### Role Layer
+
+角色读取同一份不可变 `MusicBrief` 和当前工程快照，只能在各自职责内提出任务：
+
+```ts
+type MusicRole =
+    | "producer"
+    | "arranger"
+    | "drummer"
+    | "bassist"
+    | "keyboardist"
+    | "lead"
+    | "mix-engineer"
+```
+
+角色工作回执是任务的可视化解释，不是私有思维链。
+
+### Music Material Engine
+
+负责：
+
+- 素材元数据索引；
+- 候选检索与排序；
+- MIDI 解析；
+- 移调、裁剪、量化、力度和音域适配；
+- Motif 和结尾小节变体；
+- 变换记录；
+- 许可证信息。
+
+### Music Quality Gate
+
+模型负责审美建议，代码负责不让工程出事故。
+
+硬规则：
+
+- 单一权威 BPM、调性、拍号和循环长度；
+- Clip 长度为 4 或 8 小节；
+- 音域符合角色；
+- 音符位置和长度合法；
+- 新轨在量化边界进入；
+- 音量和并发轨道受限；
+- 无效输出不执行。
+
+软规则可以由模型或评分器判断：
+
+- 风格符合程度；
+- 是否足够“炸”；
+- 与观众意图的一致性；
+- 与已有轨道的审美冲突；
+- 是否过度重复。
+
+### openDAW Adapter
+
+唯一允许修改工程的入口。负责：
+
+- 读取工程快照；
+- 校验动作；
+- 创建乐器、Region 和 Note Event；
+- 将一组动作包装为一个 Undo 单元；
+- 在循环边界调度；
+- 执行后读回验证；
+- 失败时保持已有 Loop 播放。
+
+## 四、结构化数据是唯一事实源
+
+正确：
+
+```text
+RoleTask JSON
+  ├─→ UI 角色工作回执
+  ├─→ MIDI 检索与变体
+  └─→ openDAW 工程操作
 ```
 
 禁止：
 
 ```text
-Renderer → Electron Node API
-Renderer → MCP Client
-Renderer → Runtime Process
-Music Domain → Electron
-Music Domain → OpenCode internal API
-Music Domain → Ableton MCP raw tool
-Role Agent → direct concurrent DAW writes
-Danmaku Skill → direct MCP writes
+模型生成漂亮角色台词
+另一套随机算法生成无关音乐
 ```
 
----
-
-## 四、核心模块
-
-### SessionService
+示例：
 
 ```ts
-export interface SessionService {
-  create(input: CreateSessionInput): Promise<MusicAgentSession>;
-  resume(sessionId: string): Promise<void>;
-  send(input: SendMessageInput): Promise<void>;
-  cancel(sessionId: string): Promise<void>;
-  approve(decision: ApprovalDecision): Promise<void>;
-  get(sessionId: string): Promise<MusicAgentSession>;
+type RoleTask = {
+    readonly role: MusicRole
+    readonly decision: string
+    readonly listenerEffect: string
+    readonly operation: MusicOperation
+    readonly constraints: ReadonlyArray<string>
+    readonly confidence: number
 }
 ```
 
-职责：
+`decision` 用于专业工作回执，`listenerEffect` 用于给音乐小白的解释，`operation` 用于真实执行。
 
-- 连接 UI 与 Runtime；
-- 关联 DAW Context；
-- 保存会话；
-- 归一事件；
-- 管理当前任务。
+## 五、多角色与多 Agent
 
-### EventHub
+### Demo 默认模式
 
-把：
+为了降低延迟和失败率：
 
-- Runtime Event；
-- MCP Event；
-- Queue Event；
-- Approval Event；
-- DAW Context Event；
+1. 一次模型调用生成完整 Music Brief 和角色任务；
+2. Schema 校验；
+3. 前端按真实执行顺序逐个展示角色；
+4. 角色任务依次进入素材引擎；
+5. 制作人批准；
+6. 轨道在循环边界加入。
 
-映射为稳定的 `AgentUiEvent`。
+这叫“多角色 Agent 编排”。
 
-### ProcessManager
+### 真正多 Agent 模式
 
-管理：
+后续可以：
 
-- Agent Runtime；
-- Ableton MCP；
-- 启动；
-- 停止；
-- 重启；
-- 健康检查；
-- stdout / stderr；
-- 退出清理。
+1. 制作人生成 Music Brief；
+2. 鼓手、贝斯手、键盘手分别调用独立 Agent；
+3. 总编曲师合并冲突；
+4. 制作人最终批准；
+5. 所有工程写入仍串行。
 
-不允许出现：
+多个角色不能并发写 openDAW。
 
-- 同时多个 ableton-mcp 实例争抢连接；
-- App 退出后残留子进程；
-- Renderer 自己启动进程。
+## 六、Agent Runtime Gateway
 
-### RuntimeAdapter
-
-隔离具体开源 Agent。
-
-Runtime 变更时，以下模块不应改动：
-
-- Renderer；
-- MusicIntent；
-- AgentPlan；
-- Ableton Adapter；
-- Approval UI；
-- Action Log。
-
-### MusicDirector
-
-主 Orchestrator：
-
-```ts
-export interface MusicDirector {
-  understand(
-    request: UserMusicRequest,
-    context: DawContextSnapshot
-  ): Promise<MusicIntent>;
-
-  plan(
-    intent: MusicIntent,
-    proposals: RoleProposal[]
-  ): Promise<AgentPlan>;
-}
-```
-
-### RoleRegistry
-
-```ts
-export type MusicAgentRole =
-  | "music_director"
-  | "composer"
-  | "arranger"
-  | "drum_player"
-  | "bass_player"
-  | "keys_player"
-  | "guitar_player"
-  | "mix_engineer"
-  | "qa_auditor";
-```
-
-每个角色定义：
-
-- 目标；
-- 输入；
-- 输出 schema；
-- 可见工具；
-- 禁止事项；
-- 是否允许请求 DAW 写入。
-
-默认只有 Music Director 能提交最终写计划。
-
-### PlanCompiler
-
-把 Role Proposal 合并为：
-
-- 有序步骤；
-- 依赖；
-- 影响范围；
-- Approval；
-- Verification；
-- 用户解释。
-
-### ApprovalService
-
-负责：
-
-- 请求；
-- 用户选择；
-- 一次性批准范围；
-- 过期；
-- 拒绝；
-- 日志。
-
-### DawCommandQueue
-
-唯一 DAW 写入口。
-
-保证：
-
-- FIFO；
-- 依赖；
-- Cancel Pending；
-- 每步状态；
-- 一个时间只有一个写 Tool Call；
-- 写后 Verification；
-- 错误停止策略。
-
-### VerificationService
-
-写后读取：
-
-- Track 是否存在；
-- Device 是否加载；
-- Clip 是否创建；
-- Note 数是否合理；
-- Arrangement 是否出现；
-- 播放头是否移动；
-- 实际结果是否符合 Plan。
-
-### ActionLogService
-
-记录：
+目标 Gateway 同时支持：
 
 ```text
-Request
-→ Understanding
-→ Role Proposals
-→ Plan
-→ Approval
-→ Tool Calls
-→ Verification
-→ Result
+API Runtime
+  ├─ OpenAI
+  ├─ Qwen
+  └─ Custom OpenAI-compatible
+
+CLI Runtime
+  ├─ Codex CLI
+  ├─ Claude Code
+  ├─ Qwen Code
+  └─ OpenCode
 ```
 
----
+所有 Runtime 必须归一为同一事件和最终 Schema。CLI 只产生计划，不能获得不必要的 Shell 或工程写权限。
 
-## 五、端到端数据流
+黑客松默认使用直接 API，因为启动、授权和结构化输出更可控；CLI 是可选增强项。
 
-### Flow 1：连接
+## 七、端到端数据流
+
+### 进入工程
 
 ```text
-App starts
-→ ProcessManager checks ableton-mcp
-→ MCP Client initializes
-→ tools discovered
-→ Ableton diagnostic read
-→ ConnectionState emitted
-→ Renderer shows project
+Studio starts
+→ load fixed demo project
+→ read tempo / instruments / regions
+→ start base loop
+→ renderer shows roles waiting
 ```
 
-### Flow 2：修改请求
+### 处理弹幕
 
 ```text
-User selects Bar 9–16
-→ sends request
-→ SessionService captures fresh DAW Context
-→ Runtime invokes Music Director
-→ role proposals
-→ PlanCompiler
-→ Plan shown in UI
-→ Approval
-→ Queue
-→ MCP tools
-→ read-back verification
-→ Action Log
-→ preview range
+danmaku received
+→ normalize transcription
+→ deduplicate / cluster
+→ producer scores candidates
+→ selected intent displayed
 ```
 
-### Flow 3：部分失败
+### 编曲
 
 ```text
-Drums verified
-→ Bass tool timeout
-→ Queue pauses dependent steps
-→ Verification reads Bass track
-  ├─ actual change exists → continue, mark timeout reconciled
-  └─ no change → mark failed, skip dependent steps
-→ UI shows succeeded / failed / not executed
+selected intent + project snapshot
+→ MusicBrief
+→ RoleTasks
+→ schema validation
+→ material retrieval
+→ MIDI transformations
+→ quality gate
+→ executable AgentPlan
 ```
 
-### Flow 4：继续修改
+### 逐轨加入
 
 ```text
-User: “鼓很好，但和弦太亮”
-→ previous session context retained
-→ fresh DAW snapshot
-→ target narrowed to Keys
-→ new Plan
-→ new Approval
+plan ready
+→ wait for next loop boundary
+→ create/apply one role track
+→ verify
+→ role becomes performing
+→ continue previous loop
+→ prepare next role
 ```
 
-### Flow 5：弹幕 Demo
+### 用户继续干预
 
 ```text
-Preset danmaku
-→ Danmaku Input Adapter
-→ aggregated UserMusicRequest
-→ same Music Director / Plan / Queue / Verify flow
+user: “鼓很好，但贝斯轻一点”
+→ producer targets bassist
+→ fresh project snapshot
+→ replace or transform only bass task
+→ next boundary applies revision
 ```
 
-弹幕不维护独立执行链。
+## 八、故障与回退
 
----
+| 故障 | 回退 |
+|---|---|
+| Agent Server 不可用 | LocalMusicPlanner |
+| API 超时 | 固定安全 Music Brief |
+| Schema 不合法 | 一次修复请求，然后本地回退 |
+| MIDI 候选为空 | 角色默认安全素材 |
+| 质量闸门失败 | 不加入并选择下一个候选 |
+| 新轨执行失败 | 旧 Loop 继续播放 |
+| 动画加载失败 | 保留角色状态文字，不影响音乐 |
+| 网络断开 | Demo 仍可使用本地路径 |
 
-## 六、Agent 角色协作
+## 九、隐私与安全
 
-### 读共享 Snapshot
+- API Key 仅存在于本地 Agent Server 或未来 Electron Main；
+- Renderer 不接触 Key；
+- Prompt、弹幕和工程快照按最小必要范围发送；
+- 不向模型发送完整音频；
+- 不记录私有思维链；
+- AI 乐迷明确标识；
+- 素材许可证和来源进入索引；
+- CLI Runtime 使用只读或隔离工作目录；
+- 工程写入只经过 openDAW Adapter。
 
-每个角色读取同一个不可变 `DawContextSnapshot`，避免分析过程中工程状态漂移。
+## 十、架构决策
 
-### 输出 Proposal
+### ADR-001：产品是互动 AI 虚拟乐队
 
-角色只输出建议：
+弹幕不是附属 Skill，而是核心输入与舞台体验。DAW 是底层音乐引擎。
 
-```ts
-export interface RoleProposal {
-  role: MusicAgentRole;
-  targetRange: BarRange;
-  summary: string;
-  actions: ProposedMusicAction[];
-  preserve: string[];
-  conflicts: string[];
-  confidence: number;
-}
-```
+### ADR-002：基于 openDAW
 
-### 合并
+内置音乐制作能力，避免现场依赖外部 Ableton、Remote Script 和 MCP。
 
-Music Director：
+### ADR-003：音乐意图编译器是领域层
 
-1. 检查目标范围；
-2. 保留约束；
-3. 解决密度冲突；
-4. 合并重复操作；
-5. 生成依赖；
-6. 评估风险；
-7. 输出 Plan。
+不把核心能力压缩成不可测试的大段 Prompt。
 
-### 执行
+### ADR-004：结构化指令驱动一切
 
-角色 Agent 不直接并行操作 Ableton。所有动作进入单队列。
+角色对话、MIDI 变体和工程操作共享同一数据源。
 
-### v0.1 降级
+### ADR-005：创意与安全分层
 
-若 Runtime 不支持真实 Subagent：
+模型负责理解和创意，代码负责 BPM、调性、长度、音域、边界和音量。
 
-- 使用一个 Runtime Session；
-- 角色作为独立结构化 Prompt；
-- 顺序生成 Proposal；
-- UI 如实标记为 Role Task；
-- 不伪装并行。
+### ADR-006：多角色优先于真实多 Agent
 
----
+Demo 先保证稳定、可解释和低延迟，再扩展独立 Agent。
 
-## 七、权限模型
+### ADR-007：轨道逐步加入
 
-### Read
+音乐持续循环，新轨只能在量化边界加入，角色状态与轨道状态同步。
 
-- 获取 Session；
-- Track；
-- Clip；
-- Arrangement；
-- Browser；
-- Connection。
+### ADR-008：Runtime 可替换
 
-可配置为自动。
+OpenAI、千问、中转站和 CLI 均通过 Gateway，产品 Schema 不绑定供应商。
 
-### Reversible Write
+### ADR-009：早期 Ableton MCP 仅作验证材料
 
-- 新建 Track；
-- 新建 Clip；
-- 写入新 Clip；
-- 新增 Arrangement 片段；
-- 加载原生音色。
-
-v0.1 默认确认。
-
-### Important Write
-
-- 删除；
-- 覆盖；
-- 修改全局 Tempo；
-- 保存工程；
-- 批量更改；
-- 第三方脚本。
-
-始终确认。
-
-### 未支持
-
-如果底层缺少可逆性，UI 不显示“Undo 已保证”。
-
----
-
-## 八、Mock 策略
-
-### Mock Runtime
-
-产生固定 Event Stream：
-
-```text
-assistant.delta
-plan.updated
-approval.requested
-tool.requested
-tool.completed
-session.completed
-```
-
-UI 不等待 Runtime 选型。
-
-### Mock MCP
-
-内存 Ableton 状态：
-
-- Tracks；
-- Devices；
-- Clips；
-- Notes；
-- Arrangement；
-- Transport。
-
-支持注入：
-
-- success；
-- timeout but applied；
-- failure；
-- stale response；
-- partial write。
-
-### Mock Roles
-
-固定：
-
-- Arranger Proposal；
-- Drum Proposal；
-- Bass Proposal；
-- Guitar Proposal。
-
-### Real Ableton
-
-只在集成阶段使用，避免 UI 开发依赖 Ableton 一直开着。
-
----
-
-## 九、Agent Runtime 选型阶段
-
-### 不在选型前做的事
-
-- 不 fork 大量 Runtime 代码；
-- 不修改业务类型迁就某个 Runtime；
-- 不把 Session ID 当产品 ID；
-- 不让 Renderer 解析 CLI 文本；
-- 不依赖未公开内部 API。
-
-### Spike 输出
-
-每个候选输出：
-
-- 能力表；
-- 许可证；
-- Windows 结果；
-- MCP 结果；
-- Event 样例；
-- Approval；
-- Cancel；
-- Session resume；
-- 子 Agent；
-- 集成复杂度；
-- 建议。
-
-### ADR
-
-最终在 `docs/adr/agent-runtime-selection.md` 记录决定。
-
----
-
-## 十、单人最小实现路径
-
-```text
-1. Electron Shell + typed IPC
-2. Mock Runtime + Codex-like UI
-3. MCP Client + Ableton Diagnose
-4. DAW Context Panel
-5. Real Runtime Adapter
-6. Music Director single-agent flow
-7. Plan + Approval
-8. Serial Queue + Verification
-9. Fixed Arrange Demo
-10. Before / After
-11. Role Tasks
-12. Danmaku Skill
-```
-
-如果时间不足，先砍：
-
-1. 真实并行子 Agent；
-2. Mix Engineer；
-3. 弹幕；
-4. Session 搜索；
-5. 复杂时间线；
-6. 音频监听；
-7. 多 DAW。
-
-不能砍：
-
-- Electron；
-- Agent Runtime；
-- Ableton MCP；
-- Context；
-- Plan；
-- Approval；
-- Queue；
-- Verification；
-- Before / After。
-
----
-
-## 十一、架构决策记录
-
-### ADR-001：产品是 DAW Agent，而非弹幕产品
-
-弹幕是 Skill。主入口是用户对话和 DAW 工程。
-
-### ADR-002：Electron
-
-需要本地进程、MCP、Agent Runtime、文件与凭据管理，因此采用桌面 Host。
-
-### ADR-003：Runtime 可替换
-
-具体开源 Agent 未定，先定义 Port，避免 UI 和音乐领域绑定。
-
-### ADR-004：MCP 为 DAW 连接层
-
-复用现有 Ableton MCP，不从零开发 Live API 控制栈。
-
-### ADR-005：多 Agent 分析可并行，DAW 写入必须串行
-
-保护底层单 Socket 请求 / 响应和工程一致性。
-
-### ADR-006：计划与确认是核心 UX
-
-不是额外安全弹窗，而是音乐制作中“先听懂再动手”的产品价值。
-
-### ADR-007：验证独立于执行
-
-工具返回不是最终真相，必须读回工程。
+早期连接证明 Agent 可以控制音乐软件，但不再是当前产品执行链。
