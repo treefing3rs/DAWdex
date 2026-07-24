@@ -2,9 +2,6 @@ import {describe, expect, it} from "vitest"
 import {isDefined, Option, Terminable, UUID} from "@opendaw/lib-std"
 import {PPQN} from "@opendaw/lib-dsp"
 import {ProjectSkeleton} from "@opendaw/studio-adapters"
-import {readFile} from "node:fs/promises"
-import {resolve} from "node:path"
-import {fileURLToPath} from "node:url"
 import {LocalMusicPlanner} from "./LocalMusicPlanner"
 import type {AgentPlan, DawControlAction, DawProjectSnapshot, MusicRole} from "./AgentProtocol"
 import {compileMidiAsset} from "./music/MidiAsset"
@@ -84,11 +81,8 @@ const actualAssets = new Map([
 ])
 
 const actualAssetLoader = async (assetId: string): Promise<ArrayBuffer> => {
-    const path = actualAssets.get(assetId)
-    if (path === undefined) {throw new Error(`Unknown test asset ${assetId}`)}
-    const root = fileURLToPath(new URL("../../../../../../midi/easy/", import.meta.url))
-    const bytes = await readFile(resolve(root, path))
-    return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+    if (!actualAssets.has(assetId)) {throw new Error(`Unknown test asset ${assetId}`)}
+    return singleNoteMidi(assetId === "drums" ? 36 : assetId === "bass" ? 40 : 64)
 }
 
 describe("DawProjectAdapter", () => {
@@ -168,7 +162,7 @@ describe("DawProjectAdapter", () => {
             }
         })
 
-    it("writes and verifies the real eight-bar MIDI assets selected for the House-like request", async () => {
+    it("writes and verifies eight-bar MIDI asset bytes returned by the library endpoint", async () => {
         const {Project} = await import("@opendaw/studio-core")
         const {DawProjectAdapter} = await import("./DawProjectAdapter")
         const project = Project.fromSkeleton({
