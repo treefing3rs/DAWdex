@@ -5,7 +5,7 @@
 
 ## 阅读顺序
 
-1. [`DESIGN_DIRECTION.md`](./DESIGN_DIRECTION.md)：当前选定的 v2.1
+1. [`DESIGN_DIRECTION.md`](./DESIGN_DIRECTION.md)：当前选定的 v2.2
    方案，是后续 UI 实现和联调的主要参考。
 2. [`DESIGN_BRIEFS.md`](./DESIGN_BRIEFS.md)：前期三个方向的比较和推导过程，
    仅作为背景材料，不是当前执行标准。
