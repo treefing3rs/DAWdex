@@ -5,12 +5,14 @@
 
 ## 阅读顺序
 
-1. [`DESIGN_DIRECTION.md`](./DESIGN_DIRECTION.md)：当前选定的 v2.2
+1. [`DESIGN_DIRECTION.md`](./DESIGN_DIRECTION.md)：当前选定的 v2.3
    方案，是后续 UI 实现和联调的主要参考。
-2. [`DESIGN_BRIEFS.md`](./DESIGN_BRIEFS.md)：前期三个方向的比较和推导过程，
+2. [`STAGE_UI.md`](./STAGE_UI.md)：舞台 UI（PR #6）的实现说明、演示模式
+   用法和真实性闸门，配合代码阅读。
+3. [`DESIGN_BRIEFS.md`](./DESIGN_BRIEFS.md)：前期三个方向的比较和推导过程，
    仅作为背景材料，不是当前执行标准。
-3. [`../division-of-labor.md`](../division-of-labor.md)：三人职责边界和交付计划。
-4. [`../DAWdex_TechSpec.md`](../DAWdex_TechSpec.md)：共享数据结构和 UI
+4. [`../division-of-labor.md`](../division-of-labor.md)：三人职责边界和交付计划。
+5. [`../DAWdex_TechSpec.md`](../DAWdex_TechSpec.md)：共享数据结构和 UI
    事件的技术依据。
 
 ## 当前方向
