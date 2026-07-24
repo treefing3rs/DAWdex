@@ -15,4 +15,8 @@
 *.aiff binary
 *.flac binary
 *.als binary
+*.mid binary
+*.midi binary
+*.MID binary
+*.MIDI binary
 *.patch text eol=lf whitespace=-blank-at-eol,-blank-at-eof
