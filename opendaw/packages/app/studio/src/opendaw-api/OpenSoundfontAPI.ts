@@ -5,7 +5,9 @@ import {network, Promises} from "@opendaw/lib-runtime"
 import {z} from "zod"
 
 export class OpenSoundfontAPI {
-    static readonly ApiRoot = "https://api.opendaw.studio/soundfonts"
+    static readonly ApiRoot = import.meta.env.DEV
+        ? "/opendaw-api/soundfonts"
+        : "https://api.opendaw.studio/soundfonts"
     static readonly FileRoot = "https://assets.opendaw.studio/soundfonts"
 
     @Lazy
