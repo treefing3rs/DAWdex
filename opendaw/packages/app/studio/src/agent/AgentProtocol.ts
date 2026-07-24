@@ -1,3 +1,5 @@
+export const DAWDEX_VERSION = "0.2.0"
+
 export type AgentPlanSource = "codex" | "model" | "local"
 export type AgentProviderId = "codex" | "openai" | "local"
 export type MusicIntent = "create" | "add" | "restyle" | "modify"

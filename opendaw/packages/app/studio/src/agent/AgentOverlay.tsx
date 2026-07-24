@@ -4,7 +4,7 @@ import {Lifecycle, Option, Terminable} from "@opendaw/lib-std"
 import {Events, Html} from "@opendaw/lib-dom"
 import {StudioService} from "@/service/StudioService"
 import {AgentClient} from "./AgentClient"
-import {AgentPlan, AgentProviderStatus, DawAction} from "./AgentProtocol"
+import {AgentPlan, AgentProviderStatus, DAWDEX_VERSION, DawAction} from "./AgentProtocol"
 import {DawProjectAdapter} from "./DawProjectAdapter"
 
 const className = Html.adoptStyleSheet(css, "AgentOverlay")
@@ -326,7 +326,7 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
                 <header className="agent-header">
                     <div className="mark">D</div>
                     <div className="identity">
-                        <strong>DAWdex · Producer Agent</strong>
+                        <strong>{`DAWdex v${DAWDEX_VERSION} · Producer Agent`}</strong>
                         <span>Plans first · edits after approval</span>
                     </div>
                     {statusDot}
