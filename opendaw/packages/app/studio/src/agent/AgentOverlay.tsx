@@ -61,9 +61,17 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         <button type="button" className="present-toggle" title="投屏演示模式：隐藏抽屉、放大舞台">⛶ 投屏</button>)
     // 屏幕内 REC 灯牌（权威播放指示，与 ON AIR 同源）
     const recBadge: HTMLElement = (<div className="rec-badge standby">STANDBY</div>)
-    // 昼夜皮肤：白天排练 → 夜晚演出（首位角色进入 performing 时切换）
-    const stageNight: HTMLElement = (
-        <img className="stage-bg night" src="/dawdex/studio_night.jpg" alt="" draggable={false}/>)
+    // 舞台背景：夜晚棚内循环视频（唯一皮肤，无昼夜切换）
+    const stageVideo: HTMLVideoElement = (
+        <video className="stage-bg-video" loop playsInline poster="/dawdex/studio_night.jpg" draggable={false}/>)
+    stageVideo.src = "/dawdex/studio_night_loop.mp4"
+    stageVideo.muted = true
+    stageVideo.autoplay = true
+    stageVideo.play().catch(() => {
+        // 自动播放被拒时保持 poster 静帧，首次点击页面后补播
+        const resume = () => stageVideo.play().catch(() => {})
+        window.addEventListener("click", resume, {once: true})
+    })
 
     // ── 角色舞台 ────────────────────────────────────────────────────────────
     const performerEls = new Map<RoleId, HTMLElement>()
@@ -78,14 +86,11 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         performerEls.set(id, el)
         return el
     })
-    const enterNight = () => stageNight.classList.add("show")
-    const enterDay = () => stageNight.classList.remove("show")
     const setRoleState = (role: RoleId, state: RoleState, reason?: string) => {
         const el = performerEls.get(role)
         if (el === undefined) {return}
         el.dataset.state = state
         el.title = reason ?? state
-        if (state === "performing") {enterNight()}
         if (state === "failed") {flashNoise()}
     }
 
@@ -422,8 +427,7 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
             </div>
             <div className="stage-bezel">
                 <div className="stage">
-                    <img className="stage-bg day" src="/dawdex/studio_day.jpg" alt="" draggable={false}/>
-                    {stageNight}
+                    {stageVideo}
                     {marquee}
                     <div className="performers">{performers}</div>
                     {noise}
@@ -463,7 +467,6 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
             cancelMock()
             danmakuText.clear()
             Html.empty(receiptList)
-            enterDay()
             STAGE_ROLES.forEach(({id}) => setRoleState(id, "waiting"))
             cancelMock = playMockTimeline(emit)
         }),

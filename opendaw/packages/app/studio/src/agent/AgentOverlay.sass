@@ -104,7 +104,8 @@ component
     overflow: hidden
     background: $screen-bg
 
-  .stage-bg
+  // 舞台背景：夜晚棚内循环视频（唯一皮肤）
+  .stage-bg-video
     position: absolute
     inset: 0
     width: 100%
@@ -112,12 +113,7 @@ component
     object-fit: cover
     image-rendering: pixelated
     user-select: none
-    // 昼夜皮肤：夜版叠在昼版上，淡入切换（白天排练 → 夜晚演出）
-    &.night
-      opacity: 0
-      transition: opacity 1.4s ease
-      &.show
-        opacity: 1
+    pointer-events: none
 
   // REC 灯牌（屏幕内权威播放指示，与壳上 ON AIR 同源）
   .rec-badge
