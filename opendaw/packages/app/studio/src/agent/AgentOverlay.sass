@@ -1,417 +1,617 @@
-@use "@/colors"
+// DAWdex · 复古演播机 MVP
+// 外壳：Kimi 风（暖白、发丝线、克制圆角）；屏幕内：伪 8-bit 像素舞台
+// 角色色：drums #fbbf24 / bass #34d399 / keys #e879f9 / producer #22d3ee
+
+$shell-bg: #f7f5f2
+$shell-line: #e5e2dc
+$shell-text: #1a1a1a
+$shell-muted: #6b6b6b
+$screen-bg: #0a0a0f
+$amber: #fbbf24
+$mint: #34d399
+$magenta: #e879f9
+$cyan: #22d3ee
+$red: #f87171
 
 component
   position: fixed
   inset: 0
-  z-index: 10000
-  pointer-events: none
-  font-family: Inter, system-ui, sans-serif
+  z-index: 100
+  display: flex
+  flex-direction: column
+  align-items: center
+  gap: 10px
+  padding: 12px 20px 16px
+  background: rgba($shell-bg, 0.92)
+  backdrop-filter: blur(8px)
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif
+  color: $shell-text
+  overflow-y: auto
 
-  > .danmaku-layer
-    position: fixed
+  // ── 壳顶部：品牌 + ON AIR 灯 + 投屏/重播 ─────────────────────────
+  .shell-header
+    width: min(1080px, 96%)
+    display: flex
+    align-items: center
+    gap: 14px
+    flex: 0 0 auto
+    .brand
+      font-size: 13px
+      font-weight: 800
+      letter-spacing: 0.28em
+      color: $shell-text
+    .header-spacer
+      flex: 1
+    button
+      border: 1px solid $shell-line
+      border-radius: 8px
+      padding: 4px 12px
+      font-size: 12px
+      background: #fff
+      color: $shell-muted
+      cursor: pointer
+      &:hover
+        border-color: $shell-muted
+        color: $shell-text
+      &.active
+        background: $shell-text
+        color: #fff
+        border-color: $shell-text
+    .replay
+      width: 28px
+      height: 28px
+      padding: 0
+      font-size: 14px
+
+  // ON AIR 灯（TransportChanged.isPlaying）
+  .on-air
+    display: inline-flex
+    align-items: center
+    gap: 6px
+    font-size: 10px
+    font-weight: 700
+    letter-spacing: 0.22em
+    color: $shell-muted
+    i
+      width: 9px
+      height: 9px
+      border-radius: 50%
+      background: #d8d4cc
+      transition: background 0.3s ease, box-shadow 0.3s ease
+    &.lit
+      color: $red
+      i
+        background: $red
+        box-shadow: 0 0 10px rgba($red, 0.85)
+        animation: onair-breathe 1.9s ease-in-out infinite
+
+  // ── 舞台（电视机 bezel + 像素屏幕） ──────────────────────────────
+  // 宽度同时受视口高度约束，保证头/输入/操作行/抽屉一屏放下
+  .stage-bezel
+    width: min(1080px, 96%, calc((100vh - 250px) * 16 / 9.5))
+    aspect-ratio: 16 / 9.5
+    padding: 14px
+    border-radius: 22px
+    background: #26221e
+    box-shadow: 0 2px 0 #3a342e inset, 0 18px 48px rgba(0, 0, 0, 0.35)
+    flex: 0 0 auto
+
+  .stage
+    position: relative
+    width: 100%
+    height: 100%
+    border-radius: 12px
+    overflow: hidden
+    background: $screen-bg
+
+  .stage-bg
+    position: absolute
     inset: 0
-    z-index: 3
+    width: 100%
+    height: 100%
+    object-fit: cover
+    image-rendering: pixelated
+    user-select: none
+    // 昼夜皮肤：夜版叠在昼版上，淡入切换（白天排练 → 夜晚演出）
+    &.night
+      opacity: 0
+      transition: opacity 1.4s ease
+      &.show
+        opacity: 1
+
+  // REC 灯牌（屏幕内权威播放指示，与壳上 ON AIR 同源）
+  .rec-badge
+    position: absolute
+    top: 10px
+    left: 12px
+    z-index: 9
+    padding: 3px 10px
+    border-radius: 4px
+    background: rgba(0, 0, 0, 0.55)
+    font-family: ui-monospace, monospace
+    font-size: 11px
+    font-weight: 700
+    letter-spacing: 0.18em
+    color: $red
+    text-shadow: 0 0 8px rgba($red, 0.8)
+    animation: rec-blink 1.2s steps(2) infinite
+    pointer-events: none
+    &.standby
+      color: rgba(255, 255, 255, 0.45)
+      text-shadow: none
+      animation: none
+
+  // 被采纳弹幕灯牌（升格时刻）
+  .marquee
+    position: absolute
+    top: 5%
+    left: 0
+    right: 0
+    z-index: 6
     overflow: hidden
     pointer-events: none
-    mask-image: linear-gradient(to right, transparent 0, black 3%, black 97%, transparent 100%)
-
-    > .danmaku
-      position: absolute
-      left: 100%
-      max-width: 46vw
-      padding: 0.48em 0.85em
-      border: 1px solid rgba(167, 139, 250, 0.5)
-      border-radius: 999px
-      color: #f8f7ff
-      background: rgba(20, 16, 32, 0.78)
-      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.32)
-      backdrop-filter: blur(12px)
+    &.hidden
+      display: none
+    .marquee-text
+      display: inline-block
       white-space: nowrap
-      overflow: hidden
-      text-overflow: ellipsis
-      animation: dawdex-danmaku 9s linear forwards
+      font-family: ui-monospace, "PingFang SC", monospace
+      font-size: clamp(14px, 2.2vw, 26px)
+      font-weight: 700
+      color: #ffe9a8
+      text-shadow: 0 0 8px rgba($amber, 0.9), 2px 2px 0 #7a4d00
+      animation: marquee-scroll 11s linear infinite
 
-  > .agent-shell
-    pointer-events: auto
+  // 角色区
+  .performers
     position: absolute
-    z-index: 2
-    top: 52px
-    right: 12px
-    bottom: 38px
-    width: 354px
+    left: 0
+    right: 0
+    bottom: 12%
+    z-index: 5
+    display: flex
+    justify-content: center
+    align-items: flex-end
+    gap: clamp(24px, 6vw, 96px)
+    pointer-events: none
+
+  .performer
+    position: relative
+    width: clamp(84px, 12vw, 168px)
+    transition: filter 0.25s ease, opacity 0.25s ease, transform 0.25s ease
+    img
+      width: 100%
+      display: block
+      image-rendering: pixelated
+      user-select: none
+    label
+      position: absolute
+      left: 50%
+      bottom: -18px
+      transform: translateX(-50%)
+      font-size: 10px
+      letter-spacing: 0.2em
+      color: rgba(255, 255, 255, 0.65)
+      white-space: nowrap
+    .lamp
+      position: absolute
+      top: -10px
+      left: 50%
+      width: 10px
+      height: 10px
+      border-radius: 50%
+      transform: translateX(-50%)
+      background: #3a3a44
+      box-shadow: 0 0 6px rgba(0, 0, 0, 0.6)
+
+    &[data-role="drums"] .lamp
+      --role-color: #{$amber}
+    &[data-role="bass"] .lamp
+      --role-color: #{$mint}
+    &[data-role="keys"] .lamp
+      --role-color: #{$magenta}
+
+    &[data-state="waiting"]
+      filter: grayscale(0.85) brightness(0.55)
+      opacity: 0.7
+    &[data-state="preparing"]
+      filter: brightness(0.8)
+      .lamp
+        background: var(--role-color)
+        animation: lamp-spin 0.9s linear infinite
+    &[data-state="queued"]
+      filter: brightness(0.9)
+      .lamp
+        background: var(--role-color)
+        animation: lamp-blink 0.5s steps(2) infinite
+    &[data-state="performing"]
+      filter: none
+      animation: performer-bob 0.469s steps(2) infinite // 128BPM 一拍
+      .lamp
+        background: var(--role-color)
+        box-shadow: 0 0 12px var(--role-color)
+    &[data-state="failed"]
+      filter: grayscale(1) brightness(0.5)
+      .lamp
+        background: $red
+        box-shadow: 0 0 12px $red
+        animation: lamp-blink 0.3s steps(2) infinite
+
+  // 雪花噪点（失败/回退）
+  .noise
+    position: absolute
+    inset: 0
+    z-index: 8
+    pointer-events: none
+    background: repeating-linear-gradient(0deg, rgba(255,255,255,0.16) 0 1px, transparent 1px 3px), repeating-linear-gradient(90deg, rgba(255,255,255,0.10) 0 1px, transparent 1px 5px)
+    animation: noise-jitter 0.12s steps(3) infinite
+    &.hidden
+      display: none
+
+  // 弹幕层（只在屏幕内）
+  .danmaku-layer
+    position: absolute
+    inset: 0
+    z-index: 7
+    overflow: hidden
+    pointer-events: none
+
+  .danmaku
+    position: absolute
+    left: 100%
+    white-space: nowrap
+    font-size: clamp(12px, 1.5vw, 17px)
+    color: #fff
+    text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.8)
+    animation: danmaku-fly 9s linear forwards
+    em
+      font-style: normal
+      font-size: 0.72em
+      padding: 1px 5px
+      margin-right: 5px
+      border-radius: 3px
+      background: rgba(255, 255, 255, 0.22)
+      vertical-align: 1px
+    &.ai-fan
+      color: rgba(255, 255, 255, 0.55)
+    &.producer
+      color: $cyan
+      text-shadow: 0 0 8px rgba($cyan, 0.55), 1px 1px 0 rgba(0, 0, 0, 0.8)
+    &.drums
+      color: $amber
+    &.bass
+      color: $mint
+    &.keys
+      color: $magenta
+    &.system-stay
+      left: 50%
+      top: 88% !important
+      transform: translateX(-50%)
+      animation: system-stay 4.2s ease forwards
+      color: rgba(255, 255, 255, 0.8)
+      font-size: clamp(11px, 1.3vw, 14px)
+
+  // 权威时钟 + 循环进度
+  .transport
+    position: absolute
+    left: 0
+    right: 0
+    bottom: 0
+    z-index: 9
+    display: flex
+    align-items: center
+    gap: 12px
+    padding: 8px 14px
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.72))
+    .readout
+      font-family: ui-monospace, monospace
+      font-size: 12px
+      letter-spacing: 0.12em
+      color: #ffe9a8
+      white-space: nowrap
+    .loop-bar
+      flex: 1
+      height: 8px
+      border-radius: 2px
+      background: rgba(255, 255, 255, 0.14)
+      overflow: hidden
+      .loop-bar-fill
+        height: 100%
+        width: 0
+        background: $cyan
+        box-shadow: 0 0 8px rgba($cyan, 0.8)
+
+  // ── 底部输入（Kimi 风） ──────────────────────────────────────────
+  .composer
+    width: min(720px, 92%)
+    display: flex
+    gap: 8px
+    padding: 6px
+    border: 1px solid $shell-line
+    border-radius: 14px
+    background: #fff
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06)
+    transition: width 0.3s ease, opacity 0.3s ease
+    input
+      flex: 1
+      border: none
+      outline: none
+      padding: 10px 12px
+      font-size: 14px
+      background: transparent
+      color: $shell-text
+    .send
+      border: none
+      border-radius: 10px
+      padding: 0 18px
+      font-size: 14px
+      font-weight: 600
+      color: #fff
+      background: $shell-text
+      cursor: pointer
+      &:hover
+        opacity: 0.85
+
+  // FR-09 操作行
+  .interventions
+    display: flex
+    flex-wrap: wrap
+    justify-content: center
+    gap: 8px
+    button
+      border: 1px solid $shell-line
+      border-radius: 999px
+      padding: 6px 16px
+      font-size: 13px
+      background: #fff
+      color: $shell-text
+      cursor: pointer
+      &:hover
+        border-color: $shell-muted
+      &:active
+        transform: scale(0.95)
+
+  // ── 证据抽屉 ─────────────────────────────────────────────────────
+  .drawer
+    width: min(720px, 92%)
+    border: 1px solid $shell-line
+    border-radius: 12px
+    background: #fff
+    summary
+      padding: 10px 16px
+      font-size: 13px
+      font-weight: 600
+      cursor: pointer
+      color: $shell-muted
+      user-select: none
+    &[open] summary
+      border-bottom: 1px solid $shell-line
+
+  .receipt-list, .plan-slot, .activity
+    padding: 8px 16px
+
+  .receipt
     display: flex
     flex-direction: column
-    color: #e9e7ef
-    background: linear-gradient(155deg, rgba(29, 25, 38, 0.98), rgba(14, 13, 19, 0.98))
-    border: 1px solid rgba(255, 255, 255, 0.1)
-    border-radius: 14px
-    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45)
-    overflow: hidden
+    gap: 2px
+    margin: 6px 0
+    padding: 8px 12px
+    border-left: 3px solid
+    border-radius: 6px
+    background: #fafafa
+    font-size: 12.5px
+    &.role-drums
+      border-color: $amber
+    &.role-bass
+      border-color: $mint
+    &.role-keys
+      border-color: $magenta
+    code
+      font-size: 11px
+      color: $shell-muted
 
-    > .agent-header
+  .plan-card
+    margin: 8px 0
+    padding: 12px
+    border: 1px solid $shell-line
+    border-radius: 10px
+    .plan-kicker
       display: flex
-      align-items: center
-      gap: 0.75em
-      padding: 13px 14px
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08)
-
-      > .mark
-        display: grid
-        place-items: center
-        width: 31px
-        height: 31px
-        border-radius: 9px
-        color: #17121f
-        font-weight: 800
-        background: linear-gradient(135deg, #c4b5fd, #67e8f9)
-
-      > .identity
-        flex: 1
-
-        > strong
-          display: block
-          color: white
-          font-size: 0.78rem
-
-        > span
-          display: block
-          margin-top: 2px
-          color: #8f899c
-          font-size: 0.61rem
-
-      > .status-dot
-        width: 7px
-        height: 7px
-        border-radius: 50%
-        background: #4ade80
-        box-shadow: 0 0 10px rgba(74, 222, 128, 0.8)
-
-        &.checking
-          background: #64748b
-          box-shadow: none
-
-        &.local
-          background: #f59e0b
-          box-shadow: 0 0 9px rgba(245, 158, 11, 0.55)
-
-    > .agent-content
-      flex: 1
-      min-height: 0
+      justify-content: space-between
+      font-size: 11px
+      letter-spacing: 0.1em
+      text-transform: uppercase
+      color: $shell-muted
+    h3
+      margin: 6px 0 4px
+      font-size: 15px
+    p
+      margin: 0 0 8px
+      font-size: 13px
+      color: $shell-muted
+    .action
       display: flex
-      flex-direction: column
-      gap: 10px
-      padding: 12px
-      overflow-y: auto
-
-      > .context-card, > .provider-card, > .plan-card, > .empty-state
-        border: 1px solid rgba(255, 255, 255, 0.08)
-        border-radius: 10px
-        background: rgba(255, 255, 255, 0.035)
-
-      > .context-card
-        display: grid
-        grid-template-columns: 1fr 1fr
-        gap: 8px
-        padding: 10px
-
-        > div
-          color: #86808f
-          font-size: 0.58rem
-          text-transform: uppercase
-          letter-spacing: 0.08em
-
-          > strong
-            display: block
-            margin-top: 4px
-            color: #f4f2f8
-            font-size: 0.76rem
-            text-transform: none
-            letter-spacing: 0
-
-      > .provider-card
-        display: grid
-        grid-template-columns: 30px minmax(0, 1fr) auto
-        align-items: center
-        gap: 9px
-        padding: 9px 10px
-
-        > .provider-icon
-          display: grid
-          place-items: center
-          width: 27px
-          height: 27px
-          border-radius: 8px
-          color: #d8ccff
-          background: rgba(139, 92, 246, 0.17)
-          font-size: 0.67rem
-          font-weight: 800
-
-        > div
-          min-width: 0
-
-          > strong, > span
-            display: block
-            overflow: hidden
-            text-overflow: ellipsis
-            white-space: nowrap
-
-          > strong
-            color: #f4f2f8
-            font-size: 0.68rem
-
-          > span
-            margin-top: 3px
-            color: #817b89
-            font-size: 0.57rem
-
-        > button
-          height: 27px
-          padding: 0 9px
-          border: 1px solid rgba(167, 139, 250, 0.42)
-          border-radius: 7px
-          color: #eee9ff
-          background: rgba(139, 92, 246, 0.16)
-          font: inherit
-          font-size: 0.59rem
-          cursor: pointer
-
-          &:disabled
-            opacity: 0.5
-            cursor: default
-
-        > .provider-active
-          color: #4ade80
-          font-size: 0.55rem
-          text-transform: uppercase
-          letter-spacing: 0.08em
-
-        &.connected
-          border-color: rgba(74, 222, 128, 0.2)
-
-          > .provider-icon
-            color: #86efac
-            background: rgba(34, 197, 94, 0.12)
-
-        &.checking
-          grid-template-columns: 30px minmax(0, 1fr)
-
-        &.unavailable
-          grid-template-columns: 30px minmax(0, 1fr)
-
-          > .provider-icon
-            color: #fbbf24
-            background: rgba(245, 158, 11, 0.13)
-
-      > .empty-state
-        display: flex
-        flex-direction: column
-        align-items: flex-start
-        gap: 7px
-        padding: 14px
-        color: #8f899c
-        font-size: 0.67rem
-        line-height: 1.45
-
-        > strong
-          color: #f4f2f8
-          font-size: 0.76rem
-
-      > .plan-card
-        padding: 13px
-
-        > .plan-kicker
-          display: flex
-          align-items: center
-          justify-content: space-between
-          color: #a78bfa
-          font-size: 0.58rem
-          letter-spacing: 0.08em
-          text-transform: uppercase
-
-          > .source
-            color: #777080
-
-        > h3
-          margin: 9px 0 5px
-          color: white
-          font-size: 0.84rem
-
-        > p
-          margin: 0
-          color: #aaa4b3
-          font-size: 0.66rem
-          line-height: 1.5
-
-        > .reasoning
-          display: flex
-          flex-direction: column
-          gap: 4px
-          margin-top: 10px
-          padding: 9px
-          border: 1px solid rgba(103, 232, 249, 0.13)
-          border-radius: 7px
-          background: rgba(103, 232, 249, 0.045)
-
-          > strong
-            color: #a5f3fc
-            font-size: 0.61rem
-
-          > span
-            color: #aaa4b3
-            font-size: 0.6rem
-            line-height: 1.4
-
-            &.reason
-              color: #898391
-
-        > .actions
-          display: flex
-          flex-direction: column
-          gap: 6px
-          margin-top: 11px
-
-          > .action
-            display: grid
-            grid-template-columns: 22px 1fr
-            align-items: center
-            gap: 7px
-            padding: 7px
-            border-radius: 7px
-            color: #d6d1dd
-            background: rgba(255, 255, 255, 0.045)
-            font-size: 0.62rem
-
-            > .index
-              display: grid
-              place-items: center
-              width: 20px
-              height: 20px
-              border-radius: 5px
-              color: #c4b5fd
-              background: rgba(167, 139, 250, 0.14)
-
-        > .plan-buttons
-          display: grid
-          grid-template-columns: 1fr 1fr
-          gap: 7px
-          margin-top: 12px
-
-          > button
-            min-height: 31px
-            border: 1px solid rgba(255, 255, 255, 0.1)
-            border-radius: 7px
-            color: #c8c3ce
-            background: rgba(255, 255, 255, 0.04)
-            font: inherit
-            font-size: 0.63rem
-            cursor: pointer
-
-            &.apply
-              border-color: transparent
-              color: #17121f
-              font-weight: 700
-              background: linear-gradient(135deg, #c4b5fd, #67e8f9)
-
-            &:disabled
-              opacity: 0.45
-              cursor: default
-
-      > .activity
-        display: flex
-        flex-direction: column
-        gap: 5px
-
-        > .event
-          display: grid
-          grid-template-columns: 7px 1fr
-          gap: 8px
-          align-items: start
-          color: #827c89
-          font-size: 0.59rem
-          line-height: 1.35
-
-          > .event-dot
-            width: 6px
-            height: 6px
-            margin-top: 3px
-            border-radius: 50%
-            background: #64748b
-
-          &.success > .event-dot
-            background: #4ade80
-
-          &.working > .event-dot
-            background: #67e8f9
-            box-shadow: 0 0 7px rgba(103, 232, 249, 0.7)
-
-    > .composer
-      display: flex
-      flex-direction: column
       gap: 8px
-      padding: 11px
-      border-top: 1px solid rgba(255, 255, 255, 0.08)
-      background: rgba(7, 7, 10, 0.52)
+      font-size: 12.5px
+      padding: 3px 0
+      .index
+        color: $shell-muted
+    .plan-buttons
+      display: flex
+      justify-content: flex-end
+      gap: 8px
+      margin-top: 8px
+      button
+        border: 1px solid $shell-line
+        border-radius: 8px
+        padding: 6px 14px
+        font-size: 13px
+        background: #fff
+        cursor: pointer
+        &.apply
+          background: $shell-text
+          color: #fff
+          border-color: $shell-text
 
-      > textarea
-        width: 100%
-        min-height: 65px
-        box-sizing: border-box
-        resize: none
-        outline: none
-        border: 1px solid rgba(255, 255, 255, 0.09)
-        border-radius: 9px
-        padding: 9px 10px
-        color: #f5f3f7
-        background: rgba(255, 255, 255, 0.035)
-        font: inherit
-        font-size: 0.68rem
-        line-height: 1.45
+  .event
+    display: flex
+    align-items: baseline
+    gap: 8px
+    padding: 3px 0
+    font-size: 12.5px
+    color: $shell-muted
+    .event-dot
+      width: 6px
+      height: 6px
+      border-radius: 50%
+      background: $shell-line
+      flex: 0 0 auto
+    &.working .event-dot
+      background: $cyan
+    &.success
+      color: $shell-text
+      .event-dot
+        background: $mint
 
-        &:focus
-          border-color: rgba(167, 139, 250, 0.65)
+  // ── 投屏演示模式（§12.5-5：隐藏 C 区、缩小 B 区、A 区最大化） ────
+  &.presentation
+    gap: 6px
+    .stage-bezel
+      width: min(1560px, 98%, calc((100vh - 130px) * 16 / 9.5))
+    .interventions,
+    .drawer
+      display: none
+    .composer
+      width: min(480px, 80%)
+      opacity: 0.45
+      &:hover, &:focus-within
+        opacity: 1
 
-        &::placeholder
-          color: #686270
-
-      > .composer-row
-        display: flex
-        align-items: center
-        justify-content: space-between
-
-        > span
-          color: #706a78
-          font-size: 0.56rem
-
-        > .composer-actions
-          display: flex
-          gap: 6px
-
-          > button
-            height: 29px
-            padding: 0 10px
-            border: 1px solid rgba(255, 255, 255, 0.1)
-            border-radius: 7px
-            color: #b9b3c1
-            background: rgba(255, 255, 255, 0.04)
-            font: inherit
-            font-size: 0.61rem
-            cursor: pointer
-
-            &.send
-              border-color: rgba(167, 139, 250, 0.5)
-              color: #f4f0ff
-              background: rgba(139, 92, 246, 0.2)
-
-            &:disabled
-              opacity: 0.45
-              cursor: default
-
-@keyframes dawdex-danmaku
-  from
-    transform: translateX(0)
+// ── 动效关键帧 ─────────────────────────────────────────────────────
+@keyframes danmaku-fly
   to
     transform: translateX(calc(-100vw - 100%))
 
+@keyframes marquee-scroll
+  0%
+    transform: translateX(100vw)
+  100%
+    transform: translateX(-100%)
+
+@keyframes lamp-spin
+  0%
+    box-shadow: 0 0 4px var(--role-color), 3px 0 0 var(--role-color)
+  100%
+    box-shadow: 0 0 4px var(--role-color), -3px 0 0 var(--role-color)
+
+@keyframes lamp-blink
+  50%
+    opacity: 0.35
+
+@keyframes performer-bob
+  0%
+    transform: translateY(0)
+  100%
+    transform: translateY(-4px)
+
+@keyframes noise-jitter
+  0%
+    transform: translate(0, 0)
+  50%
+    transform: translate(-3px, 2px)
+  100%
+    transform: translate(2px, -2px)
+
+@keyframes system-stay
+  0%
+    opacity: 0
+  10%
+    opacity: 1
+  85%
+    opacity: 1
+  100%
+    opacity: 0
+
+@keyframes onair-breathe
+  0%, 100%
+    box-shadow: 0 0 6px rgba($red, 0.55)
+  50%
+    box-shadow: 0 0 14px rgba($red, 1)
+
+@keyframes rec-blink
+  50%
+    opacity: 0.25
+
+// ── Provider 状态（Codex 连接，抽屉顶部 + 壳上状态点） ─────────────────
+component
+  .provider-slot
+    padding: 8px 16px 0
+  .provider-card
+    display: flex
+    align-items: center
+    gap: 10px
+    margin: 4px 0
+    padding: 8px 12px
+    border: 1px solid $shell-line
+    border-radius: 8px
+    background: #fafafa
+    font-size: 12.5px
+    color: $shell-muted
+    strong
+      color: $shell-text
+      font-weight: 600
+    &.connected
+      border-color: rgba($mint, 0.5)
+    &.unavailable
+      border-color: rgba($red, 0.4)
+    button
+      margin-left: auto
+      border: 1px solid $shell-line
+      border-radius: 8px
+      padding: 4px 12px
+      font-size: 12px
+      background: #fff
+      color: $shell-text
+      cursor: pointer
+      &:hover
+        border-color: $shell-muted
+
+  .status-dot
+    width: 8px
+    height: 8px
+    border-radius: 50%
+    background: #d8d4cc
+    &.checking
+      background: $amber
+      animation: lamp-blink 0.9s steps(2) infinite
+    &.connected
+      background: $mint
+      box-shadow: 0 0 8px rgba($mint, 0.7)
+    &.local
+      background: $shell-muted
+
+  .reasoning
+    display: flex
+    flex-direction: column
+    gap: 3px
+    margin: 8px 0
+    padding: 8px 10px
+    border-radius: 6px
+    background: #fafafa
+    font-size: 12px
+    color: $shell-muted
+    strong
+      font-size: 11px
+      letter-spacing: 0.1em
+      text-transform: uppercase
+      color: $shell-text
+    .reason
+      padding-left: 4px
+
 @media (prefers-reduced-motion: reduce)
-  component > .danmaku-layer > .danmaku
-    animation-duration: 0.01ms
+  component .performer,
+  component .marquee-text,
+  component .danmaku,
+  component .on-air i,
+  component .rec-badge
+    animation: none !important
