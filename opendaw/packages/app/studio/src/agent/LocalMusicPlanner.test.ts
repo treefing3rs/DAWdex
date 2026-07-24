@@ -1,13 +1,16 @@
 import {describe, expect, it} from "vitest"
 import {DawProjectSnapshot, MusicRole, ProjectTrackSnapshot, SupportedStyle} from "./AgentProtocol"
 import {LocalMusicPlanner} from "./LocalMusicPlanner"
+import {createRoleTrackSound} from "./music/RoleInstrumentProfiles"
 
 const track = (
     id: string,
     role: MusicRole,
     style: SupportedStyle,
     midiFingerprint: string
-): ProjectTrackSnapshot => ({
+): ProjectTrackSnapshot => {
+    const sound = createRoleTrackSound(role, style)
+    return {
     id,
     name: `DAWdex ${role}`,
     trackCount: 1,
@@ -16,6 +19,15 @@ const track = (
     role,
     style,
     midiFingerprint,
+    sound: {
+        instrumentKind: "VaporisateurDeviceBox",
+        instrumentLabel: sound.instrument.presetLabel,
+        synthParameters: sound.instrument.parameters,
+        mixer: sound.mixer,
+        effects: sound.effects,
+        unmanagedEffectCount: 0,
+        fingerprint: null
+    },
     regions: [{
         id: `${id}-region`,
         position: 0,
@@ -23,7 +35,8 @@ const track = (
         noteCount: 8,
         midiFingerprint
     }]
-})
+    }
+}
 
 const snapshot = (
     bpm: number,

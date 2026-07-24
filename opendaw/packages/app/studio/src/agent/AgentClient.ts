@@ -6,14 +6,18 @@ import {
     AgentProviderStatus,
     CodexLoginResult,
     DawAction,
+    DawControlAction,
     DawProjectSnapshot,
     MusicBrief,
     SetTempoAction,
+    TrackEffect,
+    TrackSoundDesign,
     UpsertRoleTrackAction
 } from "./AgentProtocol"
 
 type UnknownSetTempoAction = {[Key in keyof SetTempoAction]?: unknown}
 type UnknownUpsertRoleTrackAction = {[Key in keyof UpsertRoleTrackAction]?: unknown}
+type UnknownDawControlAction = {[Key in keyof DawControlAction]?: unknown}
 type UnknownMusicBrief = {[Key in keyof MusicBrief]?: unknown}
 type UnknownAgentPlan = {[Key in keyof AgentPlan]?: unknown}
 
@@ -41,6 +45,61 @@ const isSetTempoAction = (value: unknown): value is SetTempoAction => {
     return action.type === "set-tempo" && typeof action.bpm === "number"
 }
 
+const isTrackEffect = (value: unknown): value is TrackEffect => {
+    if (!isObject(value) || typeof value.enabled !== "boolean") {return false}
+    switch (value.kind) {
+        case "compressor":
+            return ["thresholdDb", "ratio", "attackMs", "releaseMs", "mix"]
+                .every(key => typeof value[key] === "number")
+        case "delay":
+            return ["eighth", "dotted-eighth", "quarter", "dotted-quarter", "half"]
+                .includes(String(value.timing))
+                && ["feedback", "filter", "wetDb"].every(key => typeof value[key] === "number")
+        case "reverb":
+            return ["preDelayMs", "decay", "damping", "wetDb"]
+                .every(key => typeof value[key] === "number")
+        case "stereo":
+            return typeof value.width === "number"
+        case "maximizer":
+            return typeof value.thresholdDb === "number"
+        default:
+            return false
+    }
+}
+
+const isTrackSoundDesign = (value: unknown): value is TrackSoundDesign => {
+    if (!isObject(value)
+        || !isObject(value.instrument)
+        || !isObject(value.instrument.parameters)
+        || !isObject(value.mixer)
+        || !Array.isArray(value.effects)) {
+        return false
+    }
+    const instrument = value.instrument as Record<string, unknown>
+    const parameters = instrument.parameters as Record<string, unknown>
+    const mixer = value.mixer as Record<string, unknown>
+    const oscillator1 = parameters.oscillator1
+    const oscillator2 = parameters.oscillator2
+    return instrument.kind === "vaporisateur"
+        && typeof instrument.presetLabel === "string"
+        && ["attack", "decay", "sustain", "release", "cutoff", "resonance", "unisonDetune",
+            "noiseAttack", "noiseHold", "noiseRelease", "noiseVolumeDb"]
+            .every(key => typeof parameters[key] === "number")
+        && ["mono", "poly"].includes(String(parameters.voicing))
+        && [1, 3, 5].includes(Number(parameters.unisonCount))
+        && isObject(oscillator1)
+        && isObject(oscillator2)
+        && [oscillator1, oscillator2].every(oscillator =>
+            ["sine", "triangle", "saw", "square"].includes(String(oscillator.waveform))
+            && typeof oscillator.volumeDb === "number"
+            && typeof oscillator.octave === "number")
+        && typeof mixer.volumeDb === "number"
+        && typeof mixer.panning === "number"
+        && typeof mixer.mute === "boolean"
+        && typeof mixer.solo === "boolean"
+        && value.effects.every(isTrackEffect)
+}
+
 const isUpsertRoleTrackAction = (value: unknown): value is UpsertRoleTrackAction => {
     if (isAbsent(value) || typeof value !== "object") {return false}
     const action = value as UnknownUpsertRoleTrackAction
@@ -58,10 +117,44 @@ const isUpsertRoleTrackAction = (value: unknown): value is UpsertRoleTrackAction
         && typeof action.energy === "number"
         && typeof action.midiAssetId === "string"
         && typeof action.midiAssetPath === "string"
+        && isTrackSoundDesign(action.sound)
+}
+
+const isDawControlAction = (value: unknown): value is DawControlAction => {
+    if (isAbsent(value) || typeof value !== "object") {return false}
+    const action = value as UnknownDawControlAction
+    return action.type === "control"
+        && ["transport", "loop", "track", "region", "midi-transform", "instrument", "effect",
+            "device-parameter", "automation", "bus", "send", "routing"].includes(String(action.command))
+        && typeof action.operation === "string"
+        && (action.targetTrackId === null || typeof action.targetTrackId === "string")
+        && (action.targetRegionId === null || typeof action.targetRegionId === "string")
+        && (action.targetDeviceId === null || typeof action.targetDeviceId === "string")
+        && (action.targetBusId === null || typeof action.targetBusId === "string")
+        && typeof action.kind === "string"
+        && typeof action.name === "string"
+        && typeof action.assetId === "string"
+        && typeof action.index === "number"
+        && typeof action.enabled === "boolean"
+        && typeof action.value === "number"
+        && typeof action.secondaryValue === "number"
+        && typeof action.seed === "number"
+        && Array.isArray(action.parameters)
+        && action.parameters.every(parameter =>
+            isObject(parameter)
+            && typeof parameter.key === "string"
+            && typeof parameter.numberValue === "number"
+            && typeof parameter.stringValue === "string"
+            && typeof parameter.booleanValue === "boolean")
+        && Array.isArray(action.points)
+        && action.points.every(point =>
+            isObject(point)
+            && typeof point.bar === "number"
+            && typeof point.unitValue === "number")
 }
 
 const isDawAction = (value: unknown): value is DawAction =>
-    isSetTempoAction(value) || isUpsertRoleTrackAction(value)
+    isSetTempoAction(value) || isUpsertRoleTrackAction(value) || isDawControlAction(value)
 
 const isMusicBrief = (value: unknown): value is MusicBrief => {
     if (isAbsent(value) || typeof value !== "object") {return false}

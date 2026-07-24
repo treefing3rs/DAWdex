@@ -1,10 +1,113 @@
-export const DAWDEX_VERSION = "0.2.0"
+export const DAWDEX_VERSION = "0.3.0"
 
 export type AgentPlanSource = "codex" | "model" | "local"
 export type AgentProviderId = "codex" | "openai" | "local"
 export type MusicIntent = "create" | "add" | "restyle" | "modify"
 export type MusicRole = "drums" | "bass" | "keys"
 export type SupportedStyle = string
+export type SynthWaveform = "sine" | "triangle" | "saw" | "square"
+export type SynthVoicing = "mono" | "poly"
+export type DelayTiming = "eighth" | "dotted-eighth" | "quarter" | "dotted-quarter" | "half"
+
+export type SynthSoundParameters = {
+    readonly attack: number
+    readonly decay: number
+    readonly sustain: number
+    readonly release: number
+    readonly cutoff: number
+    readonly resonance: number
+    readonly voicing: SynthVoicing
+    readonly unisonCount: 1 | 3 | 5
+    readonly unisonDetune: number
+    readonly oscillator1: {
+        readonly waveform: SynthWaveform
+        readonly volumeDb: number
+        readonly octave: number
+    }
+    readonly oscillator2: {
+        readonly waveform: SynthWaveform
+        readonly volumeDb: number
+        readonly octave: number
+    }
+    readonly noiseAttack: number
+    readonly noiseHold: number
+    readonly noiseRelease: number
+    readonly noiseVolumeDb: number
+}
+
+export type TrackMixerSettings = {
+    readonly volumeDb: number
+    readonly panning: number
+    readonly mute: boolean
+    readonly solo: boolean
+}
+
+export type CompressorEffect = {
+    readonly kind: "compressor"
+    readonly enabled: boolean
+    readonly thresholdDb: number
+    readonly ratio: number
+    readonly attackMs: number
+    readonly releaseMs: number
+    readonly mix: number
+}
+
+export type DelayEffect = {
+    readonly kind: "delay"
+    readonly enabled: boolean
+    readonly timing: DelayTiming
+    readonly feedback: number
+    readonly filter: number
+    readonly wetDb: number
+}
+
+export type ReverbEffect = {
+    readonly kind: "reverb"
+    readonly enabled: boolean
+    readonly preDelayMs: number
+    readonly decay: number
+    readonly damping: number
+    readonly wetDb: number
+}
+
+export type StereoEffect = {
+    readonly kind: "stereo"
+    readonly enabled: boolean
+    readonly width: number
+}
+
+export type MaximizerEffect = {
+    readonly kind: "maximizer"
+    readonly enabled: boolean
+    readonly thresholdDb: number
+}
+
+export type TrackEffect =
+    | CompressorEffect
+    | DelayEffect
+    | ReverbEffect
+    | StereoEffect
+    | MaximizerEffect
+
+export type TrackSoundDesign = {
+    readonly instrument: {
+        readonly kind: "vaporisateur"
+        readonly presetLabel: string
+        readonly parameters: SynthSoundParameters
+    }
+    readonly mixer: TrackMixerSettings
+    readonly effects: ReadonlyArray<TrackEffect>
+}
+
+export type ProjectTrackSoundSnapshot = {
+    readonly instrumentKind: string
+    readonly instrumentLabel: string
+    readonly synthParameters: SynthSoundParameters | null
+    readonly mixer: TrackMixerSettings
+    readonly effects: ReadonlyArray<TrackEffect>
+    readonly unmanagedEffectCount: number
+    readonly fingerprint: string | null
+}
 
 export type AgentProgressStage =
     | "understanding"
@@ -58,21 +161,94 @@ export type ProjectTrackSnapshot = {
     readonly role: MusicRole | null
     readonly style: SupportedStyle | null
     readonly midiFingerprint: string | null
+    readonly sound: ProjectTrackSoundSnapshot
     readonly regions: ReadonlyArray<ProjectRegionSnapshot>
+    readonly devices?: ReadonlyArray<DawDeviceSnapshot>
+    readonly sends?: ReadonlyArray<DawAuxSendSnapshot>
 }
 
 export type ProjectRegionSnapshot = {
     readonly id: string
+    readonly name?: string
     readonly position: number
     readonly duration: number
+    readonly loopOffset?: number
+    readonly loopDuration?: number
+    readonly mute?: boolean
     readonly noteCount: number
     readonly midiFingerprint: string | null
+}
+
+export type DawParameterSnapshot = {
+    readonly key: string
+    readonly name: string
+    readonly value: number | boolean
+    readonly unitValue: number
+    readonly displayValue: string
+    readonly automated: boolean
+}
+
+export type DawDeviceSnapshot = {
+    readonly id: string
+    readonly kind: string
+    readonly category: "channel-strip" | "instrument" | "midi-effect" | "audio-effect"
+    readonly label: string
+    readonly enabled: boolean
+    readonly index: number
+    readonly parameters: ReadonlyArray<DawParameterSnapshot>
+}
+
+export type DawAuxSendSnapshot = {
+    readonly id: string
+    readonly targetBusId: string
+    readonly gainDb: number
+    readonly panning: number
+}
+
+export type DawBusSnapshot = {
+    readonly id: string
+    readonly name: string
+    readonly volumeDb: number
+    readonly panning: number
+    readonly mute: boolean
+    readonly solo: boolean
+    readonly channelStrip?: DawDeviceSnapshot
+    readonly effects: ReadonlyArray<DawDeviceSnapshot>
+}
+
+export type DawCapabilitySnapshot = {
+    readonly commands: ReadonlyArray<DawControlCommand>
+    readonly instruments: ReadonlyArray<{
+        readonly kind: string
+        readonly requiresAsset: boolean
+        readonly available: boolean
+    }>
+    readonly midiEffects: ReadonlyArray<string>
+    readonly audioEffects: ReadonlyArray<string>
+}
+
+export type DawTransportSnapshot = {
+    readonly playing: boolean
+    readonly position: number
+    readonly loopEnabled: boolean
+    readonly loopFrom: number
+    readonly loopTo: number
+}
+
+export type DawAssetSnapshot = {
+    readonly id: string
+    readonly kind: "audio-file" | "soundfont" | "playfield" | "apparat"
+    readonly name: string
 }
 
 export type DawProjectSnapshot = {
     readonly hasProject: boolean
     readonly bpm: number
     readonly tracks: ReadonlyArray<ProjectTrackSnapshot>
+    readonly transport?: DawTransportSnapshot
+    readonly buses?: ReadonlyArray<DawBusSnapshot>
+    readonly assets?: ReadonlyArray<DawAssetSnapshot>
+    readonly capabilities?: DawCapabilitySnapshot
 }
 
 export type SetTempoAction = {
@@ -94,9 +270,61 @@ export type UpsertRoleTrackAction = {
     readonly energy: number
     readonly midiAssetId: string
     readonly midiAssetPath: string
+    readonly sound: TrackSoundDesign
 }
 
-export type DawAction = SetTempoAction | UpsertRoleTrackAction
+export type DawControlCommand =
+    | "transport"
+    | "loop"
+    | "track"
+    | "region"
+    | "midi-transform"
+    | "instrument"
+    | "effect"
+    | "device-parameter"
+    | "automation"
+    | "bus"
+    | "send"
+    | "routing"
+
+export type DawControlParameter = {
+    readonly key: string
+    readonly numberValue: number
+    readonly stringValue: string
+    readonly booleanValue: boolean
+}
+
+export type DawAutomationPoint = {
+    readonly bar: number
+    readonly unitValue: number
+}
+
+/**
+ * Flat on purpose: strict model response schemas reject nested action unions. The
+ * executor still validates each command, operation, target, key, and value through
+ * the capability registry before mutating the project.
+ */
+export type DawControlAction = {
+    readonly type: "control"
+    readonly command: DawControlCommand
+    readonly operation: string
+    readonly targetTrackId: string | null
+    readonly targetRegionId: string | null
+    readonly targetDeviceId: string | null
+    readonly targetBusId: string | null
+    readonly kind: string
+    readonly name: string
+    readonly assetId: string
+    readonly index: number
+    readonly enabled: boolean
+    readonly value: number
+    readonly secondaryValue: number
+    readonly seed: number
+    readonly parameters: ReadonlyArray<DawControlParameter>
+    readonly points: ReadonlyArray<DawAutomationPoint>
+}
+
+export type DawAction = SetTempoAction | UpsertRoleTrackAction | DawControlAction
 
 export type MusicBrief = {
     readonly intent: MusicIntent
@@ -133,8 +361,17 @@ export namespace DawAction {
             case "upsert-role-track": {
                 const operation = action.mode === "replace" ? "Replace" : "Create"
                 const asset = action.midiAssetPath.split("/").at(-1) ?? action.midiAssetId
+                if (action.sound.instrument.presetLabel.length > 0) {
+                    const effects = action.sound.effects.map(effect => effect.kind).join(", ") || "dry"
+                    return `${operation} ${action.role} · ${action.style} · `
+                        + `${action.sound.instrument.presetLabel} · ${effects} · ${asset}`
+                }
                 return `${operation} ${action.role} · ${action.style} · ${asset} · bars ${action.startBar}–${action.startBar + action.bars - 1}`
             }
+            case "control":
+                return `${action.command}: ${action.operation}`
+                    + (action.name.length > 0 ? ` · ${action.name}` : "")
+                    + (action.kind.length > 0 ? ` · ${action.kind}` : "")
         }
     }
 }

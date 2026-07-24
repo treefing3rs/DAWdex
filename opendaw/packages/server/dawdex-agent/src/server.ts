@@ -7,7 +7,9 @@ import {
     createCreativeDirectorInput,
     createProducerInput,
     CREATIVE_DIRECTOR_INSTRUCTIONS,
+    parseProducerPlan,
     PlanOutputSchema,
+    ProducerOutputSchema,
     PRODUCER_INSTRUCTIONS,
     RequestSchema
 } from "./MusicPlan.ts"
@@ -31,7 +33,7 @@ const producerAgent = new Agent({
     name: "DAWdex Arranger",
     model: process.env.OPENAI_MODEL ?? "gpt-5.4-mini",
     instructions: PRODUCER_INSTRUCTIONS,
-    outputType: PlanOutputSchema
+    outputType: ProducerOutputSchema
 })
 
 const codex = new CodexAppServer()
@@ -121,7 +123,7 @@ const runOpenAiPlan = async (
         {maxTurns: 3}
     )
     if (!result.finalOutput) {throw new Error("No arrangement plan returned")}
-    return result.finalOutput
+    return parseProducerPlan(result.finalOutput)
 }
 
 const planCandidates = async (
@@ -150,6 +152,7 @@ const validatePlan = (
     const allowed = new Map(candidates.map(candidate => [candidate.id, candidate]))
     const actions = plan.actions.map(action => {
         if (action.type === "set-tempo") {return action}
+        if (action.type === "control") {return action}
         const candidate = allowed.get(action.midiAssetId)
         if (candidate === undefined || candidate.role !== action.role) {
             throw new Error(`Arranger selected an invalid ${action.role} MIDI asset`)
