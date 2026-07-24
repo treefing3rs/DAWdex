@@ -13,6 +13,9 @@ export default defineConfig(({command}) => {
     const env = process.env.NODE_ENV as BuildInfo["env"]
     const date = Date.now()
     const certsExist = existsSync(resolve(__dirname, "../../../certs/localhost-key.pem"))
+    const buildInfoOutputPath = resolve(__dirname, "public", "build-info.json")
+    writeFileSync(buildInfoOutputPath, JSON.stringify({date, uuid, env} satisfies BuildInfo, null, 2))
+    console.debug(`Build info written to: ${buildInfoOutputPath}`)
 
     // Determine base path for production CI builds
     const isCI = process.env.CI === "true"
@@ -59,6 +62,13 @@ export default defineConfig(({command}) => {
         server: {
             port: 8080,
             host: "localhost",
+            proxy: {
+                "/opendaw-api": {
+                    target: "https://api.opendaw.studio",
+                    changeOrigin: true,
+                    rewrite: path => path.replace(/^\/opendaw-api/, "")
+                }
+            },
             https: command === "serve" && certsExist ? {
                 key: readFileSync(resolve(__dirname, "../../../certs/localhost-key.pem")),
                 cert: readFileSync(resolve(__dirname, "../../../certs/localhost.pem"))
@@ -94,14 +104,6 @@ export default defineConfig(({command}) => {
             viteCompression({
                 algorithm: "brotliCompress"
             }),
-            {
-                name: "generate-date-json",
-                buildStart() {
-                    const outputPath = resolve(__dirname, "public", "build-info.json")
-                    writeFileSync(outputPath, JSON.stringify({date, uuid, env} satisfies BuildInfo, null, 2))
-                    console.debug(`Build info written to: ${outputPath}`)
-                }
-            },
             {
                 // The WASM engine binaries (built by @opendaw/studio-core-wasm's build-wasm.sh into its
                 // dist/wasm/) served under /wasm-engine/: live from the package dist in dev (so a Rust rebuild

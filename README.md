@@ -71,6 +71,11 @@ npm run dev:dawdex-studio
 
 Studio 默认地址为 `http://localhost:8080`。不启动模型服务也能使用本地 Planner。
 
+### 本轮本地开发修复
+
+- 启动信息：在 Vite 扫描静态资源前生成 `build-info.json`，避免首次启动出现 “Error loading build info”。
+- 云端资源：本地开发通过同源代理加载 Stock Soundfont 和 Demo 工程，避免 `localhost` 被云端 CORS 策略拦截。
+
 如需使用模型，在另一个 PowerShell 窗口中运行：
 
 ```powershell
