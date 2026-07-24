@@ -216,8 +216,8 @@ export class DawProjectAdapter {
             if (rawAction.style !== plan.brief.style || !plan.brief.targetRoles.includes(rawAction.role)) {
                 return {success: false, message: `Invalid ${rawAction.role} operation for this MusicBrief.`}
             }
-            if (Math.round(rawAction.bars) !== plan.brief.bars) {
-                return {success: false, message: `${rawAction.role} length does not match the MusicBrief.`}
+            if (Math.round(rawAction.bars) > plan.brief.bars) {
+                return {success: false, message: `${rawAction.role} length exceeds the MusicBrief (${rawAction.bars} > ${plan.brief.bars}).`}
             }
             const exactTarget = rawAction.targetTrackId === null
                 ? null

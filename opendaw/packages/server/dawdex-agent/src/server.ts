@@ -1,6 +1,6 @@
 import {createServer} from "node:http"
 import type {IncomingMessage, ServerResponse} from "node:http"
-import {Agent, run} from "@openai/agents"
+// import {Agent, run} from "@openai/agents"  // replaced with direct fetch
 import {CodexAppServer} from "./CodexAppServer.ts"
 import {
     CreativeBriefSchema,
@@ -20,19 +20,80 @@ type ProgressUpdate = {readonly stage: ProgressStage, readonly message: string}
 type ProgressSink = (update: ProgressUpdate) => void
 type ProviderSource = "codex" | "model"
 
-const creativeDirectorAgent = new Agent({
-    name: "DAWdex Creative Director",
-    model: process.env.OPENAI_MODEL ?? "gpt-5.4-mini",
-    instructions: CREATIVE_DIRECTOR_INSTRUCTIONS,
-    outputType: CreativeBriefSchema
-})
+const OPENAI_MODEL = process.env.OPENAI_MODEL ?? "gpt-5.4"
+const OPENAI_BASE = process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1"
+const BRIEF_SCHEMA_HINT = `
 
-const producerAgent = new Agent({
-    name: "DAWdex Arranger",
-    model: process.env.OPENAI_MODEL ?? "gpt-5.4-mini",
-    instructions: PRODUCER_INSTRUCTIONS,
-    outputType: PlanOutputSchema
-})
+You MUST respond with ONLY a single valid JSON object matching this exact schema:
+{
+  "intent": "create" | "add" | "restyle" | "modify",
+  "style": "<genre string>",
+  "styleAlternatives": ["<alt1>", ...],
+  "moods": ["<mood1>", ...],
+  "decisionSummary": "<short summary in user language>",
+  "instrumentation": ["<instrument1>", ...],
+  "bpm": <number 30-240>,
+  "key": "<key string like C minor>",
+  "bars": 4 | 8,
+  "energy": <number 0-1>,
+  "swing": <number 0-1>,
+  "preserveTrackIds": [],
+  "targetRoles": ["drums", "bass", "keys"],
+  "searchTerms": { "drums": ["<term>", ...], "bass": ["<term>", ...], "keys": ["<term>", ...] }
+}
+No markdown, no code fences, no explanation — just the raw JSON.`
+
+const PLAN_SCHEMA_HINT = `
+
+You MUST respond with ONLY a single valid JSON object matching this exact schema:
+{
+  "title": "<short title>",
+  "summary": "<summary in user language>",
+  "rationale": ["<reason1>", ...],
+  "brief": { <same fields as creative brief minus searchTerms> },
+  "actions": [
+    {
+      "type": "upsert-role-track",
+      "mode": "create" | "replace",
+      "targetTrackId": null | "<id>",
+      "role": "drums" | "bass" | "keys",
+      "style": "<genre>",
+      "startBar": 1,
+      "bars": 4,
+      "rootMidi": 36 (drums) | 38 (bass) | 62 (keys),
+      "seed": <random int>,
+      "density": <0.1-1>,
+      "energy": <0.1-1>,
+      "midiAssetId": "<from candidates>",
+      "midiAssetPath": "<from candidates>"
+    }
+  ]
+}
+No markdown, no code fences, no explanation — just the raw JSON.`
+
+const chatCompletion = async (system: string, user: string): Promise<string> => {
+    const res = await fetch(`${OPENAI_BASE}/chat/completions`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
+        },
+        body: JSON.stringify({
+            model: OPENAI_MODEL,
+            messages: [
+                {role: "system", content: system},
+                {role: "user", content: user}
+            ],
+            temperature: 0.7
+        })
+    })
+    if (!res.ok) {
+        const text = await res.text()
+        throw new Error(`${res.status} ${text.slice(0, 200)}`)
+    }
+    const json = await res.json() as any
+    return json.choices[0].message.content
+}
 
 const codex = new CodexAppServer()
 const midiCatalog = new MidiCatalog()
@@ -94,18 +155,26 @@ const ensureOpenAi = (): void => {
     }
 }
 
+/** Extract JSON from model output (strips markdown fences if present) */
+const extractJson = (text: string): unknown => {
+    let cleaned = text.trim()
+    // Strip ```json ... ``` fences
+    const fenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/)
+    if (fenceMatch) cleaned = fenceMatch[1].trim()
+    return JSON.parse(cleaned)
+}
+
 const runOpenAiBrief = async (
     prompt: string,
     snapshot: ProjectSnapshot
 ): Promise<CreativeBrief> => {
     ensureOpenAi()
-    const result = await run(
-        creativeDirectorAgent,
-        createCreativeDirectorInput(prompt, snapshot),
-        {maxTurns: 3}
+    const text = await chatCompletion(
+        CREATIVE_DIRECTOR_INSTRUCTIONS + BRIEF_SCHEMA_HINT,
+        createCreativeDirectorInput(prompt, snapshot)
     )
-    if (!result.finalOutput) {throw new Error("No Creative Brief returned")}
-    return result.finalOutput
+    const parsed = extractJson(text)
+    return CreativeBriefSchema.parse(parsed)
 }
 
 const runOpenAiPlan = async (
@@ -115,13 +184,12 @@ const runOpenAiPlan = async (
     candidates: ReadonlyArray<MidiCandidate>
 ): Promise<PlanOutput> => {
     ensureOpenAi()
-    const result = await run(
-        producerAgent,
-        createProducerInput(prompt, snapshot, brief, candidates),
-        {maxTurns: 3}
+    const text = await chatCompletion(
+        PRODUCER_INSTRUCTIONS + PLAN_SCHEMA_HINT,
+        createProducerInput(prompt, snapshot, brief, candidates)
     )
-    if (!result.finalOutput) {throw new Error("No arrangement plan returned")}
-    return result.finalOutput
+    const parsed = extractJson(text)
+    return PlanOutputSchema.parse(parsed)
 }
 
 const planCandidates = async (

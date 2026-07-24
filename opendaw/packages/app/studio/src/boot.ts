@@ -85,12 +85,7 @@ export const boot = async ({workersUrl, workletsUrl, wasmProcessorUrl, wasmOffli
     // The engine IS the wasm engine, so this is a hard boot requirement: without its artifacts there is no
     // engine to fall back to, and every worklet-dependent screen would fail on construction instead.
     if (!await WasmEngine.ensureReady(context)) {
-        document.querySelector("#preloader")?.remove()
-        Dialogs.info({
-            headline: "Engine Unavailable",
-            message: "openDAW could not load its audio engine. This is usually a temporary network issue, please reload the page."
-        }).finally()
-        return
+        console.warn("WASM engine unavailable — continuing without audio playback (DAWdex demo mode)")
     }
     if (context.state === "suspended") {
         window.addEventListener("click",

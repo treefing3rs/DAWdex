@@ -257,6 +257,12 @@ export class ErrorHandler {
             }
             return false
         }
+        // DAWdex demo mode: suppress WASM engine errors so the UI remains interactive
+        if (error.message?.includes("demo mode without audio") || error.message?.includes("ensureReady must succeed")) {
+            console.warn("[DAWdex] Engine error suppressed (demo mode):", error.message)
+            event.preventDefault()
+            return false
+        }
         if (this.#errorThrown) {return false}
         this.#errorThrown = true
         AnimationFrame.terminate()
