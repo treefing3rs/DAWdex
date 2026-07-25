@@ -53,20 +53,31 @@ authoritative in their current modules.
 
 ## 3. Initial Compatibility Set
 
-The first release supports the two local CLIs verified on the target machine:
+The first release supports three local CLIs. Codex and Kimi are installed on
+the target machine; Qoder support is implemented and tested even though
+`qodercli` is not currently installed there:
 
-| Runtime | Resolved executable | Verified version | Planning transport |
+| Runtime | Command | Local verification | Planning transport |
 |---|---|---|---|
-| Codex CLI | `~/.local/bin/codex` | `codex-cli 0.145.0-alpha.30` | Existing `CodexAppServer` |
-| Kimi CLI | `~/.local/bin/kimi` | `0.29.1` | `kimi --prompt ... --output-format text` |
+| Codex CLI | `codex` | `codex-cli 0.145.0-alpha.30` | Existing `CodexAppServer` |
+| Kimi CLI | `kimi` | `0.29.1` | `kimi --prompt ... --output-format text` |
+| Qoder CLI | `qodercli` | Not currently installed | `qodercli -p --output-format stream-json` |
 
 Codex is not reimplemented through `codex exec`; selecting Codex delegates to
 the current `CodexAppServer`, preserving ChatGPT login, structured output, rate
 limits, and current behavior.
 
-Kimi receives a new adapter because its verified CLI exposes a bounded
-non-interactive prompt mode. The adapter executes in an empty DAWdex-owned
-temporary working directory and asks for structured data only.
+Kimi and Qoder receive new adapters because both expose bounded non-interactive
+prompt modes. Each adapter executes in an empty DAWdex-owned temporary working
+directory and asks for structured data only.
+
+Qoder's official CLI documentation confirms `qodercli` as the command,
+`--version` as the installation probe, `-p` as print mode, and
+`text`/`json`/`stream-json` output formats. It also documents the model tiers
+`lite`, `efficient`, `auto`, `performance`, and `ultimate`. Authentication
+remains Qoder-owned through a persisted `qodercli login` session or the
+inherited `QODER_PERSONAL_ACCESS_TOKEN`; DAWdex never stores or returns that
+token.
 
 The registry is intentionally extensible. A newly detected command is not
 selectable until DAWdex has an adapter that can produce both validated output
@@ -81,7 +92,7 @@ Contains declarative definitions for supported runtimes:
 
 ```ts
 type LocalCliDefinition = {
-    readonly id: "codex" | "kimi"
+    readonly id: "codex" | "kimi" | "qoder"
     readonly name: string
     readonly command: string
     readonly fallbackCommands: ReadonlyArray<string>
@@ -150,7 +161,7 @@ type RuntimeSelection =
     | {readonly mode: "auto", readonly runtimeId: null, readonly model: null}
     | {
         readonly mode: "local-cli"
-        readonly runtimeId: "codex" | "kimi"
+        readonly runtimeId: "codex" | "kimi" | "qoder"
         readonly model: string | null
     }
     | {readonly mode: "api-key", readonly runtimeId: null, readonly model: null}
@@ -212,7 +223,35 @@ Invocation rules:
 The provider does not read or copy Kimi credentials. Authentication remains
 owned by the installed CLI.
 
-### 4.5 `LocalRuntimeService`
+### 4.5 `QoderCliProvider`
+
+The Qoder provider implements the same `StructuredPlanningProvider` interface.
+Its invocation differs from Kimi:
+
+- Prompt content is written to standard input rather than placed in an
+  argument, avoiding command-line length limits.
+- Fixed arguments are `-p`, `--output-format`, `stream-json`,
+  `--permission-mode`, `plan`, and `--max-turns`, `1`.
+- `--yolo` is explicitly forbidden. Open Design uses it for a general coding
+  agent, but DAWdex needs structured planning rather than autonomous workspace
+  modification.
+- In Qoder headless mode, actions requiring interactive approval fail closed.
+  Planning mode and an empty temporary workspace provide the narrowest
+  documented CLI boundary without claiming an OS sandbox.
+- `-w` points only to the DAWdex-owned temporary directory.
+- `--model` accepts only `lite`, `efficient`, `auto`, `performance`, or
+  `ultimate`; `null` preserves the CLI's saved default.
+- The adapter parses Qoder's JSONL wrapper records. It concatenates text blocks
+  from `assistant` messages, captures the model/version from the `system/init`
+  record, and treats a `result` record with `is_error: true` as a failed
+  invocation.
+- The completed assistant text is parsed by the same existing Zod schemas as
+  Codex and Kimi.
+
+The provider does not read or copy Qoder credentials. A persisted Qoder login
+or inherited `QODER_PERSONAL_ACCESS_TOKEN` remains owned by Qoder CLI.
+
+### 4.6 `LocalRuntimeService`
 
 This service owns the cached scan, incremental listeners, selection validation,
 and adapter lookup.
@@ -231,7 +270,7 @@ interface LocalRuntimeService {
 Concurrent scan requests share one in-flight promise. Repeated Settings opens
 do not spawn duplicate probes.
 
-### 4.6 Planning router integration
+### 4.7 Planning router integration
 
 The current automatic route remains:
 
@@ -245,6 +284,8 @@ The persisted selection changes it as follows:
 - `codex`: use the existing `CodexAppServer`; return its real error rather than
   silently using a different provider.
 - `kimi`: use `KimiCliProvider`; return its real error rather than silently
+  using a different provider.
+- `qoder`: use `QoderCliProvider`; return its real error rather than silently
   using a different provider.
 - `api-key`: preserve the existing strict OpenAI selection.
 
@@ -262,7 +303,7 @@ is outside this branch and remains visible to the user as a fallback source.
 to:
 
 ```ts
-"codex" | "kimi" | "model"
+"codex" | "kimi" | "qoder" | "model"
 ```
 
 This is the only required plan-response contract addition for the frontend
@@ -373,7 +414,7 @@ Kimi's frontend needs only four operations:
 1. Open the Setting screen and call `GET /v1/runtimes`.
 2. Start `EventSource("/v1/runtimes/scan")` when the user presses rescan.
 3. Submit the chosen row to `POST /v1/runtimes/selection`.
-4. Accept `"kimi"` as a valid plan `source`.
+4. Accept `"kimi"` and `"qoder"` as valid plan `source` values.
 
 The frontend does not resolve paths, run version commands, infer
 authentication, or persist selection.
@@ -390,7 +431,7 @@ animation, and visual styling remain entirely in Kimi's branch.
 | Version flag fails after spawn | Available, version `null` | “Version unknown” |
 | Scan probe times out | Runtime unavailable for this scan | Other rows continue arriving |
 | Selected runtime disappears | Planning request fails before model invocation | Prompt to rescan or change runtime |
-| CLI not authenticated | Provider returns a short authentication error | Keep selection; show login guidance |
+| CLI not authenticated | Provider returns a short authentication error | Keep selection; show runtime-specific login guidance |
 | CLI emits invalid JSON | Zod parsing rejects output | No MIDI lookup result is approved or executed |
 | CLI exceeds timeout/buffer | Child is terminated, request fails | Retry or switch runtime |
 | Settings file is corrupt | Ignore invalid file and use `auto` | Status reports recovered default |
@@ -410,11 +451,9 @@ changes.
 - No credentials, CLI config contents, tokens, or raw home path are returned.
 - The provider temporary directory contains only short-lived planning
   artifacts and is removed on disposal.
-- The Kimi process runs in a separate empty directory, receives no DAWdex
-  workspace path, and is never granted automatic tool approval. Kimi CLI does
-  not expose a cross-platform OS sandbox flag in the verified command surface,
-  so DAWdex does not claim stronger filesystem isolation than the host CLI can
-  enforce.
+- Kimi and Qoder run in separate empty directories, receive no DAWdex workspace
+  path, and are never granted automatic tool approval. DAWdex does not claim
+  stronger filesystem isolation than either host CLI can enforce.
 - Structured plan validation and exact MIDI-candidate validation remain
   mandatory after any provider returns.
 
@@ -448,13 +487,18 @@ Automated coverage must prove:
    when permitted.
 9. Kimi valid output passes existing Creative Brief and Plan parsing.
 10. Kimi invalid output, timeout, and non-zero exit produce controlled errors.
-11. Runtime HTTP routes return the documented status codes and SSE events.
-12. New routing tests prove that `auto`, explicit Codex, explicit Kimi, and
-   `api-key` selections choose the documented provider without changing the
-   existing Codex/OpenAI behavior.
-13. Agent Server build and complete test suite pass.
-14. Studio build and tests pass after Kimi connects the frontend contract.
-15. `git diff --check` reports no whitespace errors.
+11. Qoder consumes the prompt from stdin, never uses `--yolo`, restricts model
+    values to the five documented tiers, and extracts final assistant text from
+    representative `stream-json` records.
+12. Qoder error records, malformed JSONL, timeout, and non-zero exit produce
+    controlled errors.
+13. Runtime HTTP routes return the documented status codes and SSE events.
+14. New routing tests prove that `auto`, explicit Codex, explicit Kimi,
+    explicit Qoder, and `api-key` selections choose the documented provider
+    without changing the existing Codex/OpenAI behavior.
+15. Agent Server build and complete test suite pass.
+16. Studio build and tests pass after Kimi connects the frontend contract.
+17. `git diff --check` reports no whitespace errors.
 
 ## 11. Integration Sequence
 
@@ -464,11 +508,21 @@ Automated coverage must prove:
 4. Connect the four HTTP operations from Section 6.
 5. Run Agent Server and Studio verification.
 6. Perform a real-machine scan and confirm the screen reports the installed
-   Codex and Kimi versions.
-7. Select each runtime and generate one Creative Brief and one validated plan
-   without approving DAW execution.
-8. Approve one plan only after both provider outputs have passed schema and
+   Codex and Kimi versions while Qoder remains unavailable when `qodercli` is
+   absent.
+7. After Qoder CLI is installed, rescan and confirm its real version replaces
+   the unavailable state without a frontend change.
+8. Select each available runtime and generate one Creative Brief and one
+   validated plan without approving DAW execution.
+9. Approve one plan only after all provider outputs have passed schema and
    MIDI-candidate validation.
 
 This sequence keeps frontend work, runtime plumbing, and music execution
 independently reviewable until the final integration.
+
+## 12. Qoder References
+
+- [Qoder CLI Quick Start](https://docs.qoder.com/en/cli/quick-start)
+- [Qoder CLI print mode and flags](https://docs.qoder.com/en/cli/using-cli)
+- [Qoder CLI permission modes](https://docs.qoder.com/en/cli/permissions)
+- [Qoder CLI model tiers](https://docs.qoder.com/en/cli/model)
