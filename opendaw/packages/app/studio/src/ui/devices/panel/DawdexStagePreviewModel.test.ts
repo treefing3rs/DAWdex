@@ -1,6 +1,9 @@
 import {describe, expect, it} from "vitest"
 import {DawdexUiSession} from "@/agent/DawdexUiSession"
-import {createDawdexStagePreviewModel} from "./DawdexStagePreviewModel"
+import {
+    createDawdexStagePreviewModel,
+    isDawdexStagePreviewActivationKey
+} from "./DawdexStagePreviewModel"
 
 describe("createDawdexStagePreviewModel", () => {
     it("projects the current room and transport into compact labels", () => {
@@ -33,5 +36,12 @@ describe("createDawdexStagePreviewModel", () => {
         })
 
         expect(createDawdexStagePreviewModel(session.stage.getValue(), "product").playVideo).toBe(false)
+    })
+
+    it("accepts both native activation keys before DAW shortcuts can consume them", () => {
+        expect(isDawdexStagePreviewActivationKey("Enter")).toBe(true)
+        expect(isDawdexStagePreviewActivationKey(" ")).toBe(true)
+        expect(isDawdexStagePreviewActivationKey("Spacebar")).toBe(true)
+        expect(isDawdexStagePreviewActivationKey("Escape")).toBe(false)
     })
 })

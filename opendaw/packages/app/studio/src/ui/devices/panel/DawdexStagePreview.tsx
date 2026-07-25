@@ -10,7 +10,10 @@ import {
 } from "@/agent/DawdexUiSession"
 import type {RoleId} from "@/agent/ui-contract"
 import {StudioService} from "@/service/StudioService"
-import {createDawdexStagePreviewModel} from "./DawdexStagePreviewModel"
+import {
+    createDawdexStagePreviewModel,
+    isDawdexStagePreviewActivationKey
+} from "./DawdexStagePreviewModel"
 
 const className = Html.adoptStyleSheet(css, "DawdexStagePreview")
 
@@ -96,6 +99,12 @@ export const DawdexStagePreview = ({lifecycle, service}: Construct) => {
         session.viewMode.catchupAndSubscribe(owner => {
             mode = owner.getValue()
             render()
+        }),
+        Events.subscribe(root, "keydown", (event: KeyboardEvent) => {
+            if (!isDawdexStagePreviewActivationKey(event.key)) {return}
+            event.preventDefault()
+            event.stopPropagation()
+            session.setViewMode("product")
         }),
         Events.subscribe(root, "click", () => session.setViewMode("product"))
     )

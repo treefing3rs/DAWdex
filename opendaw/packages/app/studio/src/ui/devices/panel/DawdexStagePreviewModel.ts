@@ -13,6 +13,9 @@ export type DawdexStagePreviewModel = {
     readonly playVideo: boolean
 }
 
+export const isDawdexStagePreviewActivationKey = (key: string): boolean =>
+    key === "Enter" || key === " " || key === "Spacebar"
+
 export const createDawdexStagePreviewModel = (
     stage: DawdexStageSnapshot,
     mode: DawdexViewMode
