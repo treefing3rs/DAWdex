@@ -3,11 +3,9 @@
 MIDI assets are grouped by instrument family while preserving their original
 library-relative directory structure.
 
-The licensed MIDI asset pack is intentionally installed locally and is not
-stored in Git. Each developer must provision `bass/`, `drums/`, and `keys/`
-under this directory while preserving their relative paths. MIDI files under
-this directory are ignored; this README remains tracked as the library
-contract.
+The team currently keeps this authorized library in Git so every checkout uses
+the same files at the same `midi/easy/` path. A future external-library
+migration must be handled as a separate, coordinated change.
 
 | Category | MIDI files | Bytes |
 |---|---:|---:|
@@ -19,29 +17,6 @@ contract.
 The six zero-filled `.mid` files under the two
 `Fox_Samples/Piano_in_Silence/` trees are preserved verbatim from the source
 library. All other files begin with a standard MIDI `MThd` header.
-
-## One-time migration from a tracked checkout
-
-Do not pull the commit that externalizes this library until the existing MIDI
-directory has been copied to a verified location outside the repository.
-During the first pull, Git removes files that were tracked by the previous
-revision; `.gitignore` prevents future tracking but does not protect files
-during that transition.
-
-Recommended migration:
-
-1. Stop the Agent server and copy `midi/easy/` to a durable directory outside
-   the repository.
-2. Verify that the copy contains the expected `bass/`, `drums/`, and `keys/`
-   directories and file counts.
-3. Pull the repository update only after the copy has been verified.
-4. Set `DAWDEX_MIDI_ROOT` to the external `easy/` directory before indexing or
-   starting the Agent server.
-
-If a developer wants to keep the library at the legacy in-repository path,
-they must still make the external safety copy first, pull the update, and then
-copy the files back into `midi/easy/`. The restored files will be ignored by
-Git.
 
 ## DAWdex catalog
 
