@@ -1,7 +1,14 @@
 import {describe, expect, it} from "vitest"
 import {isDefined, Option, Terminable, UUID} from "@opendaw/lib-std"
 import {PPQN} from "@opendaw/lib-dsp"
-import {ProjectSkeleton} from "@opendaw/studio-adapters"
+import {
+    AudioUnitFactory,
+    InstrumentFactories,
+    PresetEncoder,
+    ProjectSkeleton
+} from "@opendaw/studio-adapters"
+import {CaptureMidiBox} from "@opendaw/studio-boxes"
+import {AudioUnitType} from "@opendaw/studio-enums"
 import {LocalMusicPlanner} from "./LocalMusicPlanner"
 import type {AgentPlan, DawControlAction, DawProjectSnapshot, MusicRole} from "./AgentProtocol"
 import {compileMidiAsset} from "./music/MidiAsset"
@@ -85,6 +92,24 @@ const actualAssetLoader = async (assetId: string): Promise<ArrayBuffer> => {
     return singleNoteMidi(assetId === "drums" ? 36 : assetId === "bass" ? 40 : 64)
 }
 
+const noDrumKitPreset = async (): Promise<null> => null
+
+const playfieldPresetBytes = (): ArrayBuffer => {
+    const skeleton = ProjectSkeleton.empty({createDefaultUser: false, createOutputMaximizer: false})
+    const graph = skeleton.boxGraph
+    graph.beginTransaction()
+    const capture = CaptureMidiBox.create(graph, UUID.generate())
+    const audioUnit = AudioUnitFactory.create(skeleton, AudioUnitType.Instrument, Option.wrap(capture))
+    InstrumentFactories.Playfield.create(
+        graph,
+        audioUnit.input,
+        "TR-808",
+        InstrumentFactories.Playfield.defaultIcon
+    )
+    graph.endTransaction()
+    return PresetEncoder.encode(audioUnit) as ArrayBuffer
+}
+
 describe("DawProjectAdapter", () => {
     it("restyles in place, preserves Keys during a Drum-only edit, and restores each change with one Undo",
         async () => {
@@ -103,7 +128,7 @@ describe("DawProjectAdapter", () => {
                 project,
                 newProject: async () => {}
             } as never
-            const adapter = new DawProjectAdapter(service, testAssetLoader)
+            const adapter = new DawProjectAdapter(service, testAssetLoader, noDrumKitPreset)
 
             try {
                 const createResult = await adapter.apply(LocalMusicPlanner.create(
@@ -116,6 +141,10 @@ describe("DawProjectAdapter", () => {
                 expect(Array.from(dubstep.values()).every(track => track.style === "dubstep")).toBe(true)
                 expect(dubstep.get("drums")?.sound.effects.map(effect => effect.kind))
                     .toEqual(["compressor"])
+                expect(dubstep.get("drums")?.sound).toMatchObject({
+                    instrumentKind: "PlayfieldDeviceBox",
+                    instrumentLabel: expect.stringContaining("TR-909")
+                })
                 expect(dubstep.get("bass")?.sound.effects.map(effect => effect.kind))
                     .toEqual(["compressor", "maximizer"])
                 expect(dubstep.get("keys")?.sound.effects.map(effect => effect.kind))
@@ -135,6 +164,10 @@ describe("DawProjectAdapter", () => {
                     expect(rnb.get(role)?.midiFingerprint).not.toBe(dubstep.get(role)?.midiFingerprint)
                     expect(rnb.get(role)?.sound.fingerprint).not.toBe(dubstep.get(role)?.sound.fingerprint)
                 }
+                expect(rnb.get("drums")?.sound).toMatchObject({
+                    instrumentKind: "PlayfieldDeviceBox",
+                    instrumentLabel: expect.stringContaining("TR-808")
+                })
 
                 const modifyResult = await adapter.apply(LocalMusicPlanner.create(
                     "保留 Keys，只把鼓变得更松一点。",
@@ -178,7 +211,7 @@ describe("DawProjectAdapter", () => {
             project,
             newProject: async () => {}
         } as never
-        const adapter = new DawProjectAdapter(service, actualAssetLoader)
+        const adapter = new DawProjectAdapter(service, actualAssetLoader, async () => playfieldPresetBytes())
         const drumNotes = compileMidiAsset(await actualAssetLoader("drums"), "drums", 8)
         expect(drumNotes
             .filter(note => !Number.isInteger(note.position) || !Number.isInteger(note.duration))
@@ -206,7 +239,7 @@ describe("DawProjectAdapter", () => {
             },
             actions: [
                 {type: "set-tempo", bpm: 140},
-                ...(["drums", "bass", "keys"] as const).map((role, index) => ({
+                ...(["keys", "drums", "bass"] as const).map((role, index) => ({
                     type: "upsert-role-track" as const,
                     mode: "create" as const,
                     targetTrackId: null,
@@ -220,15 +253,48 @@ describe("DawProjectAdapter", () => {
                     energy: 0.8,
                     midiAssetId: role,
                     midiAssetPath: actualAssets.get(role)!,
-                    sound: createRoleTrackSound(role, "dubstep")
+                    transposeSemitones: 0,
+                    sound: role === "drums"
+                        ? {
+                            ...createRoleTrackSound(role, "dubstep"),
+                            instrument: {
+                                ...createRoleTrackSound(role, "dubstep").instrument,
+                                drumKit: "TR-808" as const
+                            }
+                        }
+                        : createRoleTrackSound(role, "dubstep")
                 }))
             ],
             source: "codex"
         }
         try {
-            const result = await adapter.apply(plan)
+            const progress: Array<string> = []
+            const waits: Array<string> = []
+            const result = await adapter.apply(plan, {
+                progressive: true,
+                configureLoop: true,
+                onRoleProgress: update => progress.push(`${update.phase}:${update.role}`),
+                waitForNextRole: async update => {waits.push(update.role)}
+            })
             expect(result).toEqual(expect.objectContaining({success: true}))
             expect(adapter.snapshot().tracks).toHaveLength(3)
+            expect(progress).toEqual([
+                "preparing:keys", "preparing:drums", "preparing:bass",
+                "applied:keys", "applied:drums", "applied:bass"
+            ])
+            expect(waits).toEqual(["drums", "bass"])
+            expect(roleMap(adapter.snapshot()).get("drums")?.sound).toMatchObject({
+                instrumentKind: "PlayfieldDeviceBox",
+                instrumentLabel: expect.stringContaining("TR-808"),
+                drumKit: "TR-808"
+            })
+            expect(adapter.snapshot().transport).toMatchObject({
+                loopEnabled: true,
+                loopFrom: 0,
+                loopTo: 8 * PPQN.Bar
+            })
+            expect(adapter.undo().success).toBe(true)
+            expect(adapter.snapshot().tracks).toHaveLength(0)
         } finally {
             project.terminate()
         }
@@ -250,7 +316,7 @@ describe("DawProjectAdapter", () => {
             project,
             newProject: async () => {}
         } as never
-        const adapter = new DawProjectAdapter(service, testAssetLoader)
+        const adapter = new DawProjectAdapter(service, testAssetLoader, noDrumKitPreset)
         try {
             const createPlan = LocalMusicPlanner.create("Create Dubstep", adapter.snapshot())
             expect((await adapter.apply(createPlan)).success).toBe(true)
@@ -315,7 +381,7 @@ describe("DawProjectAdapter", () => {
                 project,
                 newProject: async () => {}
             } as never
-            const adapter = new DawProjectAdapter(service, testAssetLoader)
+            const adapter = new DawProjectAdapter(service, testAssetLoader, noDrumKitPreset)
             try {
                 const createPlan = LocalMusicPlanner.create("Create Dubstep", adapter.snapshot())
                 expect((await adapter.apply(createPlan)).success).toBe(true)
@@ -436,7 +502,7 @@ describe("DawProjectAdapter", () => {
             engine,
             newProject: async () => {}
         } as never
-        const adapter = new DawProjectAdapter(service, testAssetLoader)
+        const adapter = new DawProjectAdapter(service, testAssetLoader, noDrumKitPreset)
         try {
             const createPlan = LocalMusicPlanner.create("Create R&B", adapter.snapshot())
             expect((await adapter.apply(createPlan)).success).toBe(true)
@@ -528,7 +594,7 @@ describe("DawProjectAdapter", () => {
             expect((await adapter.apply(instrumentPlan)).success).toBe(true)
             expect(roleMap(adapter.snapshot()).get("drums")?.sound.instrumentKind).toBe("MIDIOutputDeviceBox")
             expect(adapter.undo().success).toBe(true)
-            expect(roleMap(adapter.snapshot()).get("drums")?.sound.instrumentKind).toBe("VaporisateurDeviceBox")
+            expect(roleMap(adapter.snapshot()).get("drums")?.sound.instrumentKind).toBe("PlayfieldDeviceBox")
         } finally {
             project.terminate()
         }

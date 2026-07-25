@@ -121,6 +121,7 @@ const createRoleAction = (
         energy,
         midiAssetId: `auto:${style}:${role}:${seed}`,
         midiAssetPath: `Automatic ${style} ${role} library match`,
+        transposeSemitones: 0,
         sound: createRoleTrackSound(role, style)
     }
 }

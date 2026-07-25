@@ -1,11 +1,16 @@
-import {clamp, isInstanceOf} from "@opendaw/lib-std"
+import {clamp, isInstanceOf, UUID} from "@opendaw/lib-std"
 import {ClassicWaveform} from "@opendaw/lib-dsp"
 import {VoicingMode} from "@opendaw/studio-enums"
 import {
+    AudioFileBox,
     CompressorDeviceBox,
     DattorroReverbDeviceBox,
     DelayDeviceBox,
     MaximizerDeviceBox,
+    NanoDeviceBox,
+    PlayfieldDeviceBox,
+    SoundfontDeviceBox,
+    SoundfontFileBox,
     StereoToolDeviceBox,
     VaporisateurDeviceBox
 } from "@opendaw/studio-boxes"
@@ -13,6 +18,7 @@ import {AudioUnitBoxAdapter, InstrumentBox, InstrumentFactories} from "@opendaw/
 import {EffectFactories, Project} from "@opendaw/studio-core"
 import type {
     DelayTiming,
+    MusicRole,
     ProjectTrackSoundSnapshot,
     SynthSoundParameters,
     SynthWaveform,
@@ -77,17 +83,37 @@ const hash = (value: string): string => {
     return (result >>> 0).toString(16).padStart(8, "0")
 }
 
+const plannedInstrumentState = (sound: TrackSoundDesign): unknown => {
+    switch (sound.instrument.kind) {
+        case "vaporisateur":
+            return {kind: sound.instrument.kind, parameters: sound.instrument.parameters}
+        case "playfield":
+            return {kind: sound.instrument.kind, drumKit: sound.instrument.drumKit}
+        case "soundfont":
+            return {
+                kind: sound.instrument.kind,
+                assetId: sound.instrument.assetId,
+                presetIndex: sound.instrument.presetIndex
+            }
+        case "nano":
+            return {kind: sound.instrument.kind, assetId: sound.instrument.assetId}
+    }
+}
+
 const soundState = (sound: TrackSoundDesign): unknown => ({
-    instrument: {
-        kind: sound.instrument.kind,
-        parameters: sound.instrument.parameters
-    },
+    instrument: plannedInstrumentState(sound),
     mixer: sound.mixer,
     effects: sound.effects
 })
 
 export const soundDesignFingerprint = (sound: TrackSoundDesign): string =>
     hash(JSON.stringify(normalizeForFingerprint(soundState(sound))))
+
+export const trackSoundDesignFingerprint = (
+    _role: MusicRole,
+    _style: string,
+    sound: TrackSoundDesign
+): string => soundDesignFingerprint(sound)
 
 const sanitizeSynth = (value: SynthSoundParameters): SynthSoundParameters => ({
     attack: clamp(value.attack, 0.001, 4),
@@ -157,8 +183,11 @@ const sanitizeEffect = (effect: TrackEffect): TrackEffect => {
 
 export const sanitizeTrackSoundDesign = (sound: TrackSoundDesign): TrackSoundDesign => ({
     instrument: {
-        kind: "vaporisateur",
+        kind: sound.instrument.kind,
         presetLabel: sound.instrument.presetLabel.trim().slice(0, 64) || "Custom Synth",
+        assetId: sound.instrument.assetId.trim().slice(0, 80),
+        presetIndex: clamp(Math.round(sound.instrument.presetIndex), 0, 65_535),
+        drumKit: sound.instrument.drumKit === "TR-808" ? "TR-808" : "TR-909",
         parameters: sanitizeSynth(sound.instrument.parameters)
     },
     mixer: sanitizeMixer(sound.mixer),
@@ -258,23 +287,50 @@ export const readTrackSound = (audioUnit: AudioUnitBoxAdapter): ProjectTrackSoun
         mute: audioUnit.box.mute.getValue(),
         solo: audioUnit.box.solo.getValue()
     }
-    const sound = synthParameters === null ? null : {
-        instrument: {
-            kind: "vaporisateur" as const,
-            presetLabel: input?.labelField.getValue() ?? "Vaporisateur",
-            parameters: synthParameters
-        },
-        mixer,
-        effects: managedEffects
-    }
+    const playfieldLabel = input !== null && isInstanceOf(input.box, PlayfieldDeviceBox)
+        ? input.labelField.getValue()
+        : null
+    const playfieldPreset = playfieldLabel?.includes("TR-808")
+        ? "TR-808"
+        : playfieldLabel?.includes("TR-909")
+            ? "TR-909"
+            : playfieldLabel
+    const instrumentAssetId = input !== null && isInstanceOf(input.box, SoundfontDeviceBox)
+        ? input.box.file.targetVertex.mapOr(vertex => vertex.address.toString(), null)
+        : input !== null && isInstanceOf(input.box, NanoDeviceBox)
+            ? input.box.file.targetVertex.mapOr(vertex => vertex.address.toString(), null)
+            : null
+    const instrumentPresetIndex = input !== null && isInstanceOf(input.box, SoundfontDeviceBox)
+        ? input.box.presetIndex.getValue()
+        : null
+    const actualInstrumentState = synthParameters !== null
+        ? {kind: "vaporisateur", parameters: synthParameters}
+        : playfieldPreset !== null
+            ? {kind: "playfield", drumKit: playfieldPreset}
+            : input !== null && isInstanceOf(input.box, SoundfontDeviceBox)
+                ? {kind: "soundfont", assetId: instrumentAssetId, presetIndex: instrumentPresetIndex}
+                : input !== null && isInstanceOf(input.box, NanoDeviceBox)
+                    ? {kind: "nano", assetId: instrumentAssetId}
+                    : null
     return {
         instrumentKind: input?.box.name ?? "none",
         instrumentLabel: input?.labelField.getValue() ?? "No instrument",
+        instrumentAssetId,
+        instrumentPresetIndex,
+        drumKit: playfieldPreset === "TR-808" || playfieldPreset === "TR-909"
+            ? playfieldPreset
+            : null,
         synthParameters,
         mixer,
         effects: managedEffects,
         unmanagedEffectCount: allEffects.length - managedEffects.length,
-        fingerprint: sound === null ? null : soundDesignFingerprint(sound)
+        fingerprint: actualInstrumentState === null
+            ? null
+            : hash(JSON.stringify(normalizeForFingerprint({
+                instrument: actualInstrumentState,
+                mixer,
+                effects: managedEffects
+            })))
     }
 }
 
@@ -362,23 +418,79 @@ const insertEffect = (project: Project, audioUnit: AudioUnitBoxAdapter, effect: 
 export const applyTrackSound = (
     project: Project,
     audioUnit: AudioUnitBoxAdapter,
-    rawSound: TrackSoundDesign
+    rawSound: TrackSoundDesign,
+    options: {readonly configureInstrument?: boolean} = {}
 ): TrackSoundDesign => {
     const sound = sanitizeTrackSoundDesign(rawSound)
     let input = audioUnit.input.adapter().unwrapOrNull()
-    if (input === null || !isInstanceOf(input.box, VaporisateurDeviceBox)) {
+    if (options.configureInstrument !== false) {
         if (input === null) {throw new Error("The target track has no instrument")}
-        const attempt = project.api.replaceMIDIInstrument(
-            input.box as InstrumentBox,
-            InstrumentFactories.Vaporisateur
-        )
-        if (attempt.isFailure()) {throw new Error(attempt.failureReason())}
-        input = audioUnit.input.adapter().unwrapOrNull()
+        const currentLabel = input.labelField.getValue()
+        switch (sound.instrument.kind) {
+            case "vaporisateur": {
+                if (!isInstanceOf(input.box, VaporisateurDeviceBox)) {
+                    const attempt = project.api.replaceMIDIInstrument(
+                        input.box as InstrumentBox,
+                        InstrumentFactories.Vaporisateur
+                    )
+                    if (attempt.isFailure()) {throw new Error(attempt.failureReason())}
+                    input = audioUnit.input.adapter().unwrapOrNull()
+                }
+                if (input === null || !isInstanceOf(input.box, VaporisateurDeviceBox)) {
+                    throw new Error("Could not configure the target synth")
+                }
+                input.labelField.setValue(currentLabel)
+                applySynth(input.box, sound.instrument.parameters)
+                break
+            }
+            case "soundfont": {
+                const asset = project.boxGraph.findBox(UUID.parse(sound.instrument.assetId)).unwrapOrNull()
+                if (!isInstanceOf(asset, SoundfontFileBox)) {
+                    throw new Error(`Soundfont asset ${sound.instrument.assetId} is unavailable`)
+                }
+                if (!isInstanceOf(input.box, SoundfontDeviceBox)) {
+                    const attempt = project.api.replaceMIDIInstrument(
+                        input.box as InstrumentBox,
+                        InstrumentFactories.Soundfont
+                    )
+                    if (attempt.isFailure()) {throw new Error(attempt.failureReason())}
+                    input = audioUnit.input.adapter().unwrapOrNull()
+                }
+                if (input === null || !isInstanceOf(input.box, SoundfontDeviceBox)) {
+                    throw new Error("Could not configure Soundfont")
+                }
+                input.box.file.refer(asset)
+                input.box.presetIndex.setValue(sound.instrument.presetIndex)
+                input.labelField.setValue(currentLabel)
+                break
+            }
+            case "nano": {
+                const asset = project.boxGraph.findBox(UUID.parse(sound.instrument.assetId)).unwrapOrNull()
+                if (!isInstanceOf(asset, AudioFileBox)) {
+                    throw new Error(`Audio asset ${sound.instrument.assetId} is unavailable`)
+                }
+                if (!isInstanceOf(input.box, NanoDeviceBox)) {
+                    const attempt = project.api.replaceMIDIInstrument(
+                        input.box as InstrumentBox,
+                        InstrumentFactories.Nano,
+                        asset
+                    )
+                    if (attempt.isFailure()) {throw new Error(attempt.failureReason())}
+                    input = audioUnit.input.adapter().unwrapOrNull()
+                }
+                if (input === null || !isInstanceOf(input.box, NanoDeviceBox)) {
+                    throw new Error("Could not configure Nano")
+                }
+                input.box.file.refer(asset)
+                input.labelField.setValue(currentLabel)
+                break
+            }
+            case "playfield":
+                throw new Error("Playfield must be configured through an approved TR-808/TR-909 preset")
+        }
+    } else if (input === null) {
+        throw new Error("The target track has no instrument")
     }
-    if (input === null || !isInstanceOf(input.box, VaporisateurDeviceBox)) {
-        throw new Error("Could not configure the target synth")
-    }
-    applySynth(input.box, sound.instrument.parameters)
     audioUnit.box.volume.setValue(sound.mixer.volumeDb)
     audioUnit.box.panning.setValue(sound.mixer.panning)
     audioUnit.box.mute.setValue(sound.mixer.mute)

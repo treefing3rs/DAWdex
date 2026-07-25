@@ -1,11 +1,14 @@
 import {z} from "zod"
 import type {MidiCandidate} from "./MidiCatalog.ts"
+import type {MidiBundle} from "./MidiBundleRanker.ts"
 
 const MusicIntentSchema = z.enum(["create", "add", "restyle", "modify"])
 const MusicRoleSchema = z.enum(["drums", "bass", "keys"])
 const StyleSchema = z.string().trim().min(1).max(80)
 const SynthWaveformSchema = z.enum(["sine", "triangle", "saw", "square"])
 const DelayTimingSchema = z.enum(["eighth", "dotted-eighth", "quarter", "dotted-quarter", "half"])
+const PlannedInstrumentKindSchema = z.enum(["vaporisateur", "playfield", "soundfont", "nano"])
+const DrumKitPresetSchema = z.enum(["TR-808", "TR-909"])
 
 const SynthSoundParametersSchema = z.object({
     attack: z.number().min(0.001).max(4),
@@ -80,8 +83,11 @@ const TrackEffectSchema = z.discriminatedUnion("kind", [
 
 const TrackSoundDesignSchema = z.object({
     instrument: z.object({
-        kind: z.literal("vaporisateur"),
+        kind: PlannedInstrumentKindSchema,
         presetLabel: z.string().trim().min(1).max(64),
+        assetId: z.string().max(80),
+        presetIndex: z.number().int().min(0).max(65_535),
+        drumKit: DrumKitPresetSchema,
         parameters: SynthSoundParametersSchema
     }),
     mixer: TrackMixerSettingsSchema,
@@ -117,6 +123,9 @@ const CodexTrackSoundDesignSchema = z.object({
 const ProjectTrackSoundSnapshotSchema = z.object({
     instrumentKind: z.string().min(1).max(80),
     instrumentLabel: z.string().max(120),
+    instrumentAssetId: z.string().min(1).max(80).nullable(),
+    instrumentPresetIndex: z.number().int().min(0).max(65_535).nullable(),
+    drumKit: DrumKitPresetSchema.nullable(),
     synthParameters: SynthSoundParametersSchema.nullable(),
     mixer: TrackMixerSettingsSchema,
     effects: z.array(TrackEffectSchema).max(16),
@@ -269,6 +278,7 @@ const UpsertRoleTrackActionSchema = z.object({
     energy: z.number().min(0.1).max(1),
     midiAssetId: z.string().min(1).max(80),
     midiAssetPath: z.string().min(1).max(512),
+    transposeSemitones: z.number().int().min(-11).max(11).default(0),
     sound: TrackSoundDesignSchema
 })
 
@@ -351,6 +361,7 @@ export const CodexPlanOutputSchema = z.object({
         energy: z.number().min(0.1).max(1),
         midiAssetId: z.string().min(1).max(80),
         midiAssetPath: z.string().min(1).max(512),
+        transposeSemitones: z.number().int().min(-11).max(11),
         sound: CodexTrackSoundDesignSchema
     })).max(8),
     controls: z.array(DawControlActionSchema).max(12)
@@ -360,6 +371,11 @@ export type ProjectSnapshot = z.infer<typeof ProjectSnapshotSchema>
 export type CreativeBrief = z.infer<typeof CreativeBriefSchema>
 export type PlanOutput = z.infer<typeof PlanOutputSchema>
 export type ProducerOutput = z.infer<typeof ProducerOutputSchema>
+
+type PlanParseContext = {
+    readonly prompt: string
+    readonly snapshot: ProjectSnapshot
+}
 
 export const CREATIVE_DIRECTOR_INSTRUCTIONS = `You are the Creative Director of DAWdex.
 The user is a music enthusiast who may describe only a feeling, scene, or story. Translate that language into an
@@ -391,10 +407,20 @@ Arrangement rules:
 - Use rootMidi 36 for drums, 38 for bass, and 62 for keys. Keys must not be placed in the bass register.
 - Every upsert action must choose one exact midiAssetId and midiAssetPath from the supplied candidates for the
   same role. Set action.style exactly to the Creative Brief style.
-- Every upsert action must include an intentional sound design. The current safe sound engine is Vaporisateur:
-  choose a user-facing presetLabel and set its envelope, filter, resonance, voicing, unison, two oscillators,
-  and noise parameters. Do not reuse the same patch for drums, bass, and keys.
+- Choose all role assets from one supplied ranked MIDI Bundle. Do not mix unrelated candidates from different
+  bundles. The server will apply the bundle's key transposition after selection.
+- Every upsert action must include an intentional sound design. You—not a hidden style table—choose the
+  instrument and sound. For drums, instrument.kind must be "playfield" and drumKit must be either "TR-808"
+  or "TR-909"; choose between those two from the requested musical character. No other drum instrument is
+  allowed because these are the approved audible kits. assetId must be empty for Playfield.
+- For bass and keys, choose "vaporisateur", "soundfont", or "nano". Soundfont/Nano may only be selected when
+  project.assets contains an exact compatible asset ID and the matching capability is available. Put that exact
+  ID in instrument.assetId. For Vaporisateur, assetId must be empty and you must design its envelope, filter,
+  resonance, voicing, unison, two oscillators, and noise. presetIndex selects a Soundfont program and is ignored
+  by other instruments. drumKit is structurally required but ignored for non-drums.
 - Choose mixer volume and panning for each role. Keep mute and solo false unless the user explicitly asks.
+- The order of upsert-role-track actions is the intended audible entrance order. Choose it musically; the
+  executor will preserve it instead of imposing drums/bass/keys order.
 - Build a restrained role-appropriate effects chain with at most four effects. Typical choices are compression
   for drums/bass, reverb or delay for keys, stereo widening for pads, and maximizer only when musically justified.
   Effects and parameters must follow the supplied schema; avoid putting wide stereo or reverb on sub bass.
@@ -425,6 +451,11 @@ DAW control plane:
 - For effect add, choose only a kind listed in project.capabilities.midiEffects/audioEffects. For instrument
   replace, choose only an available project capability. Soundfont/Nano/Playfield/Apparat require an exact
   compatible project.assets ID; never invent an asset or create an empty instrument that cannot sound.
+- A request that only changes the DAW may legitimately return an empty actions array, but controls must then
+  contain the requested edit. Never return both arrays empty. Map distortion/失真/overdrive/saturation to the
+  native Waveshaper effect; use Crusher only for explicit bit-crush, digital degradation, or lo-fi requests.
+- Resolve conversational targets such as "this drum kit", "the bass", or "the keys" to the matching generated
+  role track from the snapshot. For effect add, targetTrackId is required but targetDeviceId remains null.
 - Region positions, loop start, seek, and automation points use 1-based bars. Region resize and loop length use
   bar counts. MIDI transpose uses semitones; velocity uses a multiplier; quantize uses 4, 8, 16, or 32;
   humanize uses timing PPQN in value, velocity variation 0..0.5 in secondaryValue, and a deterministic seed.
@@ -454,12 +485,13 @@ export const createProducerInput = (
     prompt: string,
     snapshot: ProjectSnapshot,
     brief: CreativeBrief,
-    candidates: ReadonlyArray<MidiCandidate>
+    candidates: ReadonlyArray<MidiCandidate>,
+    bundles: ReadonlyArray<MidiBundle> = []
 ): string =>
     `${PRODUCER_INSTRUCTIONS}
 
-User request, fixed Creative Brief, current project snapshot, and curated MIDI candidates:
-${JSON.stringify({prompt, creativeBrief: brief, project: snapshot, midiCandidates: candidates})}`
+User request, fixed Creative Brief, current project snapshot, curated MIDI candidates, and ranked compatible bundles:
+${JSON.stringify({prompt, creativeBrief: brief, project: snapshot, midiCandidates: candidates, midiBundles: bundles})}`
 
 export const parseCreativeBrief = (value: unknown): CreativeBrief =>
     CreativeBriefSchema.parse(value)
@@ -511,8 +543,59 @@ const parseCodexEffect = (
     }
 }
 
-export const parseCodexPlan = (value: unknown): PlanOutput => {
+const inferUnambiguousEffectControl = (
+    context: PlanParseContext | undefined
+): z.infer<typeof DawControlActionSchema> | null => {
+    if (context === undefined) {return null}
+    const prompt = context.prompt.toLowerCase()
+    const isBitCrusher = /bit[\s-]?crush|crusher|lo[\s-]?fi|比特|位深|数字降质/.test(prompt)
+    const isDistortion = isBitCrusher
+        || /distortion|distort|overdrive|saturat|waveshap|失真|过载|饱和/.test(prompt)
+    if (!isDistortion || !/(add|insert|put|加|添加|插入|挂|放)/.test(prompt)) {return null}
+    const role = /drum|kit|鼓/.test(prompt)
+        ? "drums"
+        : /bass|贝斯|低音/.test(prompt)
+            ? "bass"
+            : /keys|keyboard|piano|键盘|钢琴/.test(prompt)
+                ? "keys"
+                : null
+    const generated = context.snapshot.tracks.filter(track => track.generated)
+    const target = role === null
+        ? generated.length === 1 ? generated[0] : undefined
+        : generated.find(track => track.role === role)
+    if (target === undefined) {return null}
+    const kind = isBitCrusher ? "Crusher" : "Waveshaper"
+    const index = target.devices?.filter(device => device.category === "audio-effect").length ?? 0
+    return {
+        type: "control",
+        command: "effect",
+        operation: "add",
+        targetTrackId: target.id,
+        targetRegionId: null,
+        targetDeviceId: null,
+        targetBusId: null,
+        kind,
+        name: kind === "Crusher" ? "DAWdex Bit Crusher" : "DAWdex Distortion",
+        assetId: "",
+        index,
+        enabled: true,
+        value: 0,
+        secondaryValue: 0,
+        seed: 0,
+        parameters: kind === "Waveshaper" ? [
+            {key: "inputGain", numberValue: 0.3, stringValue: "", booleanValue: false},
+            {key: "outputGain", numberValue: 0.45, stringValue: "", booleanValue: false},
+            {key: "mix", numberValue: 0.7, stringValue: "", booleanValue: false}
+        ] : [],
+        points: []
+    }
+}
+
+export const parseCodexPlan = (value: unknown, context?: PlanParseContext): PlanOutput => {
     const raw = CodexPlanOutputSchema.parse(value)
+    const inferredControl = raw.actions.length === 0 && raw.controls.length === 0
+        ? inferUnambiguousEffectControl(context)
+        : null
     return PlanOutputSchema.parse({
         title: raw.title,
         summary: raw.summary,
@@ -535,18 +618,23 @@ export const parseCodexPlan = (value: unknown): PlanOutput => {
                     energy: action.energy,
                     midiAssetId: action.midiAssetId,
                     midiAssetPath: action.midiAssetPath,
+                    transposeSemitones: action.transposeSemitones,
                     sound: {
                         ...action.sound,
                         effects: action.sound.effects.map(parseCodexEffect)
                     }
                 }),
-            ...raw.controls
+            ...raw.controls,
+            ...(inferredControl === null ? [] : [inferredControl])
         ]
     })
 }
 
-export const parseProducerPlan = (value: unknown): PlanOutput => {
+export const parseProducerPlan = (value: unknown, context?: PlanParseContext): PlanOutput => {
     const raw = ProducerOutputSchema.parse(value)
+    const inferredControl = raw.actions.length === 0 && raw.controls.length === 0
+        ? inferUnambiguousEffectControl(context)
+        : null
     return PlanOutputSchema.parse({
         title: raw.title,
         summary: raw.summary,
@@ -554,7 +642,8 @@ export const parseProducerPlan = (value: unknown): PlanOutput => {
         brief: raw.brief,
         actions: [
             ...raw.actions,
-            ...raw.controls
+            ...raw.controls,
+            ...(inferredControl === null ? [] : [inferredControl])
         ]
     })
 }

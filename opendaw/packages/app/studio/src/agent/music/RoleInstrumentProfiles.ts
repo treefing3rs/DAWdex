@@ -224,8 +224,11 @@ export const createRoleTrackSound = (
             }]
     return {
         instrument: {
-            kind: "vaporisateur",
+            kind: role === "drums" ? "playfield" : "vaporisateur",
             presetLabel,
+            assetId: "",
+            presetIndex: 0,
+            drumKit: profileStyle === "rnb" ? "TR-808" : "TR-909",
             parameters: {
                 attack: profile.attack,
                 decay: profile.decay,

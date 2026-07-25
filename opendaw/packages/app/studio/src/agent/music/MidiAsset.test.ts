@@ -50,9 +50,17 @@ describe("compileMidiAsset", () => {
         expect(notes.every(note => note.pitch >= 28 && note.pitch <= 55)).toBe(true)
     })
 
-    it("preserves GM drum pitches", () => {
-        const notes = compileMidiAsset(singleNoteMidi(36), "drums", 4)
-        expect(notes.every(note => note.pitch === 36)).toBe(true)
+    it("maps General MIDI drum roles onto the audible Playfield TR kit octave", () => {
+        const notes = compileMidiAsset(singleNoteMidi(36), "drums", 4, 5)
+        expect(notes.every(note => note.pitch === 60)).toBe(true)
+        expect(compileMidiAsset(singleNoteMidi(38), "drums", 1)[0].pitch).toBe(62)
+        expect(compileMidiAsset(singleNoteMidi(42), "drums", 1)[0].pitch).toBe(67)
+        expect(compileMidiAsset(singleNoteMidi(46), "drums", 1)[0].pitch).toBe(68)
+    })
+
+    it("applies bundle key transposition to pitched roles before fitting their register", () => {
+        const notes = compileMidiAsset(singleNoteMidi(64), "keys", 4, 2)
+        expect(notes.every(note => note.pitch === 66)).toBe(true)
     })
 
     it("imports a representative polyphonic Keys MIDI fixture above the bass register", () => {

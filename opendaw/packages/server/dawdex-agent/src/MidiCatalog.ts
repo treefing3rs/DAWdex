@@ -21,6 +21,11 @@ export type MidiCandidate = {
     readonly maxPitch: number | null
     readonly medianPitch: number | null
     readonly density: number | null
+    readonly source: string
+    readonly styleTags: ReadonlyArray<string>
+    readonly keyRoot: number | null
+    readonly keyMode: "major" | "minor" | null
+    readonly section: string | null
 }
 
 type CatalogSource = {
@@ -84,6 +89,33 @@ const pathLabel = (path: string): string => {
     return parts.slice(Math.max(0, parts.length - 4)).join(" / ")
 }
 
+const NOTE_ROOTS: Readonly<Record<string, number>> = {
+    c: 0, "c#": 1, db: 1, d: 2, "d#": 3, eb: 3, e: 4,
+    f: 5, "f#": 6, gb: 6, g: 7, "g#": 8, ab: 8, a: 9,
+    "a#": 10, bb: 10, b: 11
+}
+
+const pathKey = (path: string): {
+    readonly root: number | null,
+    readonly mode: "major" | "minor" | null
+} => {
+    const match = path.match(
+        /(?:^|[/@_\-\s])(?:\d+[_-])?([a-g])([#b]?)[_\-\s]?(major|minor|maj|min)(?=$|[./@_\-\s])/i
+    )
+    if (match === null) {return {root: null, mode: null}}
+    return {
+        root: NOTE_ROOTS[`${match[1]}${match[2]}`.toLowerCase()] ?? null,
+        mode: /^m(?:in(?:or)?)?$/i.test(match[3]) ? "minor" : "major"
+    }
+}
+
+const pathSection = (path: string): string | null => {
+    const match = path.match(
+        /(?:^|[/@_\-\s])(intro|verse|pre.?chorus|chorus|drop|bridge|outro|fill)(?=$|[/@_\-\s])/i
+    )
+    return match === null ? null : match[1].toLowerCase().replace(/[^a-z]/g, "")
+}
+
 const stableJitter = (value: string): number => {
     const hash = createHash("sha1").update(value).digest()
     return hash.readUInt16BE(0) / 0xFFFF
@@ -131,6 +163,7 @@ type CatalogRow = {
     readonly path: string
     readonly role: CatalogRole
     readonly style_tags: string
+    readonly source: string
     readonly bpm: number | null
     readonly bars: number | null
     readonly note_count: number
@@ -249,7 +282,7 @@ export class MidiCatalog {
         }
         if (this.#database === null) {return this.#byId.get(id)?.candidate ?? null}
         const row = this.#database.prepare(`
-            SELECT id, path, role, style_tags, bpm, bars, note_count,
+            SELECT id, path, role, style_tags, source, bpm, bars, note_count,
                 min_pitch, max_pitch, median_pitch, density
             FROM assets
             WHERE id = ? AND valid = 1
@@ -303,7 +336,12 @@ export class MidiCatalog {
                     minPitch: null,
                     maxPitch: null,
                     medianPitch: null,
-                    density: null
+                    density: null,
+                    source: source.path,
+                    styleTags: [source.style],
+                    keyRoot: pathKey(path).root,
+                    keyMode: pathKey(path).mode,
+                    section: pathSection(path)
                 }
                 this.#byId.set(candidate.id, {candidate, absolutePath})
             })
@@ -334,10 +372,10 @@ export class MidiCatalog {
             ...searchTerms
         ].filter(term => lexicalTokens(term).length > 0)))
         const select = `
-            SELECT id, path, role, style_tags, bpm, bars, note_count,
+            SELECT id, path, role, style_tags, source, bpm, bars, note_count,
                 min_pitch, max_pitch, median_pitch, density
             FROM (
-                SELECT id, path, role, style_tags, bpm, bars, note_count,
+                SELECT id, path, role, style_tags, source, bpm, bars, note_count,
                     min_pitch, max_pitch, median_pitch, density, fingerprint,
                     ROW_NUMBER() OVER (PARTITION BY fingerprint ORDER BY path) AS duplicate_rank
                 FROM assets
@@ -365,6 +403,7 @@ export class MidiCatalog {
     }
 
     #rowCandidate(row: CatalogRow, style: CatalogStyle): MidiCandidate {
+        const key = pathKey(row.path)
         return {
             id: row.id,
             role: row.role,
@@ -377,7 +416,12 @@ export class MidiCatalog {
             minPitch: row.min_pitch,
             maxPitch: row.max_pitch,
             medianPitch: row.median_pitch,
-            density: row.density
+            density: row.density,
+            source: row.source,
+            styleTags: row.style_tags.split(" ").filter(tag => tag.length > 0),
+            keyRoot: key.root,
+            keyMode: key.mode,
+            section: pathSection(row.path)
         }
     }
 }
