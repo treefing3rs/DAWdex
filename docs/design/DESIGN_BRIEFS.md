@@ -1,5 +1,10 @@
 # DAWdex 前端 UI 设计方案 · 设计 Brief 集
 
+> **历史探索文档。** 本文保留 2026-07-24 的三个早期方向和推导过程，
+> 不代表 PR #12 后的当前实现。正式设计见
+> [`DESIGN_DIRECTION.md`](./DESIGN_DIRECTION.md) 和
+> [`STAGE_UI.md`](./STAGE_UI.md)。
+
 > 版本：v0.1 · 2026-07-24
 > 输入：`PRD_DAWdex.md`（黑客松 MVP 基线，Demo 截止 2026-07-26）
 > 范围：**只做前端界面设计方向**，不含后端协议、Agent 编排与 openDAW 引擎集成细节。

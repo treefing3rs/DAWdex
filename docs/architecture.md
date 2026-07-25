@@ -1,388 +1,341 @@
 # DAWdex 系统架构
 
-> 架构目标：把观众语言编译为受约束的音乐操作，并让同一份结构化决策同时驱动角色对话、MIDI 处理和 openDAW 执行。
+> 当前实现：0.3.0 / PR #12
+> 正式方向：完整歌曲 AI 虚拟录音棚 Harness
 
-## 一、总体架构
+## 一、架构结论
 
-```text
-┌──────────────────────────────────────────────────────────────┐
-│ Experience                                                   │
-│ 全屏弹幕 · 角色对话 · 乐手状态 · 循环播放 · 用户干预        │
-└──────────────────────────────┬───────────────────────────────┘
-                               │
-┌──────────────────────────────▼───────────────────────────────┐
-│ Producer Orchestrator                                       │
-│ 纠错/去重 · 聚类/评分 · 制作人裁决 · 全局 Music Brief       │
-└───────────────┬──────────────────────────────┬───────────────┘
-                │                              │
-┌───────────────▼──────────────┐  ┌────────────▼──────────────┐
-│ Role Task Compiler           │  │ Agent Runtime Gateway     │
-│ Arranger / Drums / Bass /    │  │ Local / OpenAI / Qwen /   │
-│ Keys / Lead                  │  │ Compatible API / CLI      │
-└───────────────┬──────────────┘  └────────────┬──────────────┘
-                └───────────────┬───────────────┘
-                                ▼
-┌──────────────────────────────────────────────────────────────┐
-│ Music Material Engine                                        │
-│ MIDI Index → Retrieve → Transform → Music Quality Gate       │
-└──────────────────────────────┬───────────────────────────────┘
-                               ▼
-┌──────────────────────────────────────────────────────────────┐
-│ openDAW Application Adapter                                  │
-│ Plan Validation · Undo Transaction · Loop-boundary Schedule  │
-└──────────────────────────────┬───────────────────────────────┘
-                               ▼
-┌──────────────────────────────────────────────────────────────┐
-│ openDAW Project                                               │
-│ Tracks · Note Regions · Instruments · Transport · Playback    │
-└──────────────────────────────────────────────────────────────┘
-```
-
-## 二、当前实现
-
-当前原型不是 Electron，也不再依赖外部 Ableton MCP。它由两部分组成：
+DAWdex 的核心不是某一个模型、MIDI 数据库或动画界面，而是中间的调度与约束层：
 
 ```text
-openDAW Studio（浏览器）
-  → POST /v1/plan
-  → 本地 DAWdex Agent Server
-  → OpenAI Agents SDK
+用户意图
+   ↓
+Product State + Planning + Retrieval + Validation
+   ↓
+受控 openDAW 操作
+   ↓
+真实工程与声音
+   ↓
+可解释的虚拟录音棚反馈
 ```
 
-网络或模型失败时：
+这个 Harness 决定模型看见什么状态、可以调用什么能力、能修改哪些对象、何时需要审批、如何验证、如何撤销，以及哪些事实可以驱动前端。
+
+## 二、当前 0.3.0 架构
 
 ```text
-openDAW Studio
-  → LocalMusicPlanner
-  → AgentPlan
+┌────────────────────────────────────────────────────────────┐
+│ Studio UI                                                  │
+│ AgentOverlay · rooms · danmaku · evidence · interventions  │
+└───────────────────────┬────────────────────────────────────┘
+                        │ AgentClient
+                        ▼
+┌────────────────────────────────────────────────────────────┐
+│ DAWdex Agent Server                                        │
+│ Provider status/login · Creative Brief · Plan · MIDI API   │
+├───────────────────────┬────────────────────────────────────┤
+│ Codex app-server      │ OpenAI-compatible API              │
+│ ChatGPT account       │ environment configuration          │
+└───────────────────────┴──────────────┬─────────────────────┘
+                                       │ failure
+                                       ▼
+                              LocalMusicPlanner
+
+Agent Server
+  → MidiCatalog / catalog.sqlite
+  → exact MIDI candidates
+  → structured AgentPlan
+
+Approved AgentPlan
+  → DawProjectAdapter
+  → MidiAsset parser
+  → TrackSound
+  → DawControlExecutor
+  → one openDAW undo transaction
+
+openDAW state
+  → RealUiEventBridge
+  → UiEvent
+  → visible room / role / transport / evidence state
 ```
 
-`DawProjectAdapter` 将计划作为一次 openDAW 编辑事务应用，因此可以一步 Undo。
+### Studio 侧
 
-当前计划协议只允许：
+| 文件 | 责任 |
+|---|---|
+| `AgentOverlay.tsx` | 输入、Plan 审批、舞台、房间、证据、Provider 与工作台切换 |
+| `AgentClient.ts` | `/v1/plan`、Provider 和登录请求 |
+| `AgentProtocol.ts` | Snapshot、Plan 与 DAW Action 数据结构 |
+| `DawProjectAdapter.ts` | 读取工程并应用生成轨道事务 |
+| `DawCapabilityRegistry.ts` | 支持命令、设备与操作白名单 |
+| `DawControlExecutor.ts` | 执行通用 DAW 控制 |
+| `RealUiEventBridge.ts` | 将真实工程状态翻译为 UI 事件 |
+| `ui-contract.ts` | 前端与 Agent/openDAW 的事件边界 |
+| `music/MidiAsset.ts` | 下载并解析选中的真实 MIDI |
+| `music/TrackSound.ts` | 创建合成器、Mixer 和效果链 |
 
-- `set-tempo`；
-- `create-instrument`；
-- `bass | chords | pulse | lead` 四种 Pattern。
+### Agent Server 侧
 
-当前架构已经验证“自然语言计划可以写入内置 DAW”，但尚未实现正式音乐意图编译器、角色任务、MIDI 检索和循环调度。
+| 文件 | 责任 |
+|---|---|
+| `server.ts` | HTTP API、Provider 路由、Brief/Plan 编排和 MIDI 下载 |
+| `CodexAppServer.ts` | 启动与控制本机 Codex `app-server` |
+| `MidiCatalog.ts` | SQLite 检索、排序、去重和回退扫描 |
+| `MusicPlan.ts` | Schema、Prompt 和模型输出解析 |
+| `index-midi.ts` | 构建本地 MIDI 索引 |
 
-## 三、核心边界
-
-### Experience Layer
-
-负责：
-
-- 全屏弹幕；
-- 制作人和乐手角色；
-- 专业术语与通俗解释；
-- 编译过程可视化；
-- 轨道和角色状态；
-- 用户批准、重做和撤销；
-- Demo 叙事。
-
-不负责：
-
-- 保存 API Key；
-- 调用模型供应商 SDK；
-- 自己修改 openDAW 工程；
-- 自己决定音乐硬规则；
-- 根据自由文本伪造执行结果。
-
-### Producer Orchestrator
-
-负责：
-
-- 转写纠错与乱码过滤；
-- 弹幕去重、聚类和排序；
-- 结合当前工程选择最有意义的意见；
-- 发布唯一权威 `MusicBrief`；
-- 合并角色建议；
-- 批准可以进入音乐引擎的计划。
-
-制作人评分至少考虑：
+## 三、当前计划主链
 
 ```text
-relevance      与当前作品相关性
-consensus      观众共识
-feasibility    下一阶段可实现性
-novelty        是否带来有效变化
-continuity     是否破坏作品连续性
+natural-language request
+→ current openDAW snapshot
+→ Creative Brief
+→ SQLite retrieval over real MIDI
+→ small candidate list with exact IDs/paths
+→ arranger chooses assets, sound and controls
+→ schema/capability validation
+→ user approval
+→ create/replace generated role tracks
+→ apply extra DAW controls
+→ one undo transaction
+→ resnapshot and emit real UI events
 ```
 
-### Music Intent Compiler
+正式主链不允许使用旧 `PatternCompiler` 或固定 Bass/Chord/Pulse/Lead 模板合成替代音符。旧模块可以保留为历史测试或明确回退证据，但不能被描述为生产检索路径。
 
-负责把模糊语言转换为：
+## 四、Provider 架构
 
-- 情绪与能量变化；
-- BPM、调性、拍号和小节数；
-- 保留项；
-- 乐器角色任务；
-- 可执行操作；
-- 质量要求。
+Provider 优先级由 `DAWDEX_AGENT_PROVIDER` 控制，默认 `auto`：
 
-它是产品领域层，不等同于某一段 Prompt。模型、规则和 Schema 都只是实现手段。
+1. 已登录的 Codex ChatGPT 账号；
+2. 已配置的 OpenAI-compatible API；
+3. Studio 的本地 Planner 回退。
 
-### Role Layer
+Codex 集成不是在浏览器里直接运行 CLI 命令。Agent Server 管理本机 `codex app-server` 的进程、登录、请求、超时和结束状态，浏览器只调用受控 HTTP 接口。
 
-角色读取同一份不可变 `MusicBrief` 和当前工程快照，只能在各自职责内提出任务：
+模型负责：
+
+- 理解用户开放风格、情绪与目标；
+- 生成 Creative Brief；
+- 在候选中选择素材；
+- 提出受控的编排、音色和工程动作；
+- 给出用户可理解的理由。
+
+模型不负责：
+
+- 自行浏览文件系统；
+- 编造 MIDI 路径或设备 ID；
+- 绕过审批直接修改工程；
+- 声称尚未发生的操作已经成功。
+
+## 五、MIDI 检索架构
+
+```text
+midi/easy/
+→ index-midi.ts
+→ midi/.dawdex/catalog.sqlite
+→ MidiCatalog.search()
+→ role-compatible candidates
+→ fingerprint deduplication
+→ model-visible short list
+```
+
+结构化音乐数据优先使用 SQLite，而不是先构建通用向量数据库：
+
+- 路径、角色、长度、轨数和文件有效性是精确字段；
+- 节奏、密度、音域和 fingerprint 可以自动提取；
+- 风格与听感 Embedding 只在结构化检索不足时补充；
+- 人工审核集中在高质量家族和异常样本，不逐条标注 19 万文件。
+
+完整索引缺失时，系统扫描较小的精选目录。该回退不能与完整资料库混淆。
+
+## 六、音乐执行与安全边界
+
+### 角色轨道
+
+`upsert-role-track` 有两种模式：
+
+- `create`：该角色没有 DAWdex 生成轨道；
+- `replace`：替换现有生成轨道的 Region 和声音设计。
+
+目标必须是已知生成轨道。用户轨道和 `preserveTrackIds` 不得被覆盖。
+
+### 通用控制平面
+
+当前支持：
+
+| 命令 | 操作 |
+|---|---|
+| transport | play / pause / stop / seek |
+| loop | set |
+| track | rename / delete / enable / disable |
+| region | move / resize / rename / mute / unmute / duplicate / delete |
+| midi-transform | transpose / velocity / quantize / humanize |
+| instrument | replace |
+| effect | add / update / remove / move / enable / disable |
+| device-parameter | set |
+| automation | replace / clear |
+| bus | create / update / delete |
+| send | upsert / remove |
+| routing | set-output |
+
+每个动作使用 Snapshot 中的精确 Track、Region、Device、Bus 和 Asset ID，并经过 Capability Registry 验证。模型不能直接获得任意 openDAW 内部对象访问权。
+
+### 事务
+
+- 用户审批后的工程修改合并为一个 Undo 步骤；
+- 即时 Transport 操作不伪装成工程 Undo；
+- 任一动作失败时回滚本轮事务；
+- 之前的可播放工程保持不变。
+
+## 七、音色架构
+
+当前自动声音设计使用 Vaporisateur：
+
+```text
+MIDI asset
+→ role-aware synth parameters
+→ mixer volume / pan
+→ restrained effect chain
+→ openDAW track
+```
+
+openDAW 的能力目录还包括 Soundfont、Nano、Playfield、MIDIOutput 和 Apparat，但依赖外部资产的设备只有在工程 Snapshot 中存在兼容 Asset ID 时才允许选择。
+
+未来独立的 Instrument & Sound Catalog 负责：
+
+```text
+style + role + range + mood
+→ instrument family
+→ asset/preset
+→ mixer/effects profile
+→ license/availability
+```
+
+MIDI 检索和音色映射保持解耦。
+
+## 八、UI 事件架构
+
+前端只消费结构化事件，不解析模型自由文本：
+
+```text
+DanmakuReceived
+ProducerSelected
+RoleTaskAssigned
+RoleStateChanged
+TransportChanged
+TrackAudibleChanged
+OperationResult
+```
+
+真实性规则：
+
+- `RoleStateChanged(performing)` 只能表示角色意图；
+- `TrackAudibleChanged(audible=true)` 才允许点亮实际演奏；
+- Pause/Stop 冻结或撤销播放动作；
+- Mock 与真实链共享接口，但来源必须可见；
+- 每条回执使用 Plan ID 或 Operation Reference 追踪。
+
+房间、角色和动画属于“音乐状态翻译层”，不拥有 Agent、MIDI 或 DAW 业务逻辑。
+
+PR #12 增加可收起外壳：根节点收起后让 Pointer Event 穿透到原本一直存活的
+openDAW，`RealUiEventBridge` 仍按 500 ms 同步。它没有创建第二个 DAW，也
+不复制工程状态，只是在动画录音棚与同一底层工作台之间切换视图。
+
+## 九、完整歌曲目标架构
+
+0.3.0 的 Brief 仍以 4/8 小节角色片段为主。完整歌曲需要在现有链路上增加持久的 Song 层，而不是推翻现有实现：
+
+```text
+┌──────────────────────────────────────────────┐
+│ Song State Store                             │
+│ Blueprint · locks · versions · user intent   │
+└───────────────────────┬──────────────────────┘
+                        ▼
+┌──────────────────────────────────────────────┐
+│ Song Planner                                 │
+│ Section graph · energy curve · role tasks    │
+└───────────────────────┬──────────────────────┘
+                        ▼
+┌──────────────────────────────────────────────┐
+│ Phrase Planner / Retrieval                   │
+│ motif family · MIDI candidates · transforms │
+└───────────────────────┬──────────────────────┘
+                        ▼
+┌──────────────────────────────────────────────┐
+│ Patch Validator                              │
+│ scope · harmony · repetition · capability    │
+└───────────────────────┬──────────────────────┘
+                        ▼
+              current openDAW executor
+```
+
+统一层级：
+
+```text
+Song Blueprint
+└── Section
+    └── Phrase
+        └── Region
+            └── Notes
+```
+
+### Song Patch
+
+后续动作不应让模型直接重写整首歌，而应产生受控 Patch：
 
 ```ts
-type MusicRole =
-    | "producer"
-    | "arranger"
-    | "drummer"
-    | "bassist"
-    | "keyboardist"
-    | "lead"
-    | "mix-engineer"
-```
-
-角色工作回执是任务的可视化解释，不是私有思维链。
-
-### Music Material Engine
-
-负责：
-
-- 素材元数据索引；
-- 候选检索与排序；
-- MIDI 解析；
-- 移调、裁剪、量化、力度和音域适配；
-- Motif 和结尾小节变体；
-- 变换记录；
-- 许可证信息。
-
-### Music Quality Gate
-
-模型负责审美建议，代码负责不让工程出事故。
-
-硬规则：
-
-- 单一权威 BPM、调性、拍号和循环长度；
-- Clip 长度为 4 或 8 小节；
-- 音域符合角色；
-- 音符位置和长度合法；
-- 新轨在量化边界进入；
-- 音量和并发轨道受限；
-- 无效输出不执行。
-
-软规则可以由模型或评分器判断：
-
-- 风格符合程度；
-- 是否足够“炸”；
-- 与观众意图的一致性；
-- 与已有轨道的审美冲突；
-- 是否过度重复。
-
-### openDAW Adapter
-
-唯一允许修改工程的入口。负责：
-
-- 读取工程快照；
-- 校验动作；
-- 创建乐器、Region 和 Note Event；
-- 将一组动作包装为一个 Undo 单元；
-- 在循环边界调度；
-- 执行后读回验证；
-- 失败时保持已有 Loop 播放。
-
-## 四、结构化数据是唯一事实源
-
-正确：
-
-```text
-RoleTask JSON
-  ├─→ UI 角色工作回执
-  ├─→ MIDI 检索与变体
-  └─→ openDAW 工程操作
-```
-
-禁止：
-
-```text
-模型生成漂亮角色台词
-另一套随机算法生成无关音乐
-```
-
-示例：
-
-```ts
-type RoleTask = {
-    readonly role: MusicRole
-    readonly decision: string
-    readonly listenerEffect: string
-    readonly operation: MusicOperation
-    readonly constraints: ReadonlyArray<string>
-    readonly confidence: number
+type SongPatch = {
+    id: string
+    targetSectionIds: readonly string[]
+    preserveSectionIds: readonly string[]
+    operations: readonly SongOperation[]
+    rationale: readonly string[]
 }
 ```
 
-`decision` 用于专业工作回执，`listenerEffect` 用于给音乐小白的解释，`operation` 用于真实执行。
+第一组 `SongOperation` 应覆盖：
 
-## 五、多角色与多 Agent
+- create/move/duplicate/delete/lock section；
+- replace/develop phrase；
+- assign/reassign role；
+- update energy、density 和 instrumentation；
+- apply approved openDAW actions。
 
-### Demo 默认模式
+### 评价闭环
 
-为了降低延迟和失败率：
+每个 Patch 执行后重新读取工程，评价：
 
-1. 一次模型调用生成完整 Music Brief 和角色任务；
-2. Schema 校验；
-3. 前端按真实执行顺序逐个展示角色；
-4. 角色任务依次进入素材引擎；
-5. 制作人批准；
-6. 轨道在循环边界加入。
+- Section 长度与顺序；
+- 能量曲线和段落对比；
+- 动机来源与变化；
+- 重复率和留白；
+- 角色音域与和声冲突；
+- 用户锁定是否被尊重。
 
-这叫“多角色 Agent 编排”。
+## 十、失败与恢复
 
-### 真正多 Agent 模式
-
-后续可以：
-
-1. 制作人生成 Music Brief；
-2. 鼓手、贝斯手、键盘手分别调用独立 Agent；
-3. 总编曲师合并冲突；
-4. 制作人最终批准；
-5. 所有工程写入仍串行。
-
-多个角色不能并发写 openDAW。
-
-## 六、Agent Runtime Gateway
-
-目标 Gateway 同时支持：
-
-```text
-API Runtime
-  ├─ OpenAI
-  ├─ Qwen
-  └─ Custom OpenAI-compatible
-
-CLI Runtime
-  ├─ Codex CLI
-  ├─ Claude Code
-  ├─ Qwen Code
-  └─ OpenCode
-```
-
-所有 Runtime 必须归一为同一事件和最终 Schema。CLI 只产生计划，不能获得不必要的 Shell 或工程写权限。
-
-黑客松默认使用直接 API，因为启动、授权和结构化输出更可控；CLI 是可选增强项。
-
-## 七、端到端数据流
-
-### 进入工程
-
-```text
-Studio starts
-→ load fixed demo project
-→ read tempo / instruments / regions
-→ start base loop
-→ renderer shows roles waiting
-```
-
-### 处理弹幕
-
-```text
-danmaku received
-→ normalize transcription
-→ deduplicate / cluster
-→ producer scores candidates
-→ selected intent displayed
-```
-
-### 编曲
-
-```text
-selected intent + project snapshot
-→ MusicBrief
-→ RoleTasks
-→ schema validation
-→ material retrieval
-→ MIDI transformations
-→ quality gate
-→ executable AgentPlan
-```
-
-### 逐轨加入
-
-```text
-plan ready
-→ wait for next loop boundary
-→ create/apply one role track
-→ verify
-→ role becomes performing
-→ continue previous loop
-→ prepare next role
-```
-
-### 用户继续干预
-
-```text
-user: “鼓很好，但贝斯轻一点”
-→ producer targets bassist
-→ fresh project snapshot
-→ replace or transform only bass task
-→ next boundary applies revision
-```
-
-## 八、故障与回退
-
-| 故障 | 回退 |
+| 故障 | 行为 |
 |---|---|
-| Agent Server 不可用 | LocalMusicPlanner |
-| API 超时 | 固定安全 Music Brief |
-| Schema 不合法 | 一次修复请求，然后本地回退 |
-| MIDI 候选为空 | 角色默认安全素材 |
-| 质量闸门失败 | 不加入并选择下一个候选 |
-| 新轨执行失败 | 旧 Loop 继续播放 |
-| 动画加载失败 | 保留角色状态文字，不影响音乐 |
-| 网络断开 | Demo 仍可使用本地路径 |
+| Codex 不可用 | 尝试 OpenAI-compatible Provider |
+| 所有远程 Provider 失败 | 本地 Planner 回退并明确标记 |
+| 完整 MIDI 索引缺失 | 使用小规模回退扫描并记录状态 |
+| Asset 不存在或解析失败 | 拒绝执行该 Plan |
+| Capability/ID 非法 | Validator 拒绝动作 |
+| 工程动作失败 | 回滚本轮事务 |
+| 轨道没有确认可听 | 角色不进入演奏 |
+| Mock 启动 | 暂停真实桥；结束后恢复 |
 
-## 九、隐私与安全
+## 十一、边界
 
-- API Key 仅存在于本地 Agent Server 或未来 Electron Main；
-- Renderer 不接触 Key；
-- Prompt、弹幕和工程快照按最小必要范围发送；
-- 不向模型发送完整音频；
-- 不记录私有思维链；
-- AI 乐迷明确标识；
-- 素材许可证和来源进入索引；
-- CLI Runtime 使用只读或隔离工作目录；
-- 工程写入只经过 openDAW Adapter。
+DAWdex 继续复用 openDAW 的时间线、设备、音频引擎和工程模型，不重新制造 DAW。
 
-## 十、架构决策
+DAWdex 自己负责：
 
-### ADR-001：产品是互动 AI 虚拟乐队
+- 面向完整歌曲的持久状态；
+- 自然语言到受控 Patch 的编译；
+- 真实 MIDI 检索和有来源的音乐变换；
+- 能力、审批、事务和质量闸门；
+- 工程状态到动画录音棚的因果翻译。
 
-弹幕不是附属 Skill，而是核心输入与舞台体验。DAW 是底层音乐引擎。
-
-### ADR-002：基于 openDAW
-
-内置音乐制作能力，避免现场依赖外部 Ableton、Remote Script 和 MCP。
-
-### ADR-003：音乐意图编译器是领域层
-
-不把核心能力压缩成不可测试的大段 Prompt。
-
-### ADR-004：结构化指令驱动一切
-
-角色对话、MIDI 变体和工程操作共享同一数据源。
-
-### ADR-005：创意与安全分层
-
-模型负责理解和创意，代码负责 BPM、调性、长度、音域、边界和音量。
-
-### ADR-006：多角色优先于真实多 Agent
-
-Demo 先保证稳定、可解释和低延迟，再扩展独立 Agent。
-
-### ADR-007：轨道逐步加入
-
-音乐持续循环，新轨只能在量化边界加入，角色状态与轨道状态同步。
-
-### ADR-008：Runtime 可替换
-
-OpenAI、千问、中转站和 CLI 均通过 Gateway，产品 Schema 不绑定供应商。
-
-### ADR-009：早期 Ableton MCP 仅作验证材料
-
-早期连接证明 Agent 可以控制音乐软件，但不再是当前产品执行链。
+这条边界让 Agent 可以发挥音乐判断，又不会获得无约束地破坏工程的自由。

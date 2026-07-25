@@ -1,64 +1,57 @@
-# DAWdex UI 设计说明
+# DAWdex 前端设计文档
 
-这组文档用于让三位成员对齐 DAWdex 的前端体验方向。它们描述的是 UI
-与舞台层的设计，不会把 Agent、MIDI 或 openDAW 的实现职责转移给前端。
+> 当前实现：PR #12 / 2026-07-25
+> 核心定义：把 openDAW 翻译成一部可以操作的动画片
+
+前端是音乐状态翻译层，不拥有 Agent、MIDI 或 openDAW 业务逻辑。每一个有意义的视觉变化都必须来自结构化事件。
 
 ## 阅读顺序
 
-1. [`DESIGN_DIRECTION.md`](./DESIGN_DIRECTION.md)：当前选定的 v2.3
-   方案，是后续 UI 实现和联调的主要参考。
-2. [`STAGE_UI.md`](./STAGE_UI.md)：舞台 UI（PR #6）的实现说明、演示模式
-   用法和真实性闸门，配合代码阅读。
-3. [`DESIGN_BRIEFS.md`](./DESIGN_BRIEFS.md)：前期三个方向的比较和推导过程，
-   仅作为背景材料，不是当前执行标准。
-4. [`../division-of-labor.md`](../division-of-labor.md)：三人职责边界和交付计划。
-5. [`../DAWdex_TechSpec.md`](../DAWdex_TechSpec.md)：共享数据结构和 UI
-   事件的技术依据。
+1. [`../PRODUCT_VISION.md`](../PRODUCT_VISION.md)：完整产品与完整歌曲方向。
+2. [`DESIGN_DIRECTION.md`](./DESIGN_DIRECTION.md)：当前视觉世界、交互原则和下一阶段编曲白板。
+3. [`STAGE_UI.md`](./STAGE_UI.md)：PR #12 后的实际文件、工作台切换、演示模式和真实性闸门。
+4. [`DESIGN_BRIEFS.md`](./DESIGN_BRIEFS.md)：早期方案比较，仅作历史背景。
+5. [`../architecture.md`](../architecture.md)：UI 与 Agent/openDAW 的架构边界。
 
-## 当前方向
+## 当前已经落地
 
-当前方案是“克制的现代控制层 + 像素化演奏空间”。核心手法是 Diegetic
-UI：把 BPM、循环位置、角色状态和轨道播放状态映射到录音棚场景里的屏幕、
-通道灯、角色和灯牌，而不是增加一套与真实工程脱节的装饰动画。
+- 暖白页面壳 + 深色复古监视器；
+- 夜晚录音棚视频主场景；
+- 屏幕内弹幕、采纳升格和证据抽屉；
+- drums/bass/keys 三个活跃轨道角色；
+- producer 控制室角色；
+- 五角色 v2 素材已入库，guitarist 暂为扩展位；
+- 首次事件触发角色入场；
+- 2.6 秒电梯进棚过场；
+- 六个录音棚频道与 `?room=` 深链；
+- 可通过按钮、`Esc` 或 `?workbench=1` 收起外壳，露出真实 openDAW；
+- 真实 Plan/Apply/Undo/Transport/可听状态桥接；
+- `?mock=1` 或 `↻` 明确触发的 90 秒演示。
 
-黑客松 MVP 优先保证以下链路：
+## 不变量
 
 ```text
-发送弹幕
-→ 制作人采纳
-→ 角色进入准备状态
-→ 轨道在循环边界依次加入
-→ 角色在真实发声后进入演奏状态
-→ 用户可以再次干预或撤销
+每一个有意义的视觉状态都必须指出自己的事件来源。
+没有 TrackAudibleChanged(audible=true)，就没有 performing 动画。
 ```
 
-电梯开场、昼夜过渡、完整电平动画和更多场景热点属于视觉增强，不应阻塞这条
-主链路。
+弹幕只在监视器屏幕内；输入与快速干预位于屏幕外控制台。弹幕是唯一常驻自然语言输入，但不是唯一操作方式。
 
-## 对成员 B：Agent 与音乐意图层
+## 下一阶段
 
-UI 需要消费稳定的结构化事件，包括：
+完整歌曲不能只用循环进度条表达。控制室将增加世界内的编曲白板：
 
-- 弹幕接收与制作人采纳结果；
-- `MusicBrief` 准备完成；
-- 角色开始、准备、排队、演奏和失败状态；
-- 可公开展示的角色回执与失败原因。
+```text
+Intro | Verse | Chorus | Verse 2 | Bridge | Chorus 2 | Outro
+```
 
-前端不会解析模型自由文本、保存 API Key 或自行推断 Agent 是否成功。
+白板卡片由 `BlueprintChanged`、`SectionChanged` 和 `SectionLocked` 等真实事件驱动，用于显示当前 Section、能量、锁定和修改范围。
 
-## 对成员 C：MIDI、openDAW 与集成层
+尚未落地：
 
-UI 需要消费真实的播放状态，包括：
-
-- `roleId`、`trackId` 和乐器之间的稳定对应关系；
-- 轨道是否发声及必要的电平数据；
-- 当前 BPM、BAR、循环位置与循环边界事件；
-- 轨道写入、验证、撤销成功或失败的结果。
-
-角色只有在收到真实的播放确认后才会进入演奏动画。前端不会决定 MIDI
-音符、素材检索、调性适配或 openDAW 工程写入方式。
-
-## 本次文档提交的边界
-
-本目录只共享设计方向和协作说明，不修改运行时代码、API 或现有职责分工。
-场景图与角色素材暂未包含在本次提交中，待主界面方案确认后再单独整理。
+- 编曲白板与 Song Blueprint；
+- 房间乐器、调音台和门牌热点；
+- 真实音频峰值/电平；
+- guitarist 的真实轨道角色；
+- 角色演奏 Loop 视频；
+- 专业 openDAW 视图与动画房间的完整双向定位。
