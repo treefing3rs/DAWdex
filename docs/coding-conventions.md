@@ -1,6 +1,6 @@
 # DAWdex 编码与架构规范
 
-> 适用基线：0.3.0 / PR #11
+> 适用基线：0.3.0 / PR #12
 > 适用范围：Studio Agent UI、Agent Server、MIDI、音色、DAW 控制与未来 Song 层
 
 ## 一、不可破坏的原则

@@ -1,6 +1,6 @@
 # DAWdex 前端设计文档
 
-> 当前实现：PR #11 / 2026-07-25
+> 当前实现：PR #12 / 2026-07-25
 > 核心定义：把 openDAW 翻译成一部可以操作的动画片
 
 前端是音乐状态翻译层，不拥有 Agent、MIDI 或 openDAW 业务逻辑。每一个有意义的视觉变化都必须来自结构化事件。
@@ -9,7 +9,7 @@
 
 1. [`../PRODUCT_VISION.md`](../PRODUCT_VISION.md)：完整产品与完整歌曲方向。
 2. [`DESIGN_DIRECTION.md`](./DESIGN_DIRECTION.md)：当前视觉世界、交互原则和下一阶段编曲白板。
-3. [`STAGE_UI.md`](./STAGE_UI.md)：PR #11 后的实际文件、演示模式和真实性闸门。
+3. [`STAGE_UI.md`](./STAGE_UI.md)：PR #12 后的实际文件、工作台切换、演示模式和真实性闸门。
 4. [`DESIGN_BRIEFS.md`](./DESIGN_BRIEFS.md)：早期方案比较，仅作历史背景。
 5. [`../architecture.md`](../architecture.md)：UI 与 Agent/openDAW 的架构边界。
 
@@ -24,6 +24,7 @@
 - 首次事件触发角色入场；
 - 2.6 秒电梯进棚过场；
 - 六个录音棚频道与 `?room=` 深链；
+- 可通过按钮、`Esc` 或 `?workbench=1` 收起外壳，露出真实 openDAW；
 - 真实 Plan/Apply/Undo/Transport/可听状态桥接；
 - `?mock=1` 或 `↻` 明确触发的 90 秒演示。
 

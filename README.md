@@ -4,7 +4,7 @@
 
 DAWdex 基于 [openDAW](https://github.com/andremichelle/openDAW)，把自然语言、真实 MIDI 素材、Agent 规划、DAW 操作和动画录音棚组织成一个可审批、可试听、可修改、可撤销的创作过程。
 
-当前 0.3.0 已经跑通从请求到真实 MIDI 工程写入的垂直切片。正式产品方向不是无限叠加同一个 Loop，而是围绕 Song Blueprint，通过多轮对话发展 Intro、Verse、Chorus、Bridge 和 Outro，最终完成一首歌。
+当前 0.3.0 / PR #12 已经跑通从请求到真实 MIDI 工程写入的垂直切片。正式产品方向不是无限叠加同一个 Loop，而是围绕 Song Blueprint，通过多轮对话发展 Intro、Verse、Chorus、Bridge 和 Outro，最终完成一首歌。
 
 完整定义见 [DAWdex 完整产品定义](docs/PRODUCT_VISION.md)。
 
@@ -54,6 +54,7 @@ Song
 - 没有真实发声确认，角色不会显示为正在演奏；
 - 五套角色素材、首次事件入场、2.6 秒电梯过场；当前活跃轨道角色仍是 drums/bass/keys，制作人常驻控制室，guitarist 为扩展位；
 - 演播大厅、鼓棚、吉他贝斯棚、键盘阁楼、控制室和休息室六个频道；
+- 演播厅外壳可以通过按钮、`Esc` 或 `?workbench=1` 收起，直接露出底层真实 openDAW；收起期间事件桥继续同步；
 - 乐队会议证据抽屉与真实干预入口。
 
 ## MIDI 资料库

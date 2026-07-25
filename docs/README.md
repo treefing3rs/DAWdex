@@ -1,6 +1,6 @@
 # DAWdex 文档索引
 
-> 最近核对：2026-07-25 · 代码基线：`0.3.0` / PR #11
+> 最近核对：2026-07-25 · 代码基线：`0.3.0` / PR #12
 
 这个目录区分四类信息：当前事实、正式产品方向、实施契约和历史证据。阅读时不要把未来设计误认为已经完成，也不要用旧交接覆盖当前代码。
 
@@ -24,7 +24,7 @@
 | [`architecture.md`](./architecture.md) | Agent、Harness、MIDI、openDAW 与前端如何协作 |
 | [`DAWdex_TechSpec.md`](./DAWdex_TechSpec.md) | 当前代码、接口和后续技术契约 |
 | [`design/DESIGN_DIRECTION.md`](./design/DESIGN_DIRECTION.md) | 前端世界观和发展方向 |
-| [`design/STAGE_UI.md`](./design/STAGE_UI.md) | PR #11 后舞台 UI 的真实实现 |
+| [`design/STAGE_UI.md`](./design/STAGE_UI.md) | PR #12 后舞台 UI 与 openDAW 工作台切换的真实实现 |
 | [`DEMO_RUNBOOK.md`](./DEMO_RUNBOOK.md) | 现场演示、真实链与 Mock 兜底 |
 | [`coding-conventions.md`](./coding-conventions.md) | 编码约定 |
 | [`gallery-submission.md`](./gallery-submission.md) | 对外提交文案 |
@@ -40,7 +40,7 @@
 
 ## 当前事实与正式方向
 
-- **当前事实**：0.3.0 已跑通自然语言计划、真实 MIDI 素材检索与导入、审批、openDAW 写入、Undo、真实 UI 事件桥接、发声闸门、五套角色素材、电梯过场和六房间巡棚；当前活跃轨道角色仍为 drums/bass/keys。
+- **当前事实**：0.3.0 / PR #12 已跑通自然语言计划、真实 MIDI 素材检索与导入、审批、openDAW 写入、Undo、真实 UI 事件桥接、发声闸门、五套角色素材、电梯过场、六房间巡棚，以及可收起并露出真实 openDAW 的工作台模式；当前活跃轨道角色仍为 drums/bass/keys。
 - **正式方向**：DAWdex 要创作可持续修改的完整歌曲，不以无限堆叠单一 Loop 为终点。
 - **尚未完成**：Song Blueprint 执行器、跨 Section 编排、动机发展、正式乐器/音色目录、真实音频电平和房间物件热点。
 

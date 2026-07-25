@@ -1,7 +1,7 @@
 # DAWdex 前端 UI 设计方案 · 设计 Brief 集
 
 > **历史探索文档。** 本文保留 2026-07-24 的三个早期方向和推导过程，
-> 不代表 PR #11 后的当前实现。正式设计见
+> 不代表 PR #12 后的当前实现。正式设计见
 > [`DESIGN_DIRECTION.md`](./DESIGN_DIRECTION.md) 和
 > [`STAGE_UI.md`](./STAGE_UI.md)。
 

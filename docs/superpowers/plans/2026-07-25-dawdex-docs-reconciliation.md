@@ -104,7 +104,7 @@ Expected: no obsolete claim is presented as current truth.
 
 - [x] **Step 1: Update merged implementation status**
 
-Record that PR #11 landed the v2 character assets, first-event entrances, elevator intro, room touring, and current real bridge behavior.
+Record that PR #11 landed the v2 character assets, first-event entrances, elevator intro, room touring, and current real bridge behavior. Record that PR #12 added the collapsible stage shell and direct openDAW workbench view.
 
 - [x] **Step 2: Preserve the causal-translation rule**
 
@@ -124,7 +124,7 @@ Describe the control-room arrangement board as the diegetic representation of So
 Run:
 
 ```bash
-rg -n "PR #11|六个频道|真实事件|编曲白板|完整歌曲" docs/design
+rg -n "PR #12|六个频道|真实事件|工作台|编曲白板|完整歌曲" docs/design
 ```
 
 Expected: current implementation and next-phase design are both represented without conflation.

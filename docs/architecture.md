@@ -1,6 +1,6 @@
 # DAWdex 系统架构
 
-> 当前实现：0.3.0 / PR #11
+> 当前实现：0.3.0 / PR #12
 > 正式方向：完整歌曲 AI 虚拟录音棚 Harness
 
 ## 一、架构结论
@@ -63,7 +63,7 @@ openDAW state
 
 | 文件 | 责任 |
 |---|---|
-| `AgentOverlay.tsx` | 输入、Plan 审批、舞台、房间、证据和 Provider 状态 |
+| `AgentOverlay.tsx` | 输入、Plan 审批、舞台、房间、证据、Provider 与工作台切换 |
 | `AgentClient.ts` | `/v1/plan`、Provider 和登录请求 |
 | `AgentProtocol.ts` | Snapshot、Plan 与 DAW Action 数据结构 |
 | `DawProjectAdapter.ts` | 读取工程并应用生成轨道事务 |
@@ -237,6 +237,10 @@ OperationResult
 - 每条回执使用 Plan ID 或 Operation Reference 追踪。
 
 房间、角色和动画属于“音乐状态翻译层”，不拥有 Agent、MIDI 或 DAW 业务逻辑。
+
+PR #12 增加可收起外壳：根节点收起后让 Pointer Event 穿透到原本一直存活的
+openDAW，`RealUiEventBridge` 仍按 500 ms 同步。它没有创建第二个 DAW，也
+不复制工程状态，只是在动画录音棚与同一底层工作台之间切换视图。
 
 ## 九、完整歌曲目标架构
 

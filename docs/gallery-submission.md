@@ -1,6 +1,6 @@
 # DAWdex — Gallery 提交文案
 
-> 当前提交事实：0.3.0 / PR #11
+> 当前提交事实：0.3.0 / PR #12
 > 完整歌曲是正式产品方向，不表述为已经交付
 
 ## 项目名称
@@ -46,6 +46,7 @@ DAWdex 是一个基于 openDAW 的完整歌曲 AI 虚拟录音棚 Harness。
 - **安全 DAW 控制**：支持 Transport、Track、Region、MIDI Transform、Instrument、Effects、Automation、Bus、Send 和 Routing，全部经过 Capability 与目标 ID 校验。
 - **音乐与画面同源**：没有轨道可听确认，就没有角色演奏动画。
 - **可巡游的录音棚**：电梯进棚、五套角色素材、演播大厅与五个功能房间形成统一世界；当前活跃轨道角色为 drums/bass/keys。
+- **一键证明真实 DAW**：收起演播厅外壳即可露出同一个 openDAW 工程，事件同步不会中断。
 
 ### 与 Prompt-to-Song 的区别
 
