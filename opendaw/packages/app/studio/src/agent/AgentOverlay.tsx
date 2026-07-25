@@ -123,7 +123,6 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     const marquee: HTMLElement = (<div className="marquee hidden"><span className="marquee-text"/></div>)
     const noise: HTMLElement = (<div className="noise hidden"/>)
     const transportReadout: HTMLElement = (<span className="readout">-- · -- BPM · --</span>)
-    const transportBar: HTMLElement = (<div className="loop-bar-fill"/>)
     const receiptList: HTMLElement = (<div className="receipt-list"/>)
     const activity: HTMLElement = (<div className="activity"/>)
     const providerSlot: HTMLElement = (<div className="provider-slot"/>)
@@ -248,6 +247,9 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         if (obj.panel !== undefined) {slotHits.push({hit, panel: obj.panel})}
         if (obj.bind !== undefined) {slotLeds.push({bind: obj.bind, el: slot})}
     })
+    // 巡棚换台箭头：悬停舞台浮现，用过一次后常驻；左右循环切台 + 老电视频闪
+    const navPrev: HTMLElement = (<button className="room-nav prev" title="上一个房间（←）">‹</button>)
+    const navNext: HTMLElement = (<button className="room-nav next" title="下一个房间（→）">›</button>)
     // 舞台容器（巡棚切换作用于此）
     const stageEl: HTMLElement = (
         <div className="stage" data-room="main">
@@ -269,9 +271,10 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
             </div>
             {roomSlotsEl}
             {recBadge}
+            {navPrev}
+            {navNext}
             <div className="transport">
                 {transportReadout}
-                <div className="loop-bar">{transportBar}</div>
             </div>
         </div>)
     // 巡棚切台
@@ -289,14 +292,36 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
             stageVideo.currentTime = 0
         }
     }
-    const setRoom = (index: number) => {
+    // 老电视换台频闪：白闪 + 场抖 + 噪点一闪
+    const zapChannel = () => {
+        stageEl.classList.remove("zapping")
+        void stageEl.offsetWidth // 重启动画
+        stageEl.classList.add("zapping")
+        flashNoise()
+    }
+    const setRoom = (index: number, zap = true) => {
         roomIndex = ((index % ROOMS.length) + ROOMS.length) % ROOMS.length
         const room = ROOMS[roomIndex]
         channelName.textContent = room.label
         stageEl.dataset.room = room.id
         stageImg.src = room.bg
+        if (zap) {zapChannel()}
         setVideoLive(isPlaying)
     }
+    // 换台箭头：点击切台后箭头常驻（已被发现的交互）
+    const navTo = (delta: number) => {
+        stageEl.classList.add("nav-used")
+        setRoom(roomIndex + delta)
+    }
+    lifecycle.own(Events.subscribe(navPrev, "click", () => navTo(-1)))
+    lifecycle.own(Events.subscribe(navNext, "click", () => navTo(1)))
+    // 键盘 ←/→ 同样可以巡棚（输入框聚焦时不抢按键）
+    lifecycle.own(Events.subscribe(document, "keydown", (event: KeyboardEvent) => {
+        const target = event.target as HTMLElement | null
+        if (target !== null && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) {return}
+        if (event.key === "ArrowLeft") {navTo(-1)}
+        else if (event.key === "ArrowRight") {navTo(1)}
+    }))
     const roleStates = new Map<RoleId, RoleState>()
     const audibleRoles = new Set<RoleId>()
     const pendingPerforming = new Map<RoleId, string | undefined>()
@@ -421,7 +446,6 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
             : isPlaying
                 ? `BAR ${bar}/${barsPerLoop} · ${Math.round(bpm)} BPM · ${keySig}`
                 : `⏸ 已暂停 · BAR ${bar}/${barsPerLoop} · ${Math.round(bpm)} BPM · ${keySig}`
-        transportBar.style.width = `${(loopPos * 100).toFixed(1)}%`
         // 墙上时钟 = 循环进度（指针随 loopPos 旋转，暂停即冻结）
         clockHand.style.transform = `rotate(${(loopPos * 360).toFixed(1)}deg)`
         // 监视器面板的走带读数与壳内读数同源
@@ -1299,7 +1323,7 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     const initialRoom = new URLSearchParams(window.location.search).get("room")
     if (initialRoom !== null) {
         const idx = ROOMS.findIndex(r => r.id === initialRoom)
-        if (idx >= 0) {setRoom(idx)}
+        if (idx >= 0) {setRoom(idx, false)}
     }
     // 支持 ?workbench=1 深链：直接以收起态（openDAW 工作台）启动
     if (new URLSearchParams(window.location.search).has("workbench")) {setCollapsed(true)}
