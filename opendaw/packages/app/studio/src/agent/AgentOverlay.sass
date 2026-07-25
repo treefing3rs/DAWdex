@@ -105,14 +105,14 @@ component
         animation: onair-breathe 1.9s ease-in-out infinite
 
   // ── 伪 3D 桌面场景（§9.6：老式电脑 — CRT 显示器 + 平放键盘屏） ──────
+  // 注意：这里不能再开共享 3D 空间（perspective + preserve-3d）——主机平面与键盘楔形
+  // 在共享空间里相交，会击穿 Chrome 命中测试，全舞台 hover/click 落入 desk-scene。
+  // 3D 视角改为每个部件自带 perspective()（封闭 3D 上下文），视觉不变、命中恢复。
   .desk-scene
     display: flex
     flex-direction: column
     align-items: center
     width: 100%
-    perspective: 1250px // 更强的前大后小 = 键盘梯形平面感
-    perspective-origin: 50% 8%
-    transform-style: preserve-3d
     flex: 0 0 auto
 
   // ── 舞台 = Fig Mint 主机前框（亮象牙一体机壳：屏嵌上部、厚下巴带软驱槽，微微后仰） ──
@@ -127,7 +127,7 @@ component
     background: linear-gradient(180deg, #f7f5ef, #edebe4)
     box-shadow: 0 18px 44px rgba(60, 58, 52, 0.22), inset 0 2px 0 rgba(255, 255, 255, 0.9), inset -10px 0 18px rgba(60, 58, 52, 0.05), inset 10px 0 18px rgba(60, 58, 52, 0.05)
     flex: 0 0 auto
-    transform: rotateX(2.5deg)
+    transform: perspective(1300px) rotateX(2.5deg) // 自带视角的微微后仰（封闭 3D，不击穿命中）
     transform-origin: 50% 100%
     transition: transform 620ms cubic-bezier(0.25, 0.8, 0.25, 1), opacity 620ms ease, filter 620ms ease, visibility 0s
     // 下巴上的软驱槽：Fig Mint 前脸的标志细节
@@ -163,7 +163,7 @@ component
     border-radius: 14px
     background: linear-gradient(180deg, #f6f4ee, #edebe4)
     box-shadow: 0 24px 48px rgba(60, 58, 52, 0.20), inset 0 1px 0 rgba(255, 255, 255, 0.9)
-    transform: rotateX(45deg)
+    transform: perspective(1300px) rotateX(45deg) // 自带视角的楔形斜面（封闭 3D，不击穿命中）
     transform-origin: 50% 0
     transform-style: preserve-3d // 前缘立面与 riser 活在真 3D 里
     transition: transform 620ms cubic-bezier(0.25, 0.8, 0.25, 1), width 620ms cubic-bezier(0.25, 0.8, 0.25, 1)
@@ -793,6 +793,16 @@ component
   // hover：物件自身像素变亮（clip-path 裁剪后只亮轮廓，无遮罩矩感）
   .obj-slot:has(.obj-hit:hover) img
     filter: brightness(1.45) saturate(1.2)
+  // hover 动画绑定：sway 悬挂摆动 / rock 立地摇晃 / bob 轻弹跳（与演播大厅同语言）
+  .obj-slot:has(.obj-hit:hover) img.anim-sway
+    transform-origin: 50% 0
+    animation: lamp-sway 1.8s ease-in-out infinite
+  .obj-slot:has(.obj-hit:hover) img.anim-rock
+    transform-origin: 50% 100%
+    animation: guitar-sway 0.9s ease-in-out infinite
+  .obj-slot:has(.obj-hit:hover) img.anim-bob
+    transform-origin: 50% 100%
+    animation: slot-bob 0.9s ease-in-out infinite
   // REC 灯牌绑定：发声确认 / 走带播放时点亮
   .obj-slot.lit img
     filter: brightness(1.7) saturate(1.35) drop-shadow(0 0 6px rgba($red, 0.55))
@@ -1060,7 +1070,7 @@ component
   .room-nav
     position: absolute
     top: 50%
-    z-index: 12
+    z-index: 5 // 低于物件层（z6）：右缘小物件（节拍器/REC 灯牌）不被箭头盖住，物件轮廓内仍优先命中
     width: 46px
     height: 64px
     margin-top: -32px
@@ -1203,7 +1213,7 @@ component
   // ── 运镜：面板打开 = 进入 L2 —— 演播大厅（CRT）整个退场，键盘屏居中放大 ──
   .desk-scene.deck-focus
     .stage-bezel
-      transform: rotateX(2.5deg) translateY(-36px) scale(0.92)
+      transform: perspective(1300px) rotateX(2.5deg) translateY(-36px) scale(0.92)
       opacity: 0
       visibility: hidden // L1 内容从这一层拿掉，不是压暗当背景
       pointer-events: none
@@ -1218,7 +1228,7 @@ component
       border: none
       background: transparent
       box-shadow: none
-      transform: rotateX(0deg) translateY(-40vh) // L2 放平成正视，升到视口中央
+      transform: perspective(1300px) rotateX(0deg) translateY(-40vh) // L2 放平成正视，升到视口中央
       &::before
         opacity: 0 // 前缘立面一并收起
     .interventions
@@ -1463,6 +1473,15 @@ component
   100%
     filter: none
     transform: none
+
+// 房间物件 hover：立地轻弹跳（鼓组/键盘/店猫）
+@keyframes slot-bob
+  0%, 100%
+    transform: translateY(0)
+  40%
+    transform: translateY(-2.5%)
+  62%
+    transform: translateY(-1.4%)
 
 @keyframes marquee-scroll
   0%

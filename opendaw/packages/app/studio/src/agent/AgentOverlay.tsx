@@ -68,31 +68,32 @@ type RoomObject = {
     readonly panel?: PanelKind
     readonly bind?: "playing" | RoleId
     readonly align?: "left" | "right"
+    readonly anim?: "sway" | "rock" | "bob" // hover 动画绑定：sway 悬挂摆动 / rock 立地摇晃 / bob 轻弹跳
 }
 const MONITOR_CLIP = "polygon(2% 2%, 98% 2%, 98% 76%, 62% 76%, 62% 98%, 38% 98%, 38% 76%, 2% 76%)"
 const LAMP_CLIP = "polygon(46% 0%, 54% 0%, 54% 52%, 88% 74%, 97% 88%, 62% 88%, 62% 97%, 38% 97%, 38% 88%, 3% 88%, 12% 74%, 46% 52%)"
 const ROOM_OBJECTS: ReadonlyArray<RoomObject> = [
     // 鼓棚：监视器=轨道，鼓组=音色，节拍器=BPM/循环，吊灯=能量，REC 灯牌=鼓发声确认
     {room: "drums", id: "monitor", label: "DRUM PREAMPS · 轨道", box: [15.31, 40.79, 9.56, 11.89], clip: MONITOR_CLIP, panel: "desk"},
-    {room: "drums", id: "kit", label: "鼓组 · 鼓音色", box: [26.56, 41.84, 35.62, 45.26],
+    {room: "drums", id: "kit", label: "鼓组 · 鼓音色", box: [26.56, 41.84, 35.62, 45.26], anim: "bob",
         clip: "polygon(18% 8%, 38% 2%, 50% 10%, 62% 2%, 82% 8%, 90% 22%, 84% 42%, 94% 58%, 88% 96%, 12% 96%, 6% 58%, 16% 42%, 10% 22%)", panel: "role-kit"},
-    {room: "drums", id: "metro", label: "节拍器 · BPM / 循环", box: [93.75, 50.26, 3.75, 10.00], clip: "polygon(50% 2%, 92% 96%, 8% 96%)", panel: "clock", align: "right"},
-    {room: "drums", id: "lamp", label: "吊灯 · 能量", box: [61.56, 7.63, 10.00, 20.00], clip: LAMP_CLIP, panel: "lamp"},
+    {room: "drums", id: "metro", label: "节拍器 · BPM / 循环", box: [93.75, 50.26, 3.75, 10.00], clip: "polygon(50% 2%, 92% 96%, 8% 96%)", panel: "clock", align: "right", anim: "sway"},
+    {room: "drums", id: "lamp", label: "吊灯 · 能量", box: [61.56, 7.63, 10.00, 20.00], clip: LAMP_CLIP, panel: "lamp", anim: "sway"},
     {room: "drums", id: "sign", label: "REC DRUMS · 发声确认", box: [91.88, 16.05, 7.81, 8.42], bind: "drums", align: "right"},
     // 吉他贝斯棚：信号链屏=轨道，三把吉他=音色，效果器板=换乐器，吊灯=能量，REC 灯牌=贝斯发声确认
     {room: "strings", id: "screen", label: "信号链屏 · 轨道", box: [34.69, 24.47, 15.31, 16.32], clip: MONITOR_CLIP, panel: "desk"},
-    {room: "strings", id: "guitars", label: "三把吉他 · 音色", box: [31.56, 39.74, 20.31, 36.84],
+    {room: "strings", id: "guitars", label: "三把吉他 · 音色", box: [31.56, 39.74, 20.31, 36.84], anim: "rock",
         clip: "polygon(10% 2%, 30% 0%, 38% 8%, 50% 2%, 62% 8%, 72% 0%, 90% 2%, 88% 55%, 96% 70%, 90% 95%, 60% 98%, 40% 98%, 10% 95%, 4% 70%, 12% 55%)", panel: "role-kit"},
     {room: "strings", id: "pedals", label: "效果器板 · 换乐器", box: [30.63, 72.89, 23.12, 14.74], clip: "polygon(2% 10%, 98% 0%, 100% 100%, 0% 100%)", panel: "guitar"},
-    {room: "strings", id: "lamp", label: "吊灯 · 能量", box: [54.37, 5.53, 5.31, 18.95], clip: LAMP_CLIP, panel: "lamp"},
+    {room: "strings", id: "lamp", label: "吊灯 · 能量", box: [54.37, 5.53, 5.31, 18.95], clip: LAMP_CLIP, panel: "lamp", anim: "sway"},
     {room: "strings", id: "sign", label: "REC GUITAR/BASS · 发声确认", box: [20.31, 12.68, 10.31, 7.58], bind: "bass"},
     // 键盘阁楼：走带监视器=transport，上排键盘/Rhodes=音色，红琴=换乐器，合成器墙=轨道，吊灯=能量，REC 灯牌=键盘发声确认
     {room: "keys", id: "screen", label: "走带监视器 · 播放", box: [34.69, 23.95, 15.31, 17.37], clip: MONITOR_CLIP, panel: "monitor"},
-    {room: "keys", id: "top", label: "上排键盘 · 音色", box: [28.75, 42.37, 41.25, 19.47], clip: "polygon(0% 5%, 100% 0%, 100% 100%, 0% 100%)", panel: "role-kit"},
-    {room: "keys", id: "rhodes", label: "Rhodes · 音色", box: [33.75, 61.32, 33.75, 24.21], clip: "polygon(2% 0%, 98% 0%, 100% 100%, 0% 100%)", panel: "role-kit"},
-    {room: "keys", id: "redkey", label: "红色电钢 · 换乐器", box: [12.06, 58.47, 14.62, 9.89], clip: "polygon(2% 20%, 95% 0%, 100% 90%, 5% 100%)", panel: "guitar"},
+    {room: "keys", id: "top", label: "上排键盘 · 音色", box: [28.75, 42.37, 41.25, 19.47], clip: "polygon(0% 5%, 100% 0%, 100% 100%, 0% 100%)", panel: "role-kit", anim: "bob"},
+    {room: "keys", id: "rhodes", label: "Rhodes · 音色", box: [33.75, 61.32, 33.75, 24.21], clip: "polygon(2% 0%, 98% 0%, 100% 100%, 0% 100%)", panel: "role-kit", anim: "bob"},
+    {room: "keys", id: "redkey", label: "红色电钢 · 换乐器", box: [12.06, 58.47, 14.62, 9.89], clip: "polygon(2% 20%, 95% 0%, 100% 90%, 5% 100%)", panel: "guitar", anim: "rock"},
     {room: "keys", id: "synthwall", label: "合成器墙 · 轨道", box: [14.56, 39.53, 20.00, 16.84], clip: "polygon(0% 10%, 100% 0%, 100% 100%, 0% 100%)", panel: "desk"},
-    {room: "keys", id: "lamp", label: "吊灯 · 能量", box: [54.37, 5.53, 5.31, 18.95], clip: LAMP_CLIP, panel: "lamp"},
+    {room: "keys", id: "lamp", label: "吊灯 · 能量", box: [54.37, 5.53, 5.31, 18.95], clip: LAMP_CLIP, panel: "lamp", anim: "sway"},
     {room: "keys", id: "sign", label: "REC KEYBOARDS · 发声确认", box: [21.12, 30.79, 7.31, 6.32], bind: "keys"},
     // 控制室：时间码屏=transport，三联屏=工程概览，调音台=轨道，机架=系统设置，吊灯=能量
     {room: "control", id: "recscreen", label: "REC 时间码 · 走带", box: [15.31, 34.37, 9.06, 11.58], clip: MONITOR_CLIP, panel: "monitor"},
@@ -100,14 +101,14 @@ const ROOM_OBJECTS: ReadonlyArray<RoomObject> = [
         clip: "polygon(0% 5%, 33% 0%, 67% 2%, 100% 0%, 100% 92%, 88% 92%, 88% 100%, 80% 100%, 80% 92%, 20% 92%, 20% 100%, 12% 100%, 12% 92%, 0% 92%)", panel: "art"},
     {room: "control", id: "desk", label: "调音台 · 轨道", box: [14.69, 49.63, 58.13, 23.16], clip: "polygon(3% 0%, 97% 0%, 100% 100%, 0% 100%)", panel: "desk"},
     {room: "control", id: "rack", label: "机架 · 系统", box: [1.88, 39.63, 13.44, 43.16], panel: "settings", align: "left"},
-    {room: "control", id: "lamp", label: "吊灯 · 能量", box: [52.81, 11.74, 4.06, 12.63], clip: LAMP_CLIP, panel: "lamp"},
+    {room: "control", id: "lamp", label: "吊灯 · 能量", box: [52.81, 11.74, 4.06, 12.63], clip: LAMP_CLIP, panel: "lamp", anim: "sway"},
     // 休息室：沙发=走带（休息一下），咖啡桌=能量，零食柜=素材架，店猫=彩蛋，海报=工程概览，REC 灯牌=播放绑定
     {room: "lounge", id: "sofa", label: "沙发 · 休息一下", box: [0.94, 47.11, 28.12, 27.37],
         clip: "polygon(2% 20%, 30% 5%, 70% 5%, 98% 20%, 100% 90%, 95% 100%, 5% 100%, 0% 90%)", panel: "monitor"},
     {room: "lounge", id: "coffee", label: "咖啡桌 · 续杯能量", box: [31.25, 58.68, 21.88, 25.26],
         clip: "polygon(8% 0%, 92% 0%, 100% 30%, 96% 100%, 4% 100%, 0% 30%)", panel: "lamp"},
     {room: "lounge", id: "snacks", label: "零食柜 · 素材架", box: [61.88, 48.16, 21.88, 37.37], panel: "shelf"},
-    {room: "lounge", id: "cat", label: "店猫 · 彩蛋", box: [23.44, 72.89, 4.69, 5.79],
+    {room: "lounge", id: "cat", label: "店猫 · 彩蛋", box: [23.44, 72.89, 4.69, 5.79], anim: "bob",
         clip: "polygon(15% 30%, 40% 5%, 75% 10%, 95% 40%, 90% 90%, 10% 95%, 0% 60%)", panel: "cat"},
     {room: "lounge", id: "poster", label: "TASCAM 海报 · 工程概览", box: [20.62, 13.42, 13.75, 34.21], panel: "art"},
     {room: "lounge", id: "sign", label: "REC IN PROGRESS · 播放中", box: [50.00, 12.68, 12.62, 8.84], bind: "playing"}
@@ -230,7 +231,8 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     ROOM_OBJECTS.forEach(obj => {
         const [left, top, width, height] = obj.box
         const img: HTMLImageElement = (
-            <img className="obj-copy" src={`/dawdex/ro_${obj.room}_${obj.id}.png`} alt="" draggable={false}/>)
+            <img className={`obj-copy${obj.anim !== undefined ? ` anim-${obj.anim}` : ""}`}
+                 src={`/dawdex/ro_${obj.room}_${obj.id}.png`} alt="" draggable={false}/>)
         if (obj.clip !== undefined) {img.style.clipPath = obj.clip}
         const hit: HTMLElement = (
             <div className={`obj-hit slot-hit${obj.align !== undefined ? ` align-${obj.align}` : ""}`}
