@@ -21,9 +21,9 @@ type Construct = {
 
 /** MVP 启用的舞台角色（契约保留 lead/producer 扩展位） */
 const STAGE_ROLES: ReadonlyArray<{id: RoleId, label: string, img: string}> = [
-    {id: "drums", label: "鼓手", img: "/dawdex/drummer_V3.png"},
-    {id: "bass", label: "贝斯手", img: "/dawdex/bassist_V3.png"},
-    {id: "keys", label: "键盘手", img: "/dawdex/keyboardist_V3.png"}
+    {id: "drums", label: "鼓手", img: "/dawdex/drummer_v2.png"},
+    {id: "bass", label: "贝斯手", img: "/dawdex/bassist_v2.png"},
+    {id: "keys", label: "键盘手", img: "/dawdex/keyboardist_v2.png"}
 ]
 
 const INTERVENTIONS: ReadonlyArray<{kind: InterventionKind, label: string}> = [
@@ -36,6 +36,17 @@ const INTERVENTIONS: ReadonlyArray<{kind: InterventionKind, label: string}> = [
 ]
 
 const AUTHOR_BADGE: Record<DanmakuAuthor, string> = {user: "", "ai-fan": "AI 乐迷", system: ""}
+
+// ── 巡棚房间注册表（§11.1：房间即工程；未绑定事件的物件保持纯装饰） ─────────
+type RoomId = "main" | "drums" | "strings" | "keys" | "control" | "lounge"
+const ROOMS: ReadonlyArray<{id: RoomId, label: string, bg: string | null}> = [
+    {id: "main", label: "演播大厅", bg: null}, // null = 夜晚循环视频背景
+    {id: "drums", label: "鼓棚", bg: "/dawdex/room_drums.jpg"},
+    {id: "strings", label: "吉他贝斯棚", bg: "/dawdex/room_guitar_bass.jpg"},
+    {id: "keys", label: "键盘阁楼", bg: "/dawdex/room_keyboards.jpg"},
+    {id: "control", label: "控制室", bg: "/dawdex/control_room_night.jpg"},
+    {id: "lounge", label: "休息室", bg: "/dawdex/room_lounge.jpg"}
+]
 
 export const AgentOverlay = ({lifecycle, service}: Construct) => {
     const client = new AgentClient()
@@ -74,6 +85,12 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         const resume = () => stageVideo.play().catch(() => {})
         window.addEventListener("click", resume, {once: true})
     })
+    // 巡棚：非主场景的静态房间背景（切台硬切，TV 气质）
+    const stageImg: HTMLImageElement = (
+        <img className="stage-bg-img hidden" alt="" draggable={false}/>)
+    const channelName: HTMLElement = (<span className="ch-name">{ROOMS[0].label}</span>)
+    const chPrev: HTMLButtonElement = (<button type="button" title="上一个房间">‹</button>)
+    const chNext: HTMLButtonElement = (<button type="button" title="下一个房间">›</button>)
 
     // ── 角色舞台 ────────────────────────────────────────────────────────────
     const performerEls = new Map<RoleId, HTMLElement>()
@@ -88,6 +105,44 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         performerEls.set(id, el)
         return el
     })
+    // 制作人：控制室常驻（非轨道角色，不参与五态机与入场系统）
+    const producerEl: HTMLElement = (
+        <div className="performer entered" data-state="waiting" data-role="producer">
+            <img src="/dawdex/producer_v2.png" alt="制作人" draggable={false}/>
+            <span className="lamp"/>
+            <label>制作人</label>
+        </div>)
+    // 舞台容器（巡棚切换作用于此）
+    const stageEl: HTMLElement = (
+        <div className="stage" data-room="main">
+            {stageVideo}
+            {stageImg}
+            {marquee}
+            <div className="performers">{performers}{producerEl}</div>
+            {noise}
+            {danmakuLayer}
+            {recBadge}
+            <div className="transport">
+                {transportReadout}
+                <div className="loop-bar">{transportBar}</div>
+            </div>
+        </div>)
+    // 巡棚切台
+    let roomIndex = 0
+    const setRoom = (index: number) => {
+        roomIndex = ((index % ROOMS.length) + ROOMS.length) % ROOMS.length
+        const room = ROOMS[roomIndex]
+        channelName.textContent = room.label
+        stageEl.dataset.room = room.id
+        if (room.bg === null) {
+            stageImg.classList.add("hidden")
+            stageVideo.classList.remove("hidden")
+        } else {
+            stageImg.src = room.bg
+            stageImg.classList.remove("hidden")
+            stageVideo.classList.add("hidden")
+        }
+    }
     const roleStates = new Map<RoleId, RoleState>()
     const audibleRoles = new Set<RoleId>()
     const pendingPerforming = new Map<RoleId, string | undefined>()
@@ -98,6 +153,14 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         el.dataset.state = state
         el.title = reason ?? state
         if (state === "failed") {flashNoise()}
+    }
+
+    // ── 入场系统：角色首次收到事件时从右侧门口步进式走入（游戏感系统 ①） ────
+    const enteredRoles = new Set<RoleId>()
+    const enterRole = (role: RoleId) => {
+        if (enteredRoles.has(role)) {return}
+        enteredRoles.add(role)
+        performerEls.get(role)?.classList.add("entered")
     }
 
     // ── 播放状态（TransportChanged.isPlaying → ON AIR 灯 + REC 灯牌） ────────
@@ -199,10 +262,12 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
                 break
             }
             case "RoleTaskAssigned":
+                enterRole(event.role)
                 if (event.echo !== undefined) {launchDanmaku(event.echo, event.role)}
                 appendReceipt(event.role, event.summary, event.audibleResult, event.operationRef)
                 break
             case "RoleStateChanged":
+                enterRole(event.role)
                 if (event.state === "performing" && !audibleRoles.has(event.role)) {
                     // 契约铁律：performing 以 openDAW 真实发声为唯一依据（TrackAudibleChanged 闸门）
                     pendingPerforming.set(event.role, event.reason)
@@ -221,6 +286,7 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
                 setPlaying(event.isPlaying)
                 break
             case "TrackAudibleChanged":
+                enterRole(event.role)
                 if (event.audible) {
                     audibleRoles.add(event.role)
                     const pendingReason = pendingPerforming.get(event.role)
@@ -271,7 +337,11 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         Html.empty(receiptList)
         audibleRoles.clear()
         pendingPerforming.clear()
-        STAGE_ROLES.forEach(({id}) => setRoleState(id, "waiting"))
+        enteredRoles.clear()
+        STAGE_ROLES.forEach(({id}) => {
+            setRoleState(id, "waiting")
+            performerEls.get(id)?.classList.remove("entered")
+        })
         cancelMock = playMockTimeline(emit, {onDone: stopMock})
     }
     if (demoMode) {startMock()}
@@ -517,30 +587,35 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         return btn
     })
 
+    // ── 进棚过场（首次挂载的氛围过场，2.6s 或点击跳过；引擎加载发生在本组件挂载前） ──
+    const introSplash: HTMLElement = (
+        <div className="intro-splash">
+            <span className="intro-caption">上楼进棚 · DAWDEX</span>
+        </div>)
+    const dismissIntro = () => {
+        if (introSplash.classList.contains("gone")) {return}
+        introSplash.classList.add("gone")
+        setTimeout(() => introSplash.remove(), 700)
+    }
+    lifecycle.own(Events.subscribe(introSplash, "click", dismissIntro))
+    const introTimer = window.setTimeout(dismissIntro, 2600)
+    lifecycle.own(Terminable.create(() => window.clearTimeout(introTimer)))
+
     // ── 根节点（投屏演示模式作用于此） ───────────────────────────────────────
     const root: HTMLElement = (
         <div className={className}>
+            {introSplash}
             <div className="shell-header">
                 <span className="brand">{`DAWDEX v${DAWDEX_VERSION}`}</span>
                 {onAirLamp}
                 {statusDot}
+                <span className="channel">CH{chPrev}{channelName}{chNext}</span>
                 <span className="header-spacer"/>
                 {presentButton}
                 {replayButton}
             </div>
             <div className="stage-bezel">
-                <div className="stage">
-                    {stageVideo}
-                    {marquee}
-                    <div className="performers">{performers}</div>
-                    {noise}
-                    {danmakuLayer}
-                    {recBadge}
-                    <div className="transport">
-                        {transportReadout}
-                        <div className="loop-bar">{transportBar}</div>
-                    </div>
-                </div>
+                {stageEl}
             </div>
             <div className="composer">
                 {input}
@@ -573,8 +648,25 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
             appendEvent("回放 90 秒演示（Mock 驱动）", "working")
             startMock()
         }),
+        Events.subscribe(chPrev, "click", () => setRoom(roomIndex - 1)),
+        Events.subscribe(chNext, "click", () => setRoom(roomIndex + 1)),
         Terminable.create(stopLoginPolling)
     )
+
+    // 支持 ?room=<id> 深链（演示导航用）
+    const initialRoom = new URLSearchParams(window.location.search).get("room")
+    if (initialRoom !== null) {
+        const idx = ROOMS.findIndex(r => r.id === initialRoom)
+        if (idx >= 0) {setRoom(idx)}
+    }
+
+    // 巡棚房间背景预载（避免首次切台白闪）
+    ROOMS.forEach(room => {
+        if (room.bg !== null) {
+            const preload = new Image()
+            preload.src = room.bg
+        }
+    })
 
     renderProviderSlot()
     refreshProviderStatus(true).catch(reason => appendEvent(`模型状态检查失败：${String(reason)}`))
