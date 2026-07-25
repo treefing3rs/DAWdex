@@ -23,6 +23,9 @@ const snapshot = (
         sound: {
             instrumentKind: "VaporisateurDeviceBox",
             instrumentLabel: "Vaporisateur",
+            instrumentAssetId: null,
+            instrumentPresetIndex: null,
+            drumKit: null,
             synthParameters: null,
             mixer: {
                 volumeDb: 0,
@@ -76,6 +79,7 @@ const plan = {
         energy: 0.5,
         midiAssetId: "asset-drums",
         midiAssetPath: "drums/rnb.mid",
+        transposeSemitones: 0,
         sound: {} as never
     }]
 } as AgentPlan

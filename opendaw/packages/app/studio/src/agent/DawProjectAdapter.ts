@@ -1,15 +1,19 @@
-import {clamp} from "@opendaw/lib-std"
+import {clamp, UUID} from "@opendaw/lib-std"
 import {PPQN} from "@opendaw/lib-dsp"
 import {
     AudioUnitBoxAdapter,
+    InstrumentBox,
     InstrumentFactories,
     NoteRegionBoxAdapter,
+    PresetDecoder,
     TrackBoxAdapter,
     TrackType
 } from "@opendaw/studio-adapters"
 import type {StudioService} from "@/service/StudioService"
+import {OpenPresetAPI} from "@/opendaw-api"
 import {
     AgentPlan,
+    DrumKitPreset,
     DawControlAction,
     DawProjectSnapshot,
     UpsertRoleTrackAction
@@ -34,7 +38,7 @@ import {
     applyTrackSound,
     readTrackSound,
     sanitizeTrackSoundDesign,
-    soundDesignFingerprint
+    trackSoundDesignFingerprint
 } from "./music/TrackSound"
 
 type InstrumentTrack = {
@@ -51,6 +55,8 @@ type PreparedUpsert = {
     readonly notes: ReadonlyArray<CompiledNote>
     readonly fingerprint: string
     readonly replaceMidi: boolean
+    readonly drumKit: DrumKitPreset | null
+    readonly drumPresetBytes: ArrayBuffer | null
 }
 
 type PreparationResult =
@@ -61,6 +67,37 @@ export type ApplyResult = {
     readonly success: boolean
     readonly message: string
 }
+
+export type ApplyRoleProgress = {
+    readonly role: UpsertRoleTrackAction["role"]
+    readonly phase: "preparing" | "applied" | "skipped"
+    readonly index: number
+    readonly total: number
+    readonly assetPath: string
+}
+
+export type ApplyOptions = {
+    readonly progressive?: boolean
+    readonly autoPlayAfterFirstRole?: boolean
+    readonly configureLoop?: boolean
+    readonly onRoleProgress?: (progress: ApplyRoleProgress) => void
+    readonly waitForNextRole?: (progress: ApplyRoleProgress) => Promise<void>
+}
+
+const STOCK_DRUM_PRESET_UUID: Readonly<Record<DrumKitPreset, string>> = {
+    "TR-808": "7095d4f6-737d-42b7-b182-76d512b1ac8a",
+    "TR-909": "bdd30b37-2d5c-4c72-b72d-fe2ba65a193e"
+}
+
+const playfieldTrackName = (name: string, kit: DrumKitPreset): string => {
+    const decorated = name.replace(/^DAWdex Drums\b/, `DAWdex Drums ${kit}`)
+    return decorated === name ? `${name} ${kit}` : decorated
+}
+
+export type DrumKitPresetLoader = (kit: DrumKitPreset) => Promise<ArrayBuffer | null>
+
+const loadStockDrumKitPreset: DrumKitPresetLoader = kit =>
+    OpenPresetAPI.get().load(UUID.parse(STOCK_DRUM_PRESET_UUID[kit]))
 
 const absoluteNotes = (notes: ReadonlyArray<CompiledNote>, startBar: number): ReadonlyArray<CompiledNote> => {
     const offset = (startBar - 1) * PPQN.Bar
@@ -78,11 +115,17 @@ const notesForRegion = (region: NoteRegionBoxAdapter): ReadonlyArray<CompiledNot
 export class DawProjectAdapter {
     readonly #service: StudioService
     readonly #midiAssetLoader: MidiAssetLoader
+    readonly #drumKitPresetLoader: DrumKitPresetLoader
     readonly #controls: DawControlExecutor
 
-    constructor(service: StudioService, midiAssetLoader: MidiAssetLoader = loadMidiAsset) {
+    constructor(
+        service: StudioService,
+        midiAssetLoader: MidiAssetLoader = loadMidiAsset,
+        drumKitPresetLoader: DrumKitPresetLoader = loadStockDrumKitPreset
+    ) {
         this.#service = service
         this.#midiAssetLoader = midiAssetLoader
+        this.#drumKitPresetLoader = drumKitPresetLoader
         this.#controls = new DawControlExecutor(service)
     }
 
@@ -148,7 +191,7 @@ export class DawProjectAdapter {
         }
     }
 
-    async apply(plan: AgentPlan): Promise<ApplyResult> {
+    async apply(plan: AgentPlan, options: ApplyOptions = {}): Promise<ApplyResult> {
         if (!this.#service.hasProfile) {await this.#service.newProject()}
         if (!this.#service.hasProfile) {return {success: false, message: "No project is open."}}
         const controlActions = plan.actions
@@ -157,7 +200,7 @@ export class DawProjectAdapter {
             const failure = this.#controls.validate(action)
             if (failure !== null) {return {success: false, message: failure}}
         }
-        const prepared = await this.#prepare(plan)
+        const prepared = await this.#prepare(plan, options.onRoleProgress)
         if (!prepared.success) {return {success: false, message: prepared.message}}
         const project = this.#service.project
         const tempoActions = plan.actions.filter(action => action.type === "set-tempo")
@@ -177,13 +220,59 @@ export class DawProjectAdapter {
             }
         }
         if (prepared.operations.length > 0 || changesTempo || editControlActions.length > 0) {
+            let editStarted = false
             try {
-                project.editing.modify(() => {
-                    tempoActions.forEach(action => project.api.setBpm(clamp(action.bpm, 30, 240)))
-                    prepared.operations.forEach(operation => this.#applyUpsert(operation))
-                    editControlActions.forEach(action => this.#controls.applyEdit(action))
-                })
+                const operations = [...prepared.operations]
+                if (options.progressive === true && operations.length > 0) {
+                    const [first, ...remaining] = operations
+                    project.editing.modify(() => {
+                        tempoActions.forEach(action => project.api.setBpm(clamp(action.bpm, 30, 240)))
+                        if (options.configureLoop === true) {
+                            project.timelineBox.loopArea.from.setValue(0)
+                            project.timelineBox.loopArea.to.setValue(plan.brief.bars * PPQN.Bar)
+                            project.timelineBox.loopArea.enabled.setValue(true)
+                        }
+                        this.#applyUpsert(first)
+                    })
+                    editStarted = true
+                    options.onRoleProgress?.({
+                        role: first.action.role,
+                        phase: "applied",
+                        index: 0,
+                        total: operations.length,
+                        assetPath: first.action.midiAssetPath
+                    })
+                    if (options.autoPlayAfterFirstRole === true
+                        && !this.#service.engine.isPlaying.getValue()) {
+                        this.#service.engine.setPosition(0)
+                        this.#service.engine.play()
+                    }
+                    for (const [remainingIndex, operation] of remaining.entries()) {
+                        const progress: ApplyRoleProgress = {
+                            role: operation.action.role,
+                            phase: "applied",
+                            index: remainingIndex + 1,
+                            total: operations.length,
+                            assetPath: operation.action.midiAssetPath
+                        }
+                        await options.waitForNextRole?.(progress)
+                        project.editing.append(() => this.#applyUpsert(operation))
+                        options.onRoleProgress?.(progress)
+                    }
+                    if (editControlActions.length > 0) {
+                        project.editing.append(() =>
+                            editControlActions.forEach(action => this.#controls.applyEdit(action)))
+                    }
+                } else {
+                    project.editing.modify(() => {
+                        tempoActions.forEach(action => project.api.setBpm(clamp(action.bpm, 30, 240)))
+                        operations.forEach(operation => this.#applyUpsert(operation))
+                        editControlActions.forEach(action => this.#controls.applyEdit(action))
+                    })
+                    editStarted = true
+                }
             } catch (error) {
+                if (editStarted && project.editing.canUndo()) {project.editing.undo()}
                 return {success: false, message: `Could not apply DAW control: ${String(error)}`}
             }
         }
@@ -195,12 +284,17 @@ export class DawProjectAdapter {
                 && track.generated
                 && track.role === operation.action.role
                 && track.style === operation.action.style)
+            const expectedSound = trackSoundDesignFingerprint(
+                operation.action.role,
+                operation.action.style,
+                operation.action.sound
+            )
             return actual?.midiFingerprint === operation.fingerprint
-                && actual.sound.fingerprint === soundDesignFingerprint(operation.action.sound)
+                && actual.sound.fingerprint === expectedSound
                 ? []
                 : [{
                     role: operation.action.role,
-                    expected: `${operation.fingerprint}/${soundDesignFingerprint(operation.action.sound)}`,
+                    expected: `${operation.fingerprint}/${expectedSound}`,
                     actual: actual === undefined
                         ? "missing"
                         : `${actual.midiFingerprint}/${actual.sound.fingerprint}`
@@ -290,7 +384,10 @@ export class DawProjectAdapter {
                 }))
     }
 
-    async #prepare(plan: AgentPlan): Promise<PreparationResult> {
+    async #prepare(
+        plan: AgentPlan,
+        onRoleProgress?: (progress: ApplyRoleProgress) => void
+    ): Promise<PreparationResult> {
         const tracks = this.#instrumentTracks()
         const fingerprints = new Map<string, string>()
         tracks.forEach(({track, fingerprint}) => {
@@ -298,7 +395,10 @@ export class DawProjectAdapter {
         })
         const operations: Array<PreparedUpsert> = []
         let skipped = 0
-        for (const rawAction of plan.actions) {
+        const orderedActions = [...plan.actions]
+        const totalRoles = orderedActions.filter(action => action.type === "upsert-role-track").length
+        let roleIndex = 0
+        for (const rawAction of orderedActions) {
             if (rawAction.type === "set-tempo") {
                 if (Math.round(rawAction.bpm) !== Math.round(plan.brief.bpm)) {
                     return {success: false, message: "Tempo action does not match the MusicBrief."}
@@ -306,6 +406,14 @@ export class DawProjectAdapter {
                 continue
             }
             if (rawAction.type === "control") {continue}
+            const currentRoleIndex = roleIndex++
+            onRoleProgress?.({
+                role: rawAction.role,
+                phase: "preparing",
+                index: currentRoleIndex,
+                total: totalRoles,
+                assetPath: rawAction.midiAssetPath
+            })
             if (rawAction.style !== plan.brief.style || !plan.brief.targetRoles.includes(rawAction.role)) {
                 return {success: false, message: `Invalid ${rawAction.role} operation for this MusicBrief.`}
             }
@@ -347,12 +455,24 @@ export class DawProjectAdapter {
                 seed: clamp(Math.round(rawAction.seed), 0, 0x7FFFFFFF),
                 density: clamp(rawAction.density, 0.1, 1),
                 energy: clamp(rawAction.energy, 0.1, 1),
+                transposeSemitones: clamp(Math.round(rawAction.transposeSemitones ?? 0), -11, 11),
                 sound: sanitizeTrackSoundDesign(rawAction.sound)
+            }
+            if (action.role === "drums" && action.sound.instrument.kind !== "playfield") {
+                return {success: false, message: "Drums must use Playfield TR-808 or TR-909."}
+            }
+            if (action.role !== "drums" && action.sound.instrument.kind === "playfield") {
+                return {success: false, message: `${action.role} cannot use the drum Playfield.`}
             }
             let notes: ReadonlyArray<CompiledNote>
             try {
                 const buffer = await this.#midiAssetLoader(action.midiAssetId)
-                notes = compileMidiAsset(buffer, action.role, action.bars)
+                notes = compileMidiAsset(
+                    buffer,
+                    action.role,
+                    action.bars,
+                    action.transposeSemitones
+                )
             } catch (error) {
                 return {
                     success: false,
@@ -363,10 +483,21 @@ export class DawProjectAdapter {
             const targetId = target?.track.address.toString()
             const targetFingerprint = targetId === undefined ? null : fingerprints.get(targetId) ?? null
             const replaceMidi = targetFingerprint !== fingerprint
-            const changesSound = target?.soundFingerprint !== soundDesignFingerprint(action.sound)
+            const changesSound = target?.soundFingerprint !== trackSoundDesignFingerprint(
+                action.role,
+                action.style,
+                action.sound
+            )
             const changesMetadata = target?.metadata?.style !== action.style
             if (!replaceMidi && !changesSound && !changesMetadata) {
                 skipped++
+                onRoleProgress?.({
+                    role: action.role,
+                    phase: "skipped",
+                    index: currentRoleIndex,
+                    total: totalRoles,
+                    assetPath: action.midiAssetPath
+                })
                 continue
             }
             const duplicate = hasDuplicateMidiFingerprint(
@@ -376,31 +507,106 @@ export class DawProjectAdapter {
             )
             if (duplicate) {
                 skipped++
+                onRoleProgress?.({
+                    role: action.role,
+                    phase: "skipped",
+                    index: currentRoleIndex,
+                    total: totalRoles,
+                    assetPath: action.midiAssetPath
+                })
                 continue
             }
             if (targetId !== undefined) {fingerprints.delete(targetId)}
             fingerprints.set(targetId ?? `new:${operations.length}`, fingerprint)
-            operations.push({action, target, notes, fingerprint, replaceMidi})
+            const drumKit = action.role === "drums" ? action.sound.instrument.drumKit : null
+            let drumPresetBytes: ArrayBuffer | null = null
+            if (drumKit !== null) {
+                const input = target?.audioUnit.input.adapter().unwrapOrNull() ?? null
+                const alreadyLoaded = input?.box.name === "PlayfieldDeviceBox"
+                    && input.labelField.getValue().includes(drumKit)
+                if (!alreadyLoaded) {
+                    try {
+                        drumPresetBytes = await this.#drumKitPresetLoader(drumKit)
+                    } catch (error) {
+                        return {
+                            success: false,
+                            message: `Could not load the openDAW Playfield ${drumKit} preset: ${String(error)}`
+                        }
+                    }
+                }
+            }
+            operations.push({
+                action,
+                target,
+                notes,
+                fingerprint,
+                replaceMidi,
+                drumKit,
+                drumPresetBytes
+            })
         }
         return {success: true, operations, skipped}
     }
 
-    #applyUpsert({action, target, notes, replaceMidi}: PreparedUpsert): void {
+    #applyUpsert({
+        action,
+        target,
+        notes,
+        replaceMidi,
+        drumKit,
+        drumPresetBytes
+    }: PreparedUpsert): void {
         const project = this.#service.project
         const name = dawdexTrackName(action.role, action.style)
         let trackBox
-        let audioUnit: AudioUnitBoxAdapter
+        let audioUnitBox: AudioUnitBoxAdapter["box"]
+        let audioUnit: AudioUnitBoxAdapter | null
         if (target === null) {
-            const product = project.api.createInstrument(InstrumentFactories.Vaporisateur, {name})
+            const product = action.role === "drums"
+                ? project.api.createInstrument(InstrumentFactories.Playfield, {name})
+                : project.api.createInstrument(InstrumentFactories.Vaporisateur, {name})
             trackBox = product.trackBox
-            audioUnit = project.boxAdapters.adapterFor(product.audioUnitBox, AudioUnitBoxAdapter)
+            audioUnitBox = product.audioUnitBox
+            audioUnit = null
         } else {
             target.track.targetName = name
             trackBox = target.track.box
+            audioUnitBox = target.audioUnit.box
             audioUnit = target.audioUnit
         }
-        applyTrackSound(project, audioUnit, action.sound)
-        if (target !== null) {target.track.targetName = name}
+        if (drumKit !== null) {
+            const currentBox = audioUnitBox.input.pointerHub.incoming().at(0)?.box
+            if (currentBox === undefined) {throw new Error("The drum track has no instrument")}
+            if (currentBox.name !== "PlayfieldDeviceBox") {
+                const attempt = project.api.replaceMIDIInstrument(
+                    currentBox as InstrumentBox,
+                    InstrumentFactories.Playfield
+                )
+                if (attempt.isFailure()) {throw new Error(attempt.failureReason())}
+            }
+            if (drumPresetBytes !== null) {
+                const attempt = PresetDecoder.replaceAudioUnit(
+                    drumPresetBytes,
+                    audioUnitBox,
+                    {keepMIDIEffects: true, keepAudioEffects: true, keepTimeline: true}
+                )
+                if (attempt.isFailure()) {throw new Error(attempt.failureReason())}
+            }
+            // A freshly-created AudioUnit must not get an adapter until preset replacement
+            // finishes. Otherwise AudioUnitInput observes both the placeholder Playfield and
+            // the incoming preset Playfield in the same graph transaction.
+            audioUnit ??= project.boxAdapters.adapterFor(audioUnitBox, AudioUnitBoxAdapter)
+            audioUnit.input.adapter()
+                .unwrap("Could not configure Playfield")
+                .labelField.setValue(playfieldTrackName(name, drumKit))
+            applyTrackSound(project, audioUnit, action.sound, {configureInstrument: false})
+        } else {
+            audioUnit ??= project.boxAdapters.adapterFor(audioUnitBox, AudioUnitBoxAdapter)
+            applyTrackSound(project, audioUnit, action.sound)
+        }
+        if (target !== null) {
+            target.track.targetName = drumKit === null ? name : playfieldTrackName(name, drumKit)
+        }
         if (target === null || replaceMidi) {
             if (target !== null) {
                 target.track.regions.collection.asArray().forEach(region => region.box.delete())

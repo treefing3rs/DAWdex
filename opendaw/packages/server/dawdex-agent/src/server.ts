@@ -17,6 +17,8 @@ import {
 import type {CreativeBrief, PlanOutput, ProjectSnapshot} from "./MusicPlan.ts"
 import {MidiCatalog} from "./MidiCatalog.ts"
 import type {MidiCandidate} from "./MidiCatalog.ts"
+import {findExactBundle, rankMidiBundles} from "./MidiBundleRanker.ts"
+import type {MidiBundle} from "./MidiBundleRanker.ts"
 
 type ProgressStage = "understanding" | "direction" | "searching" | "arranging" | "review"
 type ProgressUpdate = {readonly stage: ProgressStage, readonly message: string}
@@ -188,41 +190,70 @@ const runOpenAiPlan = async (
     prompt: string,
     snapshot: ProjectSnapshot,
     brief: CreativeBrief,
-    candidates: ReadonlyArray<MidiCandidate>
+    candidates: ReadonlyArray<MidiCandidate>,
+    bundles: ReadonlyArray<MidiBundle>
 ): Promise<PlanOutput> => {
     ensureOpenAi()
     const text = await chatCompletion(
         PRODUCER_INSTRUCTIONS + PRODUCER_SCHEMA_HINT,
-        createProducerInput(prompt, snapshot, brief, candidates)
+        createProducerInput(prompt, snapshot, brief, candidates, bundles)
     )
     const parsed = extractJson(text)
-    return parseProducerPlan(parsed)
+    return parseProducerPlan(parsed, {prompt, snapshot})
 }
 
 const planCandidates = async (
     prompt: string,
-    brief: CreativeBrief
-): Promise<ReadonlyArray<MidiCandidate>> =>
-    (await Promise.all(brief.targetRoles.map(role => {
+    brief: CreativeBrief,
+    emit: ProgressSink
+): Promise<{candidates: ReadonlyArray<MidiCandidate>, bundles: ReadonlyArray<MidiBundle>}> => {
+    const byRole = await Promise.all(brief.targetRoles.map(async role => {
         const terms = brief.searchTerms[role]
-        return midiCatalog.candidates(
+        const candidates = await midiCatalog.candidates(
             brief.style,
             role,
             brief.bpm,
             brief.key,
             `${prompt} ${terms.join(" ")}`,
-            8,
+            12,
             brief.bars,
             terms
         )
-    }))).flat()
+        emit({
+            stage: "searching",
+            message: `${role} 检索完成：从本地 MIDI 索引筛出 ${candidates.length} 个候选。`
+        })
+        return candidates
+    }))
+    const candidates = byRole.flat()
+    return {candidates, bundles: rankMidiBundles(brief, candidates)}
+}
 
 const validatePlan = (
     plan: PlanOutput,
     brief: CreativeBrief,
-    candidates: ReadonlyArray<MidiCandidate>
+    snapshot: ProjectSnapshot,
+    candidates: ReadonlyArray<MidiCandidate>,
+    bundles: ReadonlyArray<MidiBundle>
 ): PlanOutput => {
     const allowed = new Map(candidates.map(candidate => [candidate.id, candidate]))
+    const upserts = plan.actions.filter(action => action.type === "upsert-role-track")
+    const selectedByRole = new Map(upserts.map(action => [action.role, action.midiAssetId]))
+    if (selectedByRole.size !== upserts.length) {
+        throw new Error("Arranger returned more than one MIDI action for the same role")
+    }
+    const bundle = upserts.length === 0
+        ? null
+        : findExactBundle(bundles, upserts.map(action => ({
+            role: action.role,
+            assetId: action.midiAssetId
+        })))
+    if (upserts.length > 0 && bundle === null) {
+        throw new Error("Arranger mixed MIDI assets from incompatible bundles")
+    }
+    const assets = new Map((snapshot.assets ?? []).map(asset => [asset.id, asset]))
+    const instruments = new Map((snapshot.capabilities?.instruments ?? [])
+        .map(instrument => [instrument.kind.toLowerCase(), instrument]))
     const actions = plan.actions.map(action => {
         if (action.type === "set-tempo") {return action}
         if (action.type === "control") {return action}
@@ -233,11 +264,31 @@ const validatePlan = (
         if (!brief.targetRoles.includes(action.role)) {
             throw new Error(`Arranger targeted ${action.role}, which is not in the Creative Brief`)
         }
+        const instrument = action.sound.instrument
+        if (action.role === "drums") {
+            if (instrument.kind !== "playfield"
+                || (instrument.drumKit !== "TR-808" && instrument.drumKit !== "TR-909")
+                || instrument.assetId.length > 0) {
+                throw new Error("Drums must use the approved Playfield TR-808 or TR-909 kit")
+            }
+        } else if (instrument.kind === "playfield") {
+            throw new Error(`${action.role} cannot use a drum-kit Playfield`)
+        } else if (instrument.kind === "soundfont" || instrument.kind === "nano") {
+            const expectedAssetKind = instrument.kind === "soundfont" ? "soundfont" : "audio-file"
+            if (assets.get(instrument.assetId)?.kind !== expectedAssetKind) {
+                throw new Error(`${action.role} selected an unavailable ${instrument.kind} asset`)
+            }
+            if (instruments.get(instrument.kind)?.available !== true) {
+                throw new Error(`${instrument.kind} is not available in the current project`)
+            }
+        } else if (instrument.assetId.length > 0) {
+            throw new Error("Vaporisateur must not reference an external asset")
+        }
         return {
             ...action,
             style: brief.style,
-            midiAssetId: candidate.id,
-            midiAssetPath: candidate.path
+            midiAssetPath: candidate.path,
+            transposeSemitones: bundle?.transposeByAssetId[candidate.id] ?? 0
         }
     })
     const {searchTerms: _searchTerms, ...fixedBrief} = brief
@@ -252,15 +303,40 @@ const candidateSummary = (
         .map(role => `${role} ${candidates.filter(candidate => candidate.role === role).length}`)
         .join(" · ")
 
+const withProgressPulse = async <T>(
+    promise: Promise<T>,
+    emit: ProgressSink,
+    updates: ReadonlyArray<ProgressUpdate>
+): Promise<T> => {
+    let index = 0
+    const timer = setInterval(() => {
+        const update = updates[index++ % updates.length]
+        if (update !== undefined) {emit(update)}
+    }, 2_500)
+    try {
+        return await promise
+    } finally {
+        clearInterval(timer)
+    }
+}
+
 const planWithProvider = async (
     source: ProviderSource,
     prompt: string,
     snapshot: ProjectSnapshot,
     emit: ProgressSink
 ): Promise<{source: ProviderSource, output: PlanOutput}> => {
-    const brief = source === "codex"
-        ? await codex.createCreativeBrief(prompt, snapshot)
-        : await runOpenAiBrief(prompt, snapshot)
+    const brief = await withProgressPulse(
+        source === "codex"
+            ? codex.createCreativeBrief(prompt, snapshot)
+            : runOpenAiBrief(prompt, snapshot),
+        emit,
+        [
+            {stage: "understanding", message: "正在把场景描述翻译成情绪、律动和可听见的角色分工…"},
+            {stage: "understanding", message: "正在比较几种可能的风格、速度与调性方向…"},
+            {stage: "understanding", message: "正在检查现有轨道，判断哪些内容应保留或局部替换…"}
+        ]
+    )
     emit({
         stage: "direction",
         message: `音乐方向：${brief.style}。${brief.decisionSummary}`
@@ -269,7 +345,7 @@ const planWithProvider = async (
         stage: "searching",
         message: `正在按 ${brief.bpm} BPM、${brief.key} 和 ${brief.moods.join(" / ")} 检索真实 MIDI…`
     })
-    const candidates = await planCandidates(prompt, brief)
+    const {candidates, bundles} = await planCandidates(prompt, brief, emit)
     for (const role of brief.targetRoles) {
         if (!candidates.some(candidate => candidate.role === role)) {
             throw new Error(`No usable ${brief.style} ${role} MIDI candidates were found`)
@@ -279,14 +355,37 @@ const planWithProvider = async (
         stage: "searching",
         message: `候选已收敛：${candidateSummary(brief, candidates)}；正在比较节奏、音域和密度。`
     })
+    if (bundles.length === 0) {throw new Error("No compatible MIDI bundles were found")}
+    emit({
+        stage: "searching",
+        message: `已组成 ${bundles.length} 组跨轨 Bundle；将统一到 ${brief.key}，避免三轨互相跑调。`
+    })
     emit({
         stage: "arranging",
         message: `正在把 ${brief.instrumentation.join("、")} 编排成可编辑轨道…`
     })
-    const rawPlan = source === "codex"
-        ? await codex.createPlan(prompt, snapshot, brief, candidates)
-        : await runOpenAiPlan(prompt, snapshot, brief, candidates)
-    const output = validatePlan(rawPlan, brief, candidates)
+    const rawPlan = await withProgressPulse(
+        source === "codex"
+            ? codex.createPlan(prompt, snapshot, brief, candidates, bundles)
+            : runOpenAiPlan(prompt, snapshot, brief, candidates, bundles),
+        emit,
+        [
+            {stage: "arranging", message: "正在比较 Bundle 的律动、段落长度与素材家族关系…"},
+            {stage: "arranging", message: `正在检查 Bass 与 Keys 的调性，并计算到 ${brief.key} 的最短移调…`},
+            {stage: "arranging", message: "正在检查鼓、贝斯、键盘的音域、密度与进入顺序…"}
+        ]
+    )
+    const output = validatePlan(rawPlan, brief, snapshot, candidates, bundles)
+    const selected = output.actions
+        .filter(action => action.type === "upsert-role-track")
+        .map(action => `${action.role}: ${action.midiAssetPath.split(/[\\/]/).pop()}`
+            + (action.transposeSemitones === 0
+                ? ""
+                : ` (${action.transposeSemitones > 0 ? "+" : ""}${action.transposeSemitones} 半音)`))
+        .join("；")
+    if (selected.length > 0) {
+        emit({stage: "review", message: `已锁定同一组合：${selected}。`})
+    }
     emit({
         stage: "review",
         message: `${output.actions.length} 个 DAW 动作已完成校验，等待你的批准。`

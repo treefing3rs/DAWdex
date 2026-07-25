@@ -334,7 +334,7 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     // ── 证据抽屉（回执 / 计划审批 / 活动日志） ───────────────────────────────
     const appendEvent = (message: string, style: "normal" | "working" | "success" = "normal") => {
         activity.prepend(<div className={`event ${style}`}><span className="event-dot"/><span>{message}</span></div>)
-        while (activity.childElementCount > 8) {activity.lastElementChild?.remove()}
+        while (activity.childElementCount > 18) {activity.lastElementChild?.remove()}
         lastEvent.textContent = message
     }
     const appendReceipt = (role: RoleId, summary: string, audible: string, ref: string) => {
@@ -642,7 +642,39 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
                 applyButton.disabled = true
                 appendEvent("正在把批准的计划写入 openDAW…", "working")
                 realBridge.beginPlan(plan)
-                daw.apply(plan).then(result => {
+                const roleLabels = {drums: "鼓", bass: "贝斯", keys: "键盘"} as const
+                daw.apply(plan, {
+                    progressive: true,
+                    autoPlayAfterFirstRole: true,
+                    configureLoop: true,
+                    onRoleProgress: progress => {
+                        const label = roleLabels[progress.role]
+                        if (progress.phase === "preparing") {
+                            realBridge.prepareRole(progress.role, progress.assetPath)
+                            appendEvent(
+                                `正在准备第 ${progress.index + 1}/${progress.total} 轨：${label}，解析真实 MIDI…`,
+                                "working"
+                            )
+                        } else if (progress.phase === "applied") {
+                            realBridge.queueRole(progress.role)
+                            appendEvent(
+                                `第 ${progress.index + 1}/${progress.total} 轨已加入：${label}`,
+                                "success"
+                            )
+                        } else {
+                            appendEvent(`${label} 与当前工程重复，已保留现有轨道`, "success")
+                        }
+                    },
+                    waitForNextRole: async progress => {
+                        const label = roleLabels[progress.role]
+                        appendEvent(`正在试听当前层；${label}将在 2 小节后加入…`, "working")
+                        const twoBarsMs = Math.min(
+                            8_000,
+                            Math.max(2_500, 8 * 60_000 / plan.brief.bpm)
+                        )
+                        await new Promise(resolve => setTimeout(resolve, twoBarsMs))
+                    }
+                }).then(result => {
                     isBusy = false
                     applyButton.disabled = false
                     realBridge.finishPlan(plan, currentPlanKind, result)

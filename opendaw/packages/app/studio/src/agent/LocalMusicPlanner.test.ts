@@ -22,6 +22,9 @@ const track = (
     sound: {
         instrumentKind: "VaporisateurDeviceBox",
         instrumentLabel: sound.instrument.presetLabel,
+        instrumentAssetId: null,
+        instrumentPresetIndex: null,
+        drumKit: role === "drums" ? sound.instrument.drumKit : null,
         synthParameters: sound.instrument.parameters,
         mixer: sound.mixer,
         effects: sound.effects,

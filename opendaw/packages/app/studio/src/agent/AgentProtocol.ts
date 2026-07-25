@@ -8,6 +8,8 @@ export type SupportedStyle = string
 export type SynthWaveform = "sine" | "triangle" | "saw" | "square"
 export type SynthVoicing = "mono" | "poly"
 export type DelayTiming = "eighth" | "dotted-eighth" | "quarter" | "dotted-quarter" | "half"
+export type PlannedInstrumentKind = "vaporisateur" | "playfield" | "soundfont" | "nano"
+export type DrumKitPreset = "TR-808" | "TR-909"
 
 export type SynthSoundParameters = {
     readonly attack: number
@@ -91,8 +93,11 @@ export type TrackEffect =
 
 export type TrackSoundDesign = {
     readonly instrument: {
-        readonly kind: "vaporisateur"
+        readonly kind: PlannedInstrumentKind
         readonly presetLabel: string
+        readonly assetId: string
+        readonly presetIndex: number
+        readonly drumKit: DrumKitPreset
         readonly parameters: SynthSoundParameters
     }
     readonly mixer: TrackMixerSettings
@@ -102,6 +107,9 @@ export type TrackSoundDesign = {
 export type ProjectTrackSoundSnapshot = {
     readonly instrumentKind: string
     readonly instrumentLabel: string
+    readonly instrumentAssetId: string | null
+    readonly instrumentPresetIndex: number | null
+    readonly drumKit: DrumKitPreset | null
     readonly synthParameters: SynthSoundParameters | null
     readonly mixer: TrackMixerSettings
     readonly effects: ReadonlyArray<TrackEffect>
@@ -270,6 +278,7 @@ export type UpsertRoleTrackAction = {
     readonly energy: number
     readonly midiAssetId: string
     readonly midiAssetPath: string
+    readonly transposeSemitones: number
     readonly sound: TrackSoundDesign
 }
 

@@ -98,12 +98,25 @@ export class RealUiEventBridge {
                 audibleResult: `使用 ${action.midiAssetPath.split("/").at(-1) ?? action.midiAssetId}`,
                 operationRef
             })
-            this.#dispatch({
-                type: "RoleStateChanged",
-                role: action.role,
-                state: "preparing",
-                reason: "正在从真实 MIDI 素材准备可编辑轨道"
-            })
+        })
+    }
+
+    prepareRole(role: MusicRole, assetPath: string): void {
+        this.#dispatch({
+            type: "RoleStateChanged",
+            role,
+            state: "preparing",
+            reason: `正在解析 ${assetPath.split(/[\\/]/).at(-1) ?? assetPath}`
+        })
+    }
+
+    queueRole(role: MusicRole): void {
+        this.#audible.delete(role)
+        this.#dispatch({
+            type: "RoleStateChanged",
+            role,
+            state: "queued",
+            reason: "写入已经验证，等待 openDAW 走带发声"
         })
     }
 
@@ -116,15 +129,6 @@ export class RealUiEventBridge {
             action.type === "upsert-role-track" ? [action.role] : [])
         if (result.success) {
             this.#key = plan.brief.key
-            roles.forEach(role => {
-                this.#audible.delete(role)
-                this.#dispatch({
-                    type: "RoleStateChanged",
-                    role,
-                    state: "queued",
-                    reason: "写入已经验证，等待 openDAW 走带发声"
-                })
-            })
         } else {
             roles.forEach(role => this.#dispatch({
                 type: "RoleStateChanged",

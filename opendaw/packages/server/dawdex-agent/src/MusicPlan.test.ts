@@ -119,6 +119,9 @@ describe("CreativeBrief", () => {
                     instrument: {
                         kind: "vaporisateur",
                         presetLabel: "Warm Electric Keys",
+                        assetId: "",
+                        presetIndex: 0,
+                        drumKit: "TR-808",
                         parameters: {
                             attack: 0.03,
                             decay: 0.5,
@@ -252,5 +255,57 @@ describe("CreativeBrief", () => {
         })
 
         expect(result.actions).toEqual([control])
+    })
+
+    it("repairs an otherwise empty plan for an unambiguous drum distortion request", () => {
+        const result = parseCodexPlan({
+            title: "Add drum distortion",
+            summary: "Put distortion after the current drum kit.",
+            rationale: ["The user requested a local sound edit."],
+            brief: {
+                intent: "modify",
+                style: "techno",
+                styleAlternatives: [],
+                moods: ["industrial"],
+                decisionSummary: "Keep the arrangement and add drum distortion.",
+                instrumentation: ["existing drums"],
+                bpm: 120,
+                key: "F minor",
+                bars: 8,
+                energy: 0.8,
+                swing: 0,
+                preserveTrackIds: [],
+                targetRoles: ["drums"]
+            },
+            actions: [],
+            controls: []
+        }, {
+            prompt: "在这个鼓组后面加一个失真效果器",
+            snapshot: {
+                hasProject: true,
+                bpm: 120,
+                tracks: [{
+                    id: "drums-track",
+                    name: "DAWdex drums",
+                    generated: true,
+                    role: "drums",
+                    devices: [
+                        {category: "instrument"},
+                        {category: "audio-effect"}
+                    ]
+                }]
+            } as never
+        })
+
+        expect(result.actions).toEqual([expect.objectContaining({
+            type: "control",
+            command: "effect",
+            operation: "add",
+            targetTrackId: "drums-track",
+            targetDeviceId: null,
+            kind: "Waveshaper",
+            index: 1,
+            enabled: true
+        })])
     })
 })

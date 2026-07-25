@@ -80,8 +80,11 @@ const isTrackSoundDesign = (value: unknown): value is TrackSoundDesign => {
     const mixer = value.mixer as Record<string, unknown>
     const oscillator1 = parameters.oscillator1
     const oscillator2 = parameters.oscillator2
-    return instrument.kind === "vaporisateur"
+    return ["vaporisateur", "playfield", "soundfont", "nano"].includes(String(instrument.kind))
         && typeof instrument.presetLabel === "string"
+        && typeof instrument.assetId === "string"
+        && typeof instrument.presetIndex === "number"
+        && ["TR-808", "TR-909"].includes(String(instrument.drumKit))
         && ["attack", "decay", "sustain", "release", "cutoff", "resonance", "unisonDetune",
             "noiseAttack", "noiseHold", "noiseRelease", "noiseVolumeDb"]
             .every(key => typeof parameters[key] === "number")
@@ -117,6 +120,7 @@ const isUpsertRoleTrackAction = (value: unknown): value is UpsertRoleTrackAction
         && typeof action.energy === "number"
         && typeof action.midiAssetId === "string"
         && typeof action.midiAssetPath === "string"
+        && typeof action.transposeSemitones === "number"
         && isTrackSoundDesign(action.sound)
 }
 

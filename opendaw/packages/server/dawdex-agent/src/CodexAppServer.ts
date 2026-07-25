@@ -18,6 +18,7 @@ import {
 } from "./MusicPlan.ts"
 import type {CreativeBrief, PlanOutput, ProjectSnapshot} from "./MusicPlan.ts"
 import type {MidiCandidate} from "./MidiCatalog.ts"
+import type {MidiBundle} from "./MidiBundleRanker.ts"
 
 type JsonObject = Record<string, unknown>
 
@@ -164,13 +165,14 @@ export class CodexAppServer {
         prompt: string,
         snapshot: ProjectSnapshot,
         brief: CreativeBrief,
-        candidates: ReadonlyArray<MidiCandidate>
+        candidates: ReadonlyArray<MidiCandidate>,
+        bundles: ReadonlyArray<MidiBundle>
     ): Promise<PlanOutput> {
         return this.#runStructured(
-            createProducerInput(prompt, snapshot, brief, candidates),
+            createProducerInput(prompt, snapshot, brief, candidates, bundles),
             PRODUCER_INSTRUCTIONS,
             CodexPlanOutputSchema,
-            parseCodexPlan
+            value => parseCodexPlan(value, {prompt, snapshot})
         )
     }
 
