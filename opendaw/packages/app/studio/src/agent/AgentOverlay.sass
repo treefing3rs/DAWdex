@@ -158,17 +158,17 @@ component
     transform-origin: 50% 0
     transform-style: preserve-3d // 前缘立面与 riser 活在真 3D 里
     transition: transform 620ms cubic-bezier(0.25, 0.8, 0.25, 1), width 620ms cubic-bezier(0.25, 0.8, 0.25, 1)
-    // 楔形的前缘立面：薄的一条厚度面，投影落在桌面上
+    // 楔形的前缘立面：厚的一条侧立面，左右边缘收光，紧贴桌面有接触影
     &::before
       content: ""
       position: absolute
       left: 1px
       right: 1px
       top: calc(100% - 1px)
-      height: 14px
+      height: 18px
       border-radius: 0 0 12px 12px
-      background: linear-gradient(180deg, #e6e4dd, #d5d3cb)
-      box-shadow: 0 12px 20px rgba(60, 58, 52, 0.18)
+      background: linear-gradient(90deg, #d6d4cc, #e8e6df 16%, #ebe9e2 84%, #d6d4cc)
+      box-shadow: 0 3px 5px rgba(40, 38, 34, 0.22), 0 14px 24px rgba(60, 58, 52, 0.18)
       transform: rotateX(-90deg)
       transform-origin: 50% 0
       transition: opacity 620ms ease
@@ -951,54 +951,59 @@ component
       &:active
         transform: scale(0.95)
 
-  // 甲板键帽 = Fig Mint 立体键：亮白顶面、柔和侧影、空间感悬浮于板面
-  // 巧思：六颗功能键按真键盘弧形列高排布（两端低、中间高），撤销键加宽，设置键收尾
+  // 甲板键帽 = 真立方体按键：顶面受光、前壁可见、铺满全宽的均匀阵列（参考 Fig Mint）
   .keyboard-deck .interventions
-    gap: 12px
+    gap: 10px
     margin-top: 2px
-    align-items: flex-end
+    width: 100%
+    align-items: stretch
+    transform-style: preserve-3d
     button
+      position: relative
+      flex: 1 1 0 // 均匀阵列铺满全宽，不再是中间一小簇
       border: 1px solid #e0ded6
-      border-radius: 8px
-      padding: 11px 20px 12px
-      min-height: 44px
+      border-radius: 7px
+      padding: 12px 6px 13px
+      min-height: 50px
       font-size: 12px
       letter-spacing: 0.05em
-      background: linear-gradient(180deg, #fdfcf9 0%, #f4f2ec 55%, #ebe9e2 100%)
+      white-space: nowrap
+      background: linear-gradient(180deg, #fdfcf9 0%, #f4f2ec 55%, #eceae3 100%)
       color: #55534d
-      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.9)
-      box-shadow: 0 3px 0 #d8d6cf, 0 10px 16px rgba(60, 58, 52, 0.18), inset 0 1px 0 #fff
+      box-shadow: 0 10px 16px rgba(60, 58, 52, 0.16), inset 0 1px 0 #fff
+      transform-style: preserve-3d
       transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease
-      // 弧形列高（smile curve）
-      &:nth-child(1), &:nth-child(6)
-        transform: translateY(3px)
-      &:nth-child(2), &:nth-child(5)
-        transform: translateY(-1px)
-      &:nth-child(3), &:nth-child(4)
-        transform: translateY(-4px)
+      // 键帽前壁：每颗键自己的厚度面，3D 块体感的来源
+      &::before
+        content: ""
+        position: absolute
+        left: 0
+        right: 0
+        top: calc(100% - 1px)
+        height: 6px
+        border-radius: 0 0 6px 6px
+        background: linear-gradient(180deg, #dddbd3, #cfcdc5)
+        transform: rotateX(-90deg)
+        transform-origin: 50% 0
+        transition: height 120ms ease
       &:hover
         filter: brightness(1.02)
-        box-shadow: 0 3px 0 #d8d6cf, 0 14px 22px rgba(60, 58, 52, 0.24), inset 0 1px 0 #fff
+        box-shadow: 0 14px 22px rgba(60, 58, 52, 0.22), inset 0 1px 0 #fff
       &:active
-        transform: translateY(4px)
-        box-shadow: 0 0 0 #d8d6cf, 0 1px 2px rgba(60, 58, 52, 0.16), inset 0 1px 0 #fff
+        transform: translateY(5px)
+        box-shadow: 0 1px 2px rgba(60, 58, 52, 0.16), inset 0 1px 0 #fff
+        &::before
+          height: 1px
       // 撤销键：加宽一档，像真键盘上的大键
       &[data-kind="undo"]
-        padding-left: 30px
-        padding-right: 30px
-      // 设置系统键：方正小键，低半头，像键盘上的功能小键
+        flex-grow: 1.7
+      // 设置系统键：窄一档的功能小键
       &.sys-key
-        padding: 8px 14px 9px
-        min-height: 36px
-        font-size: 11px
-        border-radius: 7px
-        background: linear-gradient(180deg, #f2f0ea 0%, #e9e7e0 60%, #dfddd5 100%)
+        flex: 0 0 auto
+        padding-left: 16px
+        padding-right: 16px
+        background: linear-gradient(180deg, #f2f0ea 0%, #e9e7e0 60%, #e0ded6 100%)
         color: #75736b
-        box-shadow: 0 3px 0 #d2d0c8, 0 8px 12px rgba(60, 58, 52, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.95)
-        transform: translateY(6px)
-        &:active
-          transform: translateY(8px)
-          box-shadow: 0 0 0 #d2d0c8, 0 1px 2px rgba(60, 58, 52, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.95)
 
   // ── 运镜：面板打开 = 进入 L2 —— 演播大厅（CRT）整个退场，键盘屏居中放大 ──
   .desk-scene.deck-focus
@@ -1014,14 +1019,30 @@ component
       transition: opacity 620ms ease, visibility 0s 620ms
     .keyboard-deck
       width: min(1100px, 92%)
-      transform: rotateX(0deg) translateY(-40vh) // L2 放平成正视控制台，升到视口中央
+      padding: 0 // L2 只剩一台显示器：甲板底板整体隐身
+      border: none
+      background: transparent
+      box-shadow: none
+      transform: rotateX(0deg) translateY(-40vh) // L2 放平成正视，升到视口中央
       &::before
-        opacity: 0 // 正视时前缘立面收起，避免悬浮残影
+        opacity: 0 // 前缘立面一并收起
+    .interventions
+      display: none // L2 不出现键盘——这一层就是一台完整立面显示器
     .deck-riser
-      padding: 20px 22px // 厚奶油边框 = Fig Mint 显示器外框
+      padding: 20px 22px 30px // 厚奶油边框 = Fig Mint 显示器外框，底部加厚做下巴
       border-radius: 20px
       transform: rotateX(0deg) // 完全正视
       box-shadow: 0 24px 48px rgba(60, 58, 52, 0.20), inset 0 1px 0 rgba(255, 255, 255, 0.95)
+      &::after
+        content: "" // 下巴右下的深色细长软驱槽，照参考整机
+        position: absolute
+        right: 26px
+        bottom: 9px
+        width: 92px
+        height: 6px
+        border-radius: 3px
+        background: #3a3833
+        box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5)
     .deck-screen
       min-height: min(46vh, 470px) // 屏幕自适应放大，面板内容完整可读
       border-radius: 10px
