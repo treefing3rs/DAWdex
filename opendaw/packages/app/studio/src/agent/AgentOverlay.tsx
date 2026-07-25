@@ -100,6 +100,14 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         if (state === "failed") {flashNoise()}
     }
 
+    // ── 入场系统：角色首次收到事件时从右侧门口步进式走入（游戏感系统 ①） ────
+    const enteredRoles = new Set<RoleId>()
+    const enterRole = (role: RoleId) => {
+        if (enteredRoles.has(role)) {return}
+        enteredRoles.add(role)
+        performerEls.get(role)?.classList.add("entered")
+    }
+
     // ── 播放状态（TransportChanged.isPlaying → ON AIR 灯 + REC 灯牌） ────────
     const setPlaying = (playing: boolean) => {
         onAirLamp.classList.toggle("lit", playing)
@@ -199,10 +207,12 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
                 break
             }
             case "RoleTaskAssigned":
+                enterRole(event.role)
                 if (event.echo !== undefined) {launchDanmaku(event.echo, event.role)}
                 appendReceipt(event.role, event.summary, event.audibleResult, event.operationRef)
                 break
             case "RoleStateChanged":
+                enterRole(event.role)
                 if (event.state === "performing" && !audibleRoles.has(event.role)) {
                     // 契约铁律：performing 以 openDAW 真实发声为唯一依据（TrackAudibleChanged 闸门）
                     pendingPerforming.set(event.role, event.reason)
@@ -221,6 +231,7 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
                 setPlaying(event.isPlaying)
                 break
             case "TrackAudibleChanged":
+                enterRole(event.role)
                 if (event.audible) {
                     audibleRoles.add(event.role)
                     const pendingReason = pendingPerforming.get(event.role)
@@ -271,7 +282,11 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         Html.empty(receiptList)
         audibleRoles.clear()
         pendingPerforming.clear()
-        STAGE_ROLES.forEach(({id}) => setRoleState(id, "waiting"))
+        enteredRoles.clear()
+        STAGE_ROLES.forEach(({id}) => {
+            setRoleState(id, "waiting")
+            performerEls.get(id)?.classList.remove("entered")
+        })
         cancelMock = playMockTimeline(emit, {onDone: stopMock})
     }
     if (demoMode) {startMock()}
@@ -517,9 +532,24 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         return btn
     })
 
+    // ── 进棚过场（首次挂载的氛围过场，2.6s 或点击跳过；引擎加载发生在本组件挂载前） ──
+    const introSplash: HTMLElement = (
+        <div className="intro-splash">
+            <span className="intro-caption">上楼进棚 · DAWDEX</span>
+        </div>)
+    const dismissIntro = () => {
+        if (introSplash.classList.contains("gone")) {return}
+        introSplash.classList.add("gone")
+        setTimeout(() => introSplash.remove(), 700)
+    }
+    lifecycle.own(Events.subscribe(introSplash, "click", dismissIntro))
+    const introTimer = window.setTimeout(dismissIntro, 2600)
+    lifecycle.own(Terminable.create(() => window.clearTimeout(introTimer)))
+
     // ── 根节点（投屏演示模式作用于此） ───────────────────────────────────────
     const root: HTMLElement = (
         <div className={className}>
+            {introSplash}
             <div className="shell-header">
                 <span className="brand">{`DAWDEX v${DAWDEX_VERSION}`}</span>
                 {onAirLamp}
