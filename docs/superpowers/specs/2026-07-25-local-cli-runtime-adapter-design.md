@@ -53,15 +53,14 @@ authoritative in their current modules.
 
 ## 3. Initial Compatibility Set
 
-The first release supports three local CLIs. Codex and Kimi are installed on
-the target machine; Qoder support is implemented and tested even though
-`qodercli` is not currently installed there:
+The first release supports three local CLIs. All three commands are installed
+on the target machine:
 
 | Runtime | Command | Local verification | Planning transport |
 |---|---|---|---|
 | Codex CLI | `codex` | `codex-cli 0.145.0-alpha.30` | Existing `CodexAppServer` |
 | Kimi CLI | `kimi` | `0.29.1` | `kimi --prompt ... --output-format text` |
-| Qoder CLI | `qodercli` | Not currently installed | `qodercli -p --output-format stream-json` |
+| Qoder CLI | `qodercli` | `1.1.5` | `qodercli -p --output-format stream-json` |
 
 Codex is not reimplemented through `codex exec`; selecting Codex delegates to
 the current `CodexAppServer`, preserving ChatGPT login, structured output, rate
@@ -73,11 +72,11 @@ directory and asks for structured data only.
 
 Qoder's official CLI documentation confirms `qodercli` as the command,
 `--version` as the installation probe, `-p` as print mode, and
-`text`/`json`/`stream-json` output formats. It also documents the model tiers
-`lite`, `efficient`, `auto`, `performance`, and `ultimate`. Authentication
-remains Qoder-owned through a persisted `qodercli login` session or the
-inherited `QODER_PERSONAL_ACCESS_TOKEN`; DAWdex never stores or returns that
-token.
+`text`/`json`/`stream-json` output formats. The installed 1.1.5 command surface
+also exposes `--list-models`, `--tools`, `--permission-mode dont_ask`,
+`--no-session-persistence`, and `--max-output-tokens`. Authentication remains
+Qoder-owned through a persisted `qodercli login` session or the inherited
+`QODER_PERSONAL_ACCESS_TOKEN`; DAWdex never stores or returns that token.
 
 The registry is intentionally extensible. A newly detected command is not
 selectable until DAWdex has an adapter that can produce both validated output
@@ -231,16 +230,22 @@ Its invocation differs from Kimi:
 - Prompt content is written to standard input rather than placed in an
   argument, avoiding command-line length limits.
 - Fixed arguments are `-p`, `--output-format`, `stream-json`,
-  `--permission-mode`, `plan`, and `--max-turns`, `1`.
-- `--yolo` is explicitly forbidden. Open Design uses it for a general coding
-  agent, but DAWdex needs structured planning rather than autonomous workspace
-  modification.
-- In Qoder headless mode, actions requiring interactive approval fail closed.
-  Planning mode and an empty temporary workspace provide the narrowest
-  documented CLI boundary without claiming an OS sandbox.
+  `--permission-mode`, `dont_ask`, `--tools`, `""`,
+  `--no-session-persistence`, and a bounded `--max-output-tokens` value.
+- `--yolo`, `--dangerously-skip-permissions`, `accept_edits`, and
+  `bypass_permissions` are explicitly forbidden. Open Design uses `--yolo`
+  for a general coding agent, but DAWdex needs structured planning rather than
+  autonomous workspace modification.
+- In Qoder headless mode, `dont_ask` fails closed instead of opening an
+  approval prompt, while `--tools ""` removes built-in tools from the run.
+  Combined with an empty temporary workspace, this is the narrowest boundary
+  exposed by the installed CLI without claiming an OS sandbox.
 - `-w` points only to the DAWdex-owned temporary directory.
-- `--model` accepts only `lite`, `efficient`, `auto`, `performance`, or
-  `ultimate`; `null` preserves the CLI's saved default.
+- The discovery service uses `--list-models` after a successful version probe.
+  `--model` accepts only a model identifier returned by that installed CLI.
+  If live model discovery fails, Settings falls back to the documented tiers
+  `lite`, `efficient`, `auto`, `performance`, and `ultimate`; `null` preserves
+  the CLI's saved default.
 - The adapter parses Qoder's JSONL wrapper records. It concatenates text blocks
   from `assistant` messages, captures the model/version from the `system/init`
   record, and treats a `result` record with `is_error: true` as a failed
@@ -487,8 +492,9 @@ Automated coverage must prove:
    when permitted.
 9. Kimi valid output passes existing Creative Brief and Plan parsing.
 10. Kimi invalid output, timeout, and non-zero exit produce controlled errors.
-11. Qoder consumes the prompt from stdin, never uses `--yolo`, restricts model
-    values to the five documented tiers, and extracts final assistant text from
+11. Qoder consumes the prompt from stdin, disables tools, never uses a bypass
+    permission mode, restricts model values to live `--list-models` results or
+    the five documented fallbacks, and extracts final assistant text from
     representative `stream-json` records.
 12. Qoder error records, malformed JSONL, timeout, and non-zero exit produce
     controlled errors.
@@ -508,10 +514,9 @@ Automated coverage must prove:
 4. Connect the four HTTP operations from Section 6.
 5. Run Agent Server and Studio verification.
 6. Perform a real-machine scan and confirm the screen reports the installed
-   Codex and Kimi versions while Qoder remains unavailable when `qodercli` is
-   absent.
-7. After Qoder CLI is installed, rescan and confirm its real version replaces
-   the unavailable state without a frontend change.
+   Codex, Kimi, and Qoder versions.
+7. Confirm Qoder model discovery returns the signed-in account's live list or
+   the documented fallback tiers without exposing credentials.
 8. Select each available runtime and generate one Creative Brief and one
    validated plan without approving DAW execution.
 9. Approve one plan only after all provider outputs have passed schema and
