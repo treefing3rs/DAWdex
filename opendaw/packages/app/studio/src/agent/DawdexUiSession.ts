@@ -6,6 +6,12 @@ import type {DawdexRoomId} from "./DawdexStageAssets"
 export type DawdexViewMode = "product" | "workbench"
 export type DawdexPreviewAuthor = DanmakuAuthor | "producer" | RoleId
 
+export const shouldPlayDawdexVideo = (
+    surface: DawdexViewMode,
+    mode: DawdexViewMode,
+    isPlaying: boolean
+): boolean => isPlaying && surface === mode
+
 export type DawdexPreviewRole = {
     readonly entered: boolean
     readonly state: RoleState

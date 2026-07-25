@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest"
 import {dawdexRoom} from "./DawdexStageAssets"
-import {DawdexUiSession, getDawdexUiSession} from "./DawdexUiSession"
+import {DawdexUiSession, getDawdexUiSession, shouldPlayDawdexVideo} from "./DawdexUiSession"
 
 describe("DawdexUiSession", () => {
     it("switches between product and workbench without resetting stage state", () => {
@@ -72,5 +72,12 @@ describe("DawdexUiSession", () => {
             bg: "/dawdex/room_lounge.jpg",
             video: "/dawdex/room_lounge_loop.mp4"
         })
+    })
+
+    it("plays room video only on the visible surface", () => {
+        expect(shouldPlayDawdexVideo("product", "product", true)).toBe(true)
+        expect(shouldPlayDawdexVideo("workbench", "product", true)).toBe(false)
+        expect(shouldPlayDawdexVideo("workbench", "workbench", true)).toBe(true)
+        expect(shouldPlayDawdexVideo("product", "product", false)).toBe(false)
     })
 })
