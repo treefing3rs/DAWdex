@@ -120,9 +120,8 @@ component
   .stage-bezel
     position: relative
     z-index: 1
-    width: min(1440px, 97%, calc((100vh - 360px) * 16 / 9.5))
-    aspect-ratio: 16 / 9.5
-    padding: 16px 18px 42px // 整机前框：屏嵌在上部，底部下巴留给软驱槽
+    width: min(1440px, 97%, calc((100vh - 418px) * 16 / 9.5 + 36px))
+    padding: 16px 18px 42px // 整机前框：屏嵌在上部，底部下巴留给软驱槽（高度由 .stage 的 16/9.5 + 边框推出，保证屏区比例恒定）
     border: 1px solid #e3e1d9
     border-radius: 22px
     background: linear-gradient(180deg, #f7f5ef, #edebe4)
@@ -234,7 +233,7 @@ component
   .stage
     position: relative
     width: 100%
-    height: 100%
+    aspect-ratio: 16 / 9.5 // 屏区比例恒定：替身/命中层的 % 标定只在此比例下成立
     border-radius: 12px
     overflow: hidden
     background: $screen-bg
@@ -1330,7 +1329,7 @@ component
     .desk-scene
       perspective: none
     .stage-bezel
-      width: min(1560px, 98%, calc((100vh - 260px) * 16 / 9.5))
+      width: min(1560px, 98%, calc((100vh - 318px) * 16 / 9.5 + 36px))
       transform: none
     .crt-stand
       display: none
@@ -1406,7 +1405,7 @@ component
       perspective: none
     .stage-bezel
       transform: none
-      width: min(1080px, 96%, calc((100vh - 470px) * 16 / 9.5))
+      width: min(1080px, 96%, calc((100vh - 528px) * 16 / 9.5 + 36px))
     .crt-stand
       display: none
     .keyboard-deck
