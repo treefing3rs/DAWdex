@@ -121,12 +121,16 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         <img className="obj obj-monitor" src="/dawdex/obj_monitor.png" alt="" draggable={false}/>)
     const guitarSprite: HTMLImageElement = (
         <img className="obj obj-guitar" src="/dawdex/obj_guitar.png" alt="" draggable={false}/>)
-    // 轮廓命中层：clip-path 沿物件真实轮廓，hover 以物件形状发光（不是方框）
-    const lampHit: HTMLElement = (<div className="obj-hit hit-lamp" title="吊灯 · 能量"/>)
-    const monitorHit: HTMLElement = (<div className="obj-hit hit-monitor" title="REC 监视器 · 走带"/>)
-    const guitarHit: HTMLElement = (<div className="obj-hit hit-guitar" title="沙发旁的吉他 · 换乐器"/>)
+    // 轮廓命中层：clip-path 沿物件真实轮廓；hover 出物件名小标签（data-label）
+    const lampHit: HTMLElement = (<div className="obj-hit hit-lamp" data-label="吊灯 · 能量" title="吊灯 · 能量"/>)
+    const monitorHit: HTMLElement = (<div className="obj-hit hit-monitor" data-label="REC 监视器 · 走带" title="REC 监视器 · 走带"/>)
+    const guitarHit: HTMLElement = (<div className="obj-hit hit-guitar" data-label="沙发旁的吉他 · 换乐器" title="沙发旁的吉他 · 换乐器"/>)
     // 调音台热点（无 sprite：hover 时通道灯增亮 + 轮廓高光）
-    const deskHotspot: HTMLElement = (<div className="obj-hit hit-desk" title="调音台 · 轨道"/>)
+    const deskHotspot: HTMLElement = (<div className="obj-hit hit-desk" data-label="调音台 · 轨道" title="调音台 · 轨道"/>)
+    // 纯命中层物件（无 sprite，hover 只出标签）：挂画 = 工程概览；书架 = 素材架；挂钟 = 循环
+    const artHit: HTMLElement = (<div className="obj-hit hit-art" data-label="声波挂画 · 工程概览" title="声波挂画 · 工程概览"/>)
+    const shelfHit: HTMLElement = (<div className="obj-hit hit-shelf" data-label="书架 · 素材架" title="书架 · 素材架"/>)
+    const clockHit: HTMLElement = (<div className="obj-hit hit-clock" data-label="挂钟 · 循环" title="挂钟 · 循环"/>)
     const ledDrums: HTMLElement = (<span className="rack-led" data-role="drums" title="鼓轨道 · 发声确认灯"/>)
     const ledBass: HTMLElement = (<span className="rack-led" data-role="bass" title="贝斯轨道 · 发声确认灯"/>)
     const ledKeys: HTMLElement = (<span className="rack-led" data-role="keys" title="键盘轨道 · 发声确认灯"/>)
@@ -150,6 +154,7 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
                 {lampGlow}
                 {lampSprite}{monitorSprite}{guitarSprite}
                 {lampHit}{monitorHit}{guitarHit}{deskHotspot}
+                {artHit}{shelfHit}{clockHit}
                 {ledDrums}{ledBass}{ledKeys}
                 {clockHand}
             </div>
@@ -237,6 +242,40 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     const flashNoise = () => {
         noise.classList.remove("hidden")
         setTimeout(() => noise.classList.add("hidden"), 480)
+    }
+
+    // ── AI 乐迷附和（氛围弹幕层，与真实反馈分层） ─────────────────────────
+    // 乐迷弹幕 = 模板池 + 揉入用户关键词，纯本地、零延迟、可调侃；
+    // 制作人/角色回复仍严格从真实事件派生（echo 字段），不伪造反馈。
+    const FAN_TEMPLATES: ReadonlyArray<string> = [
+        "前排围观",
+        "炸起来炸起来",
+        "这 loop 有点上头",
+        "制作人搞快点",
+        "蹲一个 drop",
+        "贝斯进来我就起飞",
+        "已截图，等一个神级现场",
+        "{text} +1",
+        "复议：{text}",
+        "{text} 说得好",
+        "为「{text}」打 call",
+        "{text}，双手赞成"
+    ]
+    const fanTimers: Array<number> = []
+    lifecycle.own(Terminable.create(() => fanTimers.forEach(t => window.clearTimeout(t))))
+    const spawnFanReactions = (userText: string) => {
+        const keyword = userText.trim().slice(0, 10)
+        const pool = keyword.length > 0
+            ? FAN_TEMPLATES
+            : FAN_TEMPLATES.filter(t => t.indexOf("{text}") < 0)
+        const count = 2 + Math.floor(Math.random() * 3) // 每次 2-4 条附和
+        for (let i = 0; i < count; i++) {
+            const timer = window.setTimeout(() => {
+                const tpl = pool[Math.floor(Math.random() * pool.length)]
+                launchDanmaku(tpl.replace(/\{text\}/g, keyword), "ai-fan")
+            }, 700 + Math.random() * 2600) // 0.7-3.3s 内陆续飘过
+            fanTimers.push(timer)
+        }
     }
 
     // ── 权威时钟 + 循环进度（以最近一次 TransportChanged 校准，暂停时冻结） ──
@@ -507,6 +546,7 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         if (cancelMock !== null) {stopMock()}
         input.value = ""
         const danmakuId = realBridge.receiveDanmaku(text)
+        spawnFanReactions(text) // 乐迷附和（氛围层）；制作人/角色的真实回执仍走事件链
         requestPlan(text, danmakuId)
     }
     const intervene = (kind: InterventionKind) => {
@@ -638,12 +678,15 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     })
 
     // ── 物件功能面板（舞台内二级页面：点击物件从右缘滑出，§9.4） ─────────────
-    type PanelKind = "monitor" | "desk" | "guitar" | "lamp"
+    type PanelKind = "monitor" | "desk" | "guitar" | "lamp" | "art" | "shelf" | "clock"
     const PANEL_TITLES: Record<PanelKind, string> = {
         monitor: "REC 监视器 · 走带",
         desk: "调音台 · 轨道",
         guitar: "沙发旁的吉他",
-        lamp: "吊灯 · 能量"
+        lamp: "吊灯 · 能量",
+        art: "声波挂画 · 工程概览",
+        shelf: "书架 · 素材架",
+        clock: "挂钟 · 循环"
     }
     let openPanelKind: PanelKind | null = null
     const closePanel = () => {
@@ -707,6 +750,33 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
             appendChildren(body,
                 (<div className="panel-note">触发一次「换乐器」干预：制作人会生成新的音色计划，批准后真实改写工程</div>),
                 swapBtn)
+        } else if (kind === "art") {
+            // 声波挂画 = 工程概览：当前工程状态 + 轨道清单（只读）
+            appendChildren(body,
+                (<div className="panel-row big">{`${Math.round(bpm)} BPM · ${keySig} · ${barsPerLoop} 小节循环`}</div>),
+                (<div className="panel-sub">工程轨道</div>),
+                buildTrackRows())
+        } else if (kind === "shelf") {
+            // 书架 = 素材架：openDAW 工程里的真实素材（音频/SoundFont/Playfield 等）
+            const assets = daw.snapshot().assets ?? []
+            if (assets.length === 0) {
+                appendChildren(body,
+                    (<div className="panel-note">素材架空着 — 生成或导入的 MIDI、音频素材会摆到这里</div>))
+            } else {
+                const rows: HTMLElement = (<div className="panel-tracks"/>)
+                assets.forEach(asset => appendChildren(rows, (
+                    <div className="panel-track">
+                        <span className="track-dot on"/>
+                        <span className="track-name">{asset.name}</span>
+                        <span className="track-meta">{asset.kind}</span>
+                    </div>)))
+                appendChildren(body, rows)
+            }
+        } else if (kind === "clock") {
+            // 挂钟 = 循环：指针已是 loopPos 的 Diegetic 绑定，面板给出读数
+            appendChildren(body,
+                (<div className="panel-row big">{`${barsPerLoop} 小节循环 · ${Math.round(bpm)} BPM · ${keySig}`}</div>),
+                (<div className="panel-note">{`指针转一圈 = 一个循环（约 ${(barsPerLoop * 4 * 60 / bpm).toFixed(1)} 秒），暂停时指针冻结`}</div>))
         } else {
             const strongerBtn: HTMLButtonElement = (<button type="button" className="panel-primary">更有力量</button>)
             const lighterBtn: HTMLButtonElement = (<button type="button" className="panel-primary">更轻松</button>)
@@ -826,6 +896,18 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
             event.stopPropagation()
             openPanel("desk")
         }),
+        Events.subscribe(artHit, "click", event => {
+            event.stopPropagation()
+            openPanel("art")
+        }),
+        Events.subscribe(shelfHit, "click", event => {
+            event.stopPropagation()
+            openPanel("shelf")
+        }),
+        Events.subscribe(clockHit, "click", event => {
+            event.stopPropagation()
+            openPanel("clock")
+        }),
         // 面板外点击舞台 = 关闭面板；面板内点击不冒泡
         Events.subscribe(stageEl, "click", () => {
             if (openPanelKind !== null) {closePanel()}
@@ -842,10 +924,12 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     }
     // 支持 ?workbench=1 深链：直接以收起态（openDAW 工作台）启动
     if (new URLSearchParams(window.location.search).has("workbench")) {setCollapsed(true)}
-    // 支持 ?panel=monitor|desk|guitar|lamp 深链：直接打开物件功能面板（演示导航用）
+    // 支持 ?panel=monitor|desk|guitar|lamp|art|shelf|clock 深链：直接打开物件功能面板（演示导航用）
     const initialPanel = new URLSearchParams(window.location.search).get("panel")
     if (initialPanel === "monitor" || initialPanel === "desk"
-        || initialPanel === "guitar" || initialPanel === "lamp") {openPanel(initialPanel)}
+        || initialPanel === "guitar" || initialPanel === "lamp"
+        || initialPanel === "art" || initialPanel === "shelf"
+        || initialPanel === "clock") {openPanel(initialPanel)}
 
     // 巡棚房间背景 + 物件 sprite 预载（避免首次切台白闪）
     const preloadImage = (src: string) => {

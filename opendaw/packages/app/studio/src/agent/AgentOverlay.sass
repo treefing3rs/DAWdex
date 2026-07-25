@@ -442,28 +442,48 @@ component
   .hotspots:has(.hit-desk:hover) .rack-led
     filter: brightness(1.6)
 
-  // ── 轮廓命中层（clip-path 沿物件真实轮廓；hover 以物件形状发光） ──
+  // ── 轮廓命中层（clip-path 沿物件真实轮廓） ──
+  // hover 反馈保持克制：7% 白提亮剪影 + 像素风物件名小标签（指点冒险游戏式），不铺光晕
   .obj-hit
     position: absolute
     pointer-events: auto
     cursor: pointer
     transition: background 200ms ease
+    &::after
+      content: attr(data-label)
+      position: absolute
+      bottom: calc(100% + 8px)
+      left: 50%
+      transform: translateX(-50%)
+      padding: 2px 7px
+      border-radius: 3px
+      border: 1px solid rgba($amber, 0.55)
+      background: rgba(14, 11, 8, 0.88)
+      color: $amber
+      font-size: clamp(10px, 1vw, 12px)
+      letter-spacing: 0.06em
+      white-space: nowrap
+      opacity: 0
+      transition: opacity 150ms ease
     &:hover
-      background: radial-gradient(ellipse at center, rgba($amber, 0.30), rgba($amber, 0.04) 78%)
+      background: rgba(255, 255, 255, 0.07)
+      &::after
+        opacity: 1
   .hit-lamp
     left: 62.92%
     top: 0
     width: 11.83%
     height: 31%
     clip-path: polygon(45.6% 0%, 50.7% 0%, 50.7% 63.3%, 77.7% 63.3%, 93.5% 89.6%, 65.6% 89.6%, 65.6% 97.3%, 34.9% 97.3%, 34.9% 89.6%, 6% 89.6%, 17.2% 63.3%, 45.6% 63.3%)
+    &::after // 吊灯贴顶棚，标签改放灯罩下方
+      bottom: auto
+      top: calc(100% + 8px)
   .hit-monitor
     left: 16.47%
     top: 41.1%
     width: 11.65%
     height: 18.9%
     clip-path: polygon(2.4% 2%, 97.6% 2%, 97.6% 79.4%, 64.6% 79.4%, 64.6% 98%, 36.8% 98%, 36.8% 79.4%, 2.4% 79.4%)
-    &:hover
-      background: radial-gradient(ellipse at center, rgba($cyan, 0.28), rgba($cyan, 0.04) 78%)
   .hit-guitar
     left: 49.73%
     top: 63%
@@ -476,6 +496,35 @@ component
     width: 12.9%
     height: 11.1%
     clip-path: polygon(2% 18%, 98% 0%, 100% 100%, 0% 100%)
+  // 声波城市挂画（帧 x1055-1555 y375-630）→ 工程概览面板
+  .hit-art
+    left: 55.2%
+    top: 34.7%
+    width: 27.5%
+    height: 23.6%
+    border-radius: 2px
+  // 右侧书架（帧 x1680-1905 y450-1080，右缘被 cover 裁掉）→ 素材架面板
+  .hit-shelf
+    left: 89.6%
+    top: 41.7%
+    width: 10.4%
+    height: 58.3%
+    border-radius: 2px
+    &::after // 右缘物件：标签右对齐避免溢出
+      left: auto
+      right: 0
+      transform: none
+  // 挂钟（帧 x1725-1885 y245-385）→ 循环面板；指针已是 loopPos 绑定
+  .hit-clock
+    left: 92.1%
+    top: 22.7%
+    width: 7.9%
+    height: 12.9%
+    border-radius: 50%
+    &::after
+      left: auto
+      right: 0
+      transform: none
 
   // 调音台角色色通道灯（视频帧 y768；x 370/435/500）= TrackAudibleChanged 发声确认
   .rack-led
