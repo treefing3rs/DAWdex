@@ -1,555 +1,451 @@
 # DAWdex 技术方案
 
-## openDAW + 音乐意图编译器 + 多角色 Agent 编排
+> 基线：0.3.0 / PR #11
+> 适用范围：当前真实 MIDI 垂直切片，以及下一阶段完整歌曲扩展
 
-| 项目 | 当前原型 | 黑客松目标 |
+## 一、技术边界
+
+| 层 | 当前 0.3.0 | 下一阶段 |
 |---|---|---|
-| 音乐引擎 | openDAW Studio | 保持 |
-| UI | 浏览器内全屏遮罩与 Agent 侧栏 | 角色乐队舞台 |
-| Agent | OpenAI Agents SDK + 本地 Planner | Provider 抽象、角色任务 |
-| 动作 | Tempo、四种固定 Pattern | MusicBrief、检索、变体、循环调度 |
-| 音乐素材 | 确定性音符生成 | 高质量 MIDI 库 |
-| 桌面封装 | 未完成 | P2，Demo 不依赖 |
+| Product State | 当前 openDAW Snapshot | 持久 Song Blueprint、锁定和版本 |
+| Planning | Creative Brief + AgentPlan | Song Plan + Section/Phrase Patch |
+| Retrieval | SQLite 检索真实 MIDI | motif/riff family、相似度和风格增强 |
+| Transformation | 裁剪、循环、音域、基础 MIDI Transform | 有来源的动机发展 |
+| Sound | Vaporisateur + Mixer + Effects | Instrument & Sound Catalog |
+| Execution | 角色轨道 upsert + 通用 DAW 控制 | 面向 Section 的 Patch Executor |
+| Validation | Schema、ID、Capability、Quality Gate | 结构、重复度、能量曲线与锁定范围 |
+| UI | 真实事件、角色与六房间 | 编曲白板、Section 状态和物件热点 |
 
-## 一、代码基线
+生产规划路径必须检索和导入已有 MIDI。不得使用旧 `PatternCompiler` 或固定 Bass/Chord/Pulse/Lead 模板合成替代音符。
 
-当前 DAWdex 原型位于：
+## 二、代码地图
 
 ```text
 opendaw/
-├─ packages/app/studio/src/agent/
-│  ├─ AgentClient.ts
-│  ├─ AgentOverlay.tsx
-│  ├─ AgentOverlay.sass
-│  ├─ AgentProtocol.ts
-│  ├─ DawProjectAdapter.ts
-│  ├─ LocalMusicPlanner.ts
-│  └─ LocalMusicPlanner.test.ts
-└─ packages/server/dawdex-agent/
-   ├─ src/server.ts
-   ├─ .env.example
-   └─ package.json
+├─ packages/server/dawdex-agent/
+│  └─ src/
+│     ├─ server.ts
+│     ├─ CodexAppServer.ts
+│     ├─ MusicPlan.ts
+│     ├─ MidiCatalog.ts
+│     └─ index-midi.ts
+└─ packages/app/studio/src/agent/
+   ├─ AgentClient.ts
+   ├─ AgentProtocol.ts
+   ├─ AgentOverlay.tsx
+   ├─ DawProjectAdapter.ts
+   ├─ DawCapabilityRegistry.ts
+   ├─ DawControlExecutor.ts
+   ├─ LocalMusicPlanner.ts
+   ├─ RealUiEventBridge.ts
+   ├─ ui-contract.ts
+   └─ music/
+      ├─ MidiAsset.ts
+      ├─ QualityGate.ts
+      └─ TrackSound.ts
 ```
 
-Studio 默认请求：
+## 三、运行接口
 
-```text
-POST http://localhost:8787/v1/plan
-```
+Agent Server 默认监听 `http://127.0.0.1:8787`。
 
-请求：
+| 方法 | 路径 | 用途 |
+|---|---|---|
+| `GET` | `/v1/provider/status` | Codex/OpenAI/Local 状态 |
+| `POST` | `/v1/provider/codex/login` | 发起 ChatGPT/Codex 登录 |
+| `POST` | `/v1/plan` | 一次性返回 Plan |
+| `POST` | `/v1/plan/stream` | NDJSON 返回进度与 Plan |
+| `GET` | `/v1/midi-assets/:id` | 下载目录中已授权的 MIDI |
+
+计划请求：
 
 ```json
 {
-  "prompt": "副歌更炸一点，但不要太满",
+  "prompt": "副歌更有力量，但保留 Keys",
   "snapshot": {
     "hasProject": true,
     "bpm": 120,
-    "tracks": [
-      {
-        "name": "Keys",
-        "trackCount": 1,
-        "regionCount": 1
-      }
-    ]
+    "tracks": [],
+    "transport": {
+      "playing": false,
+      "position": 0,
+      "loopEnabled": true,
+      "loopFrom": 0,
+      "loopTo": 4
+    },
+    "capabilities": {
+      "commands": ["transport", "track", "region", "effect"],
+      "instruments": [],
+      "midiEffects": [],
+      "audioEffects": []
+    }
   }
 }
 ```
 
-网络、HTTP 或 Schema 失败时，`AgentClient` 自动调用 `LocalMusicPlanner`。
+请求体限制为 64 KiB；默认允许来源为 `http://localhost:8080`。
 
-## 二、当前协议
+## 四、Provider
 
-```ts
-type DawAction =
-    | {
-        readonly type: "set-tempo"
-        readonly bpm: number
-    }
-    | {
-        readonly type: "create-instrument"
-        readonly name: string
-        readonly pattern: "bass" | "chords" | "pulse" | "lead"
-        readonly startBar: number
-        readonly bars: number
-        readonly rootMidi: number
-        readonly velocity: number
-        readonly density: number
-    }
+环境变量：
+
+```text
+DAWDEX_AGENT_PROVIDER=auto|codex|openai
+DAWDEX_AGENT_PORT=8787
+DAWDEX_STUDIO_ORIGIN=http://localhost:8080
+DAWDEX_CODEX_CWD=<optional isolated planning cwd>
+OPENAI_API_KEY=<optional>
+OPENAI_MODEL=<optional>
+OPENAI_BASE_URL=<optional>
 ```
 
-当前 `compilePattern` 使用固定四和弦循环和确定性规则。它适合验证工程写入，但不能承担正式音乐生成。
+`auto` 顺序：
 
-## 三、目标数据模型
-
-### ProjectSnapshot
-
-```ts
-type ProjectSnapshot = {
-    readonly transport: {
-        readonly isPlaying: boolean
-        readonly bpm: number
-        readonly timeSignature: readonly [number, number]
-        readonly loopStartPpqn: number
-        readonly loopLengthPpqn: number
-    }
-    readonly harmony: {
-        readonly key: string
-        readonly scale: string
-        readonly chordProgression: ReadonlyArray<string>
-    }
-    readonly tracks: ReadonlyArray<TrackSnapshot>
-}
+```text
+authenticated Codex app-server
+→ configured OpenAI-compatible API
+→ Studio LocalMusicPlanner fallback
 ```
 
-后续快照必须读取实际音符摘要，而不是只统计 Region 数量：
+`CodexAppServer` 负责：
 
-```ts
-type TrackSnapshot = {
-    readonly id: string
-    readonly role: MusicRole | "unknown"
-    readonly name: string
-    readonly instrument: string
-    readonly range: readonly [number, number]
-    readonly regions: ReadonlyArray<RegionSnapshot>
-}
+- 发现和启动 `codex app-server`；
+- 查询账号、套餐和速率限制；
+- 发起 ChatGPT 登录；
+- 创建/继续规划线程；
+- 解析结构化输出；
+- 超时、退出与待处理请求清理。
+
+浏览器不直接执行 CLI，也不保存 Codex 或 OpenAI 密钥。
+
+## 五、MIDI 数据库
+
+### 数据事实
+
+```text
+midi/easy/                      194,553 files
+midi/.dawdex/catalog.sqlite     local generated index
+validated rows                  193,320
+roles                           drums | bass | keys
 ```
 
-### MusicBrief
+索引命令：
+
+```bash
+cd opendaw
+npm run index:midi -w @dawdex/agent-server
+```
+
+数据库不提交 Git。Agent Server 完整打开时应输出大约：
+
+```text
+DAWdex opened 193320 indexed MIDI assets
+```
+
+### 检索契约
+
+`MidiCatalog`：
+
+1. 根据 role 和 Creative Brief 查询；
+2. 使用结构化特征排序；
+3. 去除重复 fingerprint；
+4. 给模型少量精确候选；
+5. 校验模型返回的 Asset ID 与路径；
+6. 只允许 `/v1/midi-assets/:id` 读取目录内资产。
+
+模型不能浏览整个目录，也不能编造文件路径。
+
+### 数据库策略
+
+第一阶段不需要人工标记全部文件，也不需要通用向量数据库。自动索引优先：
+
+```text
+role
+track count
+bar length / meter / tempo hint
+pitch range / density / polyphony
+rhythm and onset fingerprint
+key / scale / chord hints
+duplicate and quality state
+```
+
+后续只对难以结构化的风格、情绪和相似听感增加 Embedding，并将代表性片段聚合为 motif/riff family。
+
+## 六、当前规划数据
+
+### Creative Brief
+
+当前 Brief 包含：
 
 ```ts
 type MusicBrief = {
-    readonly requestId: string
-    readonly selectedAudienceIntent: {
-        readonly originalText: string
-        readonly normalizedText: string
-        readonly summary: string
-        readonly score: number
-    }
-    readonly global: {
-        readonly bpm: number
-        readonly key: string
-        readonly scale: string
-        readonly timeSignature: readonly [number, number]
-        readonly bars: 4 | 8
-        readonly energy: number
-        readonly tension: number
-        readonly preserve: ReadonlyArray<string>
-    }
-    readonly roleTasks: ReadonlyArray<RoleTask>
+    intent: "create" | "add" | "restyle" | "modify"
+    style: string
+    styleAlternatives: readonly string[]
+    moods: readonly string[]
+    decisionSummary: string
+    instrumentation: readonly string[]
+    bpm: number
+    key: string
+    bars: 4 | 8
+    energy: number
+    swing: number
+    preserveTrackIds: readonly string[]
+    targetRoles: readonly ("drums" | "bass" | "keys")[]
 }
 ```
 
-### RoleTask
+风格字段是开放字符串；Dubstep、R&B 只是测试和 Profile 示例，不是 Schema 上限。
+
+### 角色轨道动作
 
 ```ts
-type RoleTask = {
-    readonly id: string
-    readonly role: MusicRole
-    readonly professionalSummary: string
-    readonly listenerExplanation: string
-    readonly operation: MusicOperation
-    readonly constraints: ReadonlyArray<string>
-    readonly confidence: number
+type UpsertRoleTrackAction = {
+    type: "upsert-role-track"
+    mode: "create" | "replace"
+    targetTrackId: string | null
+    role: "drums" | "bass" | "keys"
+    style: string
+    startBar: number
+    bars: number
+    rootMidi: number
+    seed: number
+    density: number
+    energy: number
+    midiAssetId: string
+    midiAssetPath: string
+    sound: TrackSoundDesign
 }
 ```
 
-### MusicOperation
+约束：
 
-MVP 只开放有界操作：
+- `replace` 只能指向当前 Snapshot 中的 DAWdex 生成轨道；
+- 用户轨道和 `preserveTrackIds` 不得修改；
+- Asset ID/Path 必须来自给定候选；
+- 不同角色使用不同 seed；
+- Keys 不放入 Bass 音区；
+- 一轮动作总数不超过 8。
 
-```ts
-type MusicOperation =
-    | RetrieveAndTransformMidi
-    | CreatePattern
-    | ReplaceRoleTrack
-    | ChangeRoleDensity
-    | ChangeVoicing
-    | SetTempo
-```
+### 音色
 
-不允许模型生成任意函数名、脚本或文件路径。
-
-## 四、弹幕管线
+`TrackSoundDesign` 当前使用：
 
 ```text
-RawDanmaku[]
-→ normalizeText
-→ repairTranscription
-→ rejectGarbage
-→ deduplicate
-→ clusterIntent
-→ scoreCandidate
-→ ProducerDecision
+Vaporisateur parameters
++ mixer volume/pan/mute/solo
++ 0..4 role-appropriate effects
 ```
 
-### NormalizedDanmaku
+模型必须给 drums、bass、keys 设计不同音色，并避免 Sub Bass 上的宽立体声和过量 Reverb。
+
+## 七、通用 DAW 控制
 
 ```ts
-type NormalizedDanmaku = {
-    readonly id: string
-    readonly source: "human" | "ai-fan" | "preset"
-    readonly rawText: string
-    readonly normalizedText: string
-    readonly language: string
-    readonly createdAtMs: number
+type DawControlAction = {
+    type: "control"
+    command:
+        | "transport" | "loop" | "track" | "region"
+        | "midi-transform" | "instrument" | "effect"
+        | "device-parameter" | "automation"
+        | "bus" | "send" | "routing"
+    operation: string
+    targetTrackId: string | null
+    targetRegionId: string | null
+    targetDeviceId: string | null
+    targetBusId: string | null
+    assetId: string
+    parameters: readonly DawControlParameter[]
+    points: readonly DawAutomationPoint[]
 }
 ```
 
-第一版不需要复杂向量数据库。少量弹幕可以使用模型或 Embedding 加阈值聚类；单用户 Demo 可以直接跳过聚类，但数据结构必须保留来源。
+支持矩阵以 `DawCapabilityRegistry.ts` 为准。关键规则：
 
-### ProducerScore
+- Track/Region/Device/Bus 使用 Snapshot 精确 ID；
+- Instrument 与 Effect 使用 Capability 白名单；
+- Soundfont/Nano/Playfield/Apparat 必须给工程内 Asset ID；
+- Automation 至少两个点，值归一化到 0..1；
+- Quantize 只允许 4/8/16/32；
+- Humanize 使用确定 seed；
+- 所有工程修改合并为一个 Undo 事务。
 
-```ts
-type ProducerScore = {
-    readonly relevance: number
-    readonly consensus: number
-    readonly feasibility: number
-    readonly novelty: number
-    readonly continuity: number
-    readonly total: number
-}
-```
-
-评分结果用于解释选中原因，不展示模型私有思维链。
-
-## 五、Agent 编排
-
-### 稳定模式
-
-一次请求返回完整 `MusicBrief`：
+## 八、MIDI 导入与质量闸门
 
 ```text
-prompt + project snapshot
-→ Producer Agent
-→ structured MusicBrief
-→ Zod validation
-→ role messages staged in UI
+GET /v1/midi-assets/:id
+→ MidiAsset parser
+→ select/merge usable note events
+→ fit requested bars
+→ role range and octave adaptation
+→ QualityGate
+→ create/replace openDAW Region
 ```
 
-优点：
+允许的变换：
 
-- 一次模型延迟；
-- 全局约束一致；
-- 角色不互相打架；
-- 适合现场 Demo。
+- loop/crop；
+- 按小节适配；
+- 八度与角色音域适配；
+- 受控 transpose、velocity、quantize、humanize。
 
-### 独立角色模式
+不允许把选中 MIDI 丢弃后用固定模板重新生成音符。
 
-后续：
+## 九、UI 契约
+
+当前 `ui-contract.ts` 的下行事件：
 
 ```text
-Producer Brief
-  ├─ Drummer Agent
-  ├─ Bassist Agent
-  ├─ Keyboard Agent
-  └─ Lead Agent
-        ↓
-Arranger merge
-        ↓
-Producer approval
+DanmakuReceived
+ProducerSelected
+RoleTaskAssigned
+RoleStateChanged
+TransportChanged
+TrackAudibleChanged
+OperationResult
 ```
 
-即使独立调用同一个基础模型，只要上下文、职责、输出和生命周期独立，也可以视为多 Agent。若一次调用同时写完全部角色，只称多角色编排。
+上行意图：
 
-## 六、Provider 与 Runtime
+```text
+DanmakuSubmit
+UserIntervention
+```
 
-### 配置
+关键不变量：
+
+```text
+RoleStateChanged(performing)
+    does not prove audible playback
+
+TrackAudibleChanged(audible=true)
+    unlocks performing animation
+```
+
+Mock 与真实桥共用事件签名。Mock 只能通过 `?mock=1` 或 `↻` 启动。
+
+## 十、完整歌曲扩展契约
+
+### Song Blueprint
+
+第一版建议：
 
 ```ts
-type ProviderConfig = {
-    readonly id: "openai" | "qwen" | "custom"
-    readonly protocol: "responses" | "chat-completions"
-    readonly baseUrl: string
-    readonly model: string
-    readonly apiKeyRef: string
+type SongBlueprint = {
+    id: string
+    revision: number
+    title: string
+    tempo: number
+    meter: readonly [number, number]
+    key: string
+    style: string
+    targetBars: number
+    energyCurve: readonly number[]
+    sections: readonly SongSection[]
+    lockedSectionIds: readonly string[]
+}
+
+type SongSection = {
+    id: string
+    kind: "intro" | "verse" | "pre-chorus" | "chorus"
+        | "bridge" | "breakdown" | "outro" | "custom"
+    startBar: number
+    bars: number
+    energy: number
+    roleIds: readonly string[]
+    phraseIds: readonly string[]
 }
 ```
 
-`apiKeyRef` 指向服务端或未来 Electron Main 的安全存储，不包含 Key 本身。
+### Song Patch
 
-### API Runtime
+```ts
+type SongPatch = {
+    id: string
+    baseRevision: number
+    targetSectionIds: readonly string[]
+    preserveSectionIds: readonly string[]
+    operations: readonly SongOperation[]
+    rationale: readonly string[]
+}
+```
 
 必须验证：
 
-- 目标路径是 `/responses` 还是 `/chat/completions`；
-- Tool Calling；
-- Structured Outputs 或可靠 JSON；
-- 流式事件格式；
-- 错误响应；
-- 超时与取消；
-- 模型 ID。
+- `baseRevision` 与当前 Blueprint 一致；
+- target 与 preserve 不冲突；
+- locked Section 不被修改；
+- Section 不重叠且覆盖有效小节；
+- Phrase 记录来源 Asset 和 transforms；
+- Patch 翻译为现有 openDAW 动作后仍通过 Capability；
+- 一次 Patch 可整体撤销。
 
-“OpenAI-compatible”不是充分条件。
+### 新 UI 事件
 
-### CLI Runtime
-
-可参考 Open Design 的 Runtime Adapter：
+现有 v0.1 事件不重做，只做增量：
 
 ```text
-detect binary
-→ detect auth
-→ launch child process
-→ send prompt through stdin
-→ parse JSONL/plain stream
-→ normalize AgentEvent
-→ capture session id
-→ cancel/resume
+BlueprintChanged
+SectionChanged
+SectionLocked
+PhraseDeveloped
 ```
 
-Codex CLI 目标命令形态：
+控制室编曲白板消费这些事件，不自行推测歌曲结构。
 
-```text
-codex exec --json --output-schema <schema> --sandbox read-only
-```
+## 十一、音色目录扩展
 
-CLI Runtime 只返回结构化计划，不直接修改 openDAW，也不使用 `danger-full-access`。
-
-### Demo 决策
-
-- 默认：OpenAI API；
-- 回退：LocalMusicPlanner；
-- P1：千问/自定义中转；
-- P2：Codex CLI 等本地 Runtime。
-
-## 七、MIDI 素材库
-
-### 元数据
-
-每个素材至少包含：
+正式 Instrument & Sound Catalog 与 MIDI Catalog 分离：
 
 ```ts
-type MidiAssetMetadata = {
-    readonly id: string
-    readonly path: string
-    readonly role: MusicRole
-    readonly styleTags: ReadonlyArray<string>
-    readonly moodTags: ReadonlyArray<string>
-    readonly bpm: number
-    readonly key: string
-    readonly scale: string
-    readonly timeSignature: readonly [number, number]
-    readonly bars: number
-    readonly energy: number
-    readonly density: number
-    readonly pitchRange: readonly [number, number]
-    readonly license: string
-    readonly source: string
-    readonly redistributionAllowed: boolean
+type SoundProfile = {
+    id: string
+    roles: readonly string[]
+    styles: readonly string[]
+    instrumentKind: string
+    assetId: string | null
+    preset: Record<string, number | string | boolean>
+    effectProfileIds: readonly string[]
+    range: readonly [number, number]
+    available: boolean
+    license: string
 }
 ```
 
-### 检索
+浏览器路径：
 
-MVP 可以使用加权打分：
+- SF2/SoundFont：先导入工程资产；
+- WAV/AIFF：先导入后交给 Nano/Playfield；
+- Synth：使用 openDAW 设备与安全参数；
+- 本机 AU/VST：未来必须通过单独的本地 Bridge，不直接开放浏览器文件/插件访问。
 
-```text
-role match       30%
-style/mood       25%
-key/scale        15%
-energy/density   15%
-bars/meter       10%
-bpm               5%
+## 十二、安全与隐私
+
+- API Key 只通过 Agent Server 环境变量；
+- Codex 认证由本机 app-server 管理；
+- Prompt 和 Snapshot 只发送计划所需字段；
+- MIDI 下载只允许目录内 ID；
+- 不允许模型调用文件、Shell 或网络工具；
+- 不允许模型发出未经 Capability 校验的任意内部操作；
+- AI 弹幕和本地回退必须明确标识。
+
+## 十三、验证
+
+改变 Agent、MIDI 或执行路径后运行：
+
+```bash
+cd opendaw
+npm run build -w @dawdex/agent-server
+npm run test -w @dawdex/agent-server
+npm run build -w @opendaw/app-studio
+npm run test -w @opendaw/app-studio
+git diff --check
 ```
 
-调性和 BPM 可以变换，因此不是绝对拒绝条件；拍号和角色必须严格匹配。
+纯文档变更至少运行：
 
-### 变体
-
-允许的第一版变换：
-
-- transpose；
-- octave fit；
-- crop/repeat to 4 or 8 bars；
-- quantize；
-- velocity curve；
-- density reduction；
-- last-bar variation；
-- motif inversion 或受限 pitch substitution。
-
-每次变换保留：
-
-```ts
-type MidiTransformReceipt = {
-    readonly sourceAssetId: string
-    readonly seed: number
-    readonly operations: ReadonlyArray<MidiTransformOperation>
-}
+```bash
+git diff --check
 ```
 
-这样可以复现，也能避免每次都添加同一段固定音乐。
-
-## 八、质量闸门
-
-### 硬校验
-
-代码检查：
-
-- BPM 30–240；
-- 4/4 Demo；
-- 4 或 8 小节；
-- Note position/duration 有效；
-- Pitch 0–127 且符合角色音域；
-- Velocity 0–1；
-- 与工程 Key/Scale 一致或属于允许的经过音；
-- Track 数和同时发声密度不超限；
-- 加入位置是下一量化边界。
-
-### 软校验
-
-候选评分：
-
-- 意图符合；
-- 与已有轨道互补；
-- 过度重复检测；
-- 结尾是否支持循环；
-- 能量变化是否达到目标。
-
-软校验失败可以选择第二候选，不应无限重试模型。
-
-## 九、循环调度
-
-逐轨体验的关键状态：
-
-```ts
-type RolePlaybackState =
-    | "waiting"
-    | "planning"
-    | "preparing"
-    | "queued"
-    | "performing"
-    | "failed"
-```
-
-调度：
-
-```text
-role task ready
-→ compile MIDI
-→ quality gate
-→ calculate next loop boundary
-→ queue openDAW edit
-→ apply region
-→ verify
-→ set role performing
-```
-
-第一版可以先顺序创建所有 Region，再按进入时间安排播放或显示；无论实现方式如何，听觉进入点和角色状态必须一致。
-
-## 十、UI 事件
-
-```ts
-type AgentUiEvent =
-    | { readonly type: "danmaku.received"; readonly item: NormalizedDanmaku }
-    | { readonly type: "producer.selected"; readonly decision: ProducerDecision }
-    | { readonly type: "brief.ready"; readonly brief: MusicBrief }
-    | { readonly type: "role.started"; readonly taskId: string }
-    | { readonly type: "role.ready"; readonly taskId: string }
-    | { readonly type: "role.queued"; readonly taskId: string }
-    | { readonly type: "role.performing"; readonly taskId: string }
-    | { readonly type: "plan.failed"; readonly error: PublicAgentError }
-```
-
-Renderer 只消费稳定事件，不解析 SDK 或 CLI 的原始输出。
-
-## 十一、API 与安全
-
-- Server 只监听 `127.0.0.1`；
-- CORS 只允许 Studio Origin；
-- Body 大小受限；
-- Prompt 和 Schema 有最大长度；
-- 所有外部输入视为 `unknown`；
-- Key 不进入响应、日志和 UI；
-- `.env` 不提交；
-- 不发送完整工程文件和未授权 MIDI；
-- 错误返回公开消息，详细堆栈仅在开发日志。
-
-## 十二、测试
-
-### Unit
-
-- 中文转写纠错与乱码拒绝；
-- 去重和来源标记；
-- Producer 评分；
-- MusicBrief Schema；
-- MIDI 检索权重；
-- 移调、长度、音域和变体；
-- 循环边界计算；
-- 本地 Planner；
-- 计划到角色文案的确定性映射。
-
-### Contract
-
-- Agent Server Request/Response；
-- Provider Responses/Chat Completions；
-- RoleTask → MusicOperation；
-- MusicOperation → openDAW Adapter；
-- UI Event 判别联合。
-
-### Integration
-
-- 模型返回合法计划；
-- 模型返回非法 JSON；
-- API 超时转本地回退；
-- 三轨依次创建；
-- Undo 恢复；
-- 旧 Loop 在新轨失败时继续。
-
-### Demo Smoke
-
-固定测试：
-
-```text
-输入：“像最终 Boss 一样炸，但保留钢琴和弦”
-→ 制作人采用
-→ Drums/Bass/Keys 三个任务
-→ 三条可编辑轨道
-→ 统一 4 小节
-→ 在循环中依次进入
-→ Undo 成功
-```
-
-## 十三、实现顺序
-
-### Phase 0：当前原型
-
-- [x] openDAW 可运行；
-- [x] Agent 全屏层；
-- [x] Prompt → Plan；
-- [x] OpenAI Server；
-- [x] Local fallback；
-- [x] openDAW 写入；
-- [x] Undo。
-
-### Phase 1：可展示的音乐意图编译
-
-- [ ] 修复全部中文 UI 编码；
-- [ ] MusicBrief/RoleTask Schema；
-- [ ] 制作人、总编曲师、鼓手、贝斯手、键盘手工作回执；
-- [ ] 对话从结构化任务派生；
-- [ ] 专业术语与通俗解释。
-
-### Phase 2：逐轨舞台
-
-- [ ] 角色状态；
-- [ ] 固定基础 Loop；
-- [ ] 轨道按顺序进入；
-- [ ] 角色 Loop 动画；
-- [ ] 新轨加入与动画同步。
-
-### Phase 3：质量与素材
-
-- [ ] MIDI 素材索引；
-- [ ] 检索与至少三种变换；
-- [ ] 音域/调性/长度硬校验；
-- [ ] 固定安全回退；
-- [ ] 过度重复检测。
-
-### Phase 4：集成与提交
-
-- [ ] 90 秒固定脚本；
-- [ ] 现场冷启动测试；
-- [ ] 模型断网测试；
-- [ ] 预录视频；
-- [ ] README 与提交材料；
-- [ ] 打包或固定本地启动方式。
+涉及完整资料库时，另外确认 Agent Server 日志打开约 193,320 个索引资产。没有该日志，不能声称完整 MIDI 检索已经启用。
