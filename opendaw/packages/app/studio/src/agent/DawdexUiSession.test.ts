@@ -80,4 +80,21 @@ describe("DawdexUiSession", () => {
         expect(shouldPlayDawdexVideo("workbench", "workbench", true)).toBe(true)
         expect(shouldPlayDawdexVideo("product", "product", false)).toBe(false)
     })
+
+    it("toggles workbench mode and honors an explicit target", () => {
+        const session = new DawdexUiSession()
+
+        session.setWorkbench()
+        expect(session.viewMode.getValue()).toBe("workbench")
+
+        session.setWorkbench()
+        expect(session.viewMode.getValue()).toBe("product")
+
+        session.setWorkbench(true)
+        session.setWorkbench(true)
+        expect(session.viewMode.getValue()).toBe("workbench")
+
+        session.setWorkbench(false)
+        expect(session.viewMode.getValue()).toBe("product")
+    })
 })

@@ -68,6 +68,12 @@ export class DawdexUiSession {
         this.viewMode.setValue(mode)
     }
 
+    setWorkbench(force?: boolean): void {
+        const current = this.viewMode.getValue() === "workbench"
+        const workbench = force ?? !current
+        this.setViewMode(workbench ? "workbench" : "product")
+    }
+
     setRoom(roomId: DawdexRoomId): void {
         this.#patch({roomId})
     }

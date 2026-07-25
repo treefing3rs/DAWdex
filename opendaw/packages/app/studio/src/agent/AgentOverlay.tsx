@@ -14,7 +14,7 @@ import type {
 } from "./ui-contract"
 import {playMockTimeline} from "./mock-timeline"
 import {DAWDEX_PRODUCER, DAWDEX_ROOMS, DAWDEX_STAGE_ROLES} from "./DawdexStageAssets"
-import {getDawdexUiSession, shouldPlayDawdexVideo} from "./DawdexUiSession"
+import {getDawdexUiSession, shouldPlayDawdexVideo, type DawdexViewMode} from "./DawdexUiSession"
 
 const className = Html.adoptStyleSheet(css, "AgentOverlay")
 
@@ -1098,18 +1098,23 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     root.classList.add("transport-paused")
     root.style.setProperty("--beat", `${(60 / bpm).toFixed(3)}s`)
 
-    // ── 收起外壳 = 掀开舞台地板，露出底下真实 openDAW（事件桥持续同步，回来即最新） ──
-    const setCollapsed = (force?: boolean) => {
-        const on = force ?? !root.classList.contains("collapsed")
-        root.classList.toggle("collapsed", on)
-        collapseButton.classList.toggle("active", on)
-        collapseButton.textContent = on ? "⌃ 演播厅" : "⌄ 工作台"
-        collapseButton.title = on ? "回到 DAWdex 演播厅（Esc 往返）" : "收起演播厅，打开 openDAW 工作台（Esc 往返）"
-        if (on && root.classList.contains("presentation")) {
+    // ── 双形态切换：产品形态 ↔ openDAW 工作台；工作台预览与完整舞台共享同一会话 ──
+    const applyViewMode = (mode: DawdexViewMode) => {
+        const workbench = mode === "workbench"
+        root.classList.toggle("collapsed", workbench)
+        collapseButton.classList.toggle("active", workbench)
+        collapseButton.textContent = workbench ? "⌃ 演播厅" : "⌄ 工作台"
+        collapseButton.title = workbench
+            ? "回到 DAWdex 演播厅（Esc 往返）"
+            : "收起演播厅，打开 openDAW 工作台（Esc 往返）"
+        if (workbench && root.classList.contains("presentation")) {
             root.classList.remove("presentation")
             presentButton.classList.remove("active")
         }
+        setVideoLive(isPlaying)
     }
+    const setCollapsed = (force?: boolean) => uiSession.setWorkbench(force)
+    lifecycle.own(uiSession.viewMode.catchupAndSubscribe(owner => applyViewMode(owner.getValue())))
     lifecycle.own(Events.subscribe(window, "keydown", (event: KeyboardEvent) => {
         if (event.key === "Escape" && !(event.target instanceof HTMLInputElement)) {
             if (openPanelKind !== null) {closePanel()} else {setCollapsed()}
