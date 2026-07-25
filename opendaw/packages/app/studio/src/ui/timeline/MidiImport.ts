@@ -1,6 +1,5 @@
 import {
     Arrays,
-    byte,
     DefaultObservableValue,
     Errors,
     int,
@@ -9,7 +8,6 @@ import {
     quantizeCeil,
     RuntimeNotifier,
     tryCatch,
-    unitValue,
     UUID
 } from "@opendaw/lib-std"
 import {BoxEditing} from "@opendaw/lib-box"
@@ -20,7 +18,8 @@ import {Dialogs} from "@/ui/components/dialogs.tsx"
 import {Promises, Wait} from "@opendaw/lib-runtime"
 import {Files} from "@opendaw/lib-dom"
 import {Project} from "@opendaw/studio-core"
-import {ControlType, MidiFile} from "@opendaw/lib-midi"
+import {MidiFile} from "@opendaw/lib-midi"
+import {decodeMidiNoteSpans} from "@/midi/MidiNoteSpans"
 
 export namespace MidiImport {
     export const toTracks = async (project: Project, audioUnitBoxAdapter: AudioUnitBoxAdapter) => {
@@ -62,76 +61,66 @@ export namespace MidiImport {
         }
         let lastTime = Date.now()
         function* generate() {
-            for (const midiTrack of format.tracks) {
-                for (const [channel, midiEvents] of midiTrack.controlEvents) {
-                    console.debug(`Importing ${midiEvents.length} events of channel #${channel}.`)
-                    if (midiEvents.length === 0) {continue}
-                    if (midiEvents.every(event => event.type !== ControlType.NOTE_ON && event.type !== ControlType.NOTE_OFF)) {continue}
-                    const map = new Map<byte, { position: ppqn, note: byte, velocity: unitValue }>
-                    const notes: Array<{ position: ppqn, duration: ppqn, pitch: byte, velocity: unitValue }> = []
-                    let duration = 0 | 0
-                    for (const midiEvent of midiEvents) {
-                        const index = midiEvents.indexOf(midiEvent)
-                        const position = PPQN.fromSignature(midiEvent.ticks / format.timeDivision, 4) | 0
-                        midiEvent.accept({
-                            noteOn: (note: byte, velocity: number) => map.set(note, {position, note, velocity}),
-                            noteOff: (note: byte) => {
-                                const data = map.get(note)
-                                map.delete(note)
-                                if (!isDefined(data)) {return}
-                                notes.push({
-                                    position: data.position,
-                                    duration: position - data.position,
-                                    pitch: data.note,
-                                    velocity: data.velocity
-                                })
-                                duration = Math.max(duration, position)
-                            }
-                        })
-                        progress.setValue(index / midiEvents.length)
-                        if (Date.now() - lastTime > 16.0) {
-                            lastTime = Date.now()
-                            yield
-                        }
-                    }
-                    duration = quantizeCeil(duration, PPQN.Bar)
-                    if (duration === 0) {
-                        console.warn(`Channel #${channel}: no playable notes, skipping region.`)
-                        continue
-                    }
-                    let trackBox: TrackBox
-                    if (isDefined(reuseTrackBox)) {
-                        trackBox = reuseTrackBox
-                        reuseTrackBox = null
-                        trackIndex++
-                    } else {
-                        trackBox = TrackBox.create(boxGraph, UUID.generate(), box => {
-                            box.type.setValue(TrackType.Notes)
-                            box.tracks.refer(audioUnitBoxAdapter.box.tracks)
-                            box.index.setValue(trackIndex++)
-                            box.target.refer(audioUnitBoxAdapter.box)
-                        })
-                    }
-                    const collection = NoteEventCollectionBox.create(boxGraph, UUID.generate())
-                    notes.forEach(({position, duration: noteDuration, pitch, velocity}) => {
-                        NoteEventBox.create(boxGraph, UUID.generate(), box => {
-                            box.position.setValue(position)
-                            box.duration.setValue(noteDuration)
-                            box.pitch.setValue(pitch)
-                            box.velocity.setValue(velocity)
-                            box.events.refer(collection.events)
-                        })
+            for (const {channel, notes: midiNotes} of decodeMidiNoteSpans(format)) {
+                console.debug(`Importing ${midiNotes.length} notes of channel #${channel}.`)
+                const notes: Array<{ position: ppqn, duration: ppqn, pitch: int, velocity: number }> = []
+                let duration = 0 | 0
+                for (const [index, midiNote] of midiNotes.entries()) {
+                    const position = PPQN.fromSignature(midiNote.ticks / format.timeDivision, 4) | 0
+                    const noteDuration = Math.max(
+                        1,
+                        PPQN.fromSignature(midiNote.durationTicks / format.timeDivision, 4) | 0
+                    )
+                    notes.push({
+                        position,
+                        duration: noteDuration,
+                        pitch: midiNote.pitch,
+                        velocity: midiNote.velocity
                     })
-                    NoteRegionBox.create(boxGraph, UUID.generate(), box => {
-                        box.position.setValue(0)
-                        box.duration.setValue(duration)
-                        box.loopDuration.setValue(duration)
-                        box.events.refer(collection.owners)
-                        box.hue.setValue(ColorCodes.forTrackType(TrackType.Notes))
-                        box.label.setValue(`Ch#${channel}`)
-                        box.regions.refer(trackBox.regions)
+                    duration = Math.max(duration, position + noteDuration)
+                    progress.setValue(index / midiNotes.length)
+                    if (Date.now() - lastTime > 16.0) {
+                        lastTime = Date.now()
+                        yield
+                    }
+                }
+                duration = quantizeCeil(duration, PPQN.Bar)
+                if (duration === 0) {
+                    console.warn(`Channel #${channel}: no playable notes, skipping region.`)
+                    continue
+                }
+                let trackBox: TrackBox
+                if (isDefined(reuseTrackBox)) {
+                    trackBox = reuseTrackBox
+                    reuseTrackBox = null
+                    trackIndex++
+                } else {
+                    trackBox = TrackBox.create(boxGraph, UUID.generate(), box => {
+                        box.type.setValue(TrackType.Notes)
+                        box.tracks.refer(audioUnitBoxAdapter.box.tracks)
+                        box.index.setValue(trackIndex++)
+                        box.target.refer(audioUnitBoxAdapter.box)
                     })
                 }
+                const collection = NoteEventCollectionBox.create(boxGraph, UUID.generate())
+                notes.forEach(({position, duration: noteDuration, pitch, velocity}) => {
+                    NoteEventBox.create(boxGraph, UUID.generate(), box => {
+                        box.position.setValue(position)
+                        box.duration.setValue(noteDuration)
+                        box.pitch.setValue(pitch)
+                        box.velocity.setValue(velocity)
+                        box.events.refer(collection.events)
+                    })
+                })
+                NoteRegionBox.create(boxGraph, UUID.generate(), box => {
+                    box.position.setValue(0)
+                    box.duration.setValue(duration)
+                    box.loopDuration.setValue(duration)
+                    box.events.refer(collection.owners)
+                    box.hue.setValue(ColorCodes.forTrackType(TrackType.Notes))
+                    box.label.setValue(`Ch#${channel}`)
+                    box.regions.refer(trackBox.regions)
+                })
             }
         }
         console.time("midi-import")
