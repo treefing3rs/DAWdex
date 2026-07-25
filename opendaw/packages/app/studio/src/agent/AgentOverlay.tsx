@@ -84,6 +84,11 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     const stageImg: HTMLImageElement = (
         <img className="stage-bg-img" alt="" draggable={false}/>)
     stageImg.src = ROOMS[0].bg
+    // 演出态皮肤：走带播放时整棚苏醒（烟雾/时间码/机架灯）；
+    // 帧 0 = 静态底图来源，与 sprite 淡出淡入无缝切换，暂停即回到静帧
+    const stageVideo: HTMLVideoElement = (
+        <video className="stage-bg-video" loop playsInline preload="auto" muted draggable={false}/>)
+    stageVideo.src = "/dawdex/studio_night_loop.mp4"
     const channelName: HTMLElement = (<span className="ch-name">{ROOMS[0].label}</span>)
     const chPrev: HTMLButtonElement = (<button type="button" title="上一个房间">‹</button>)
     const chNext: HTMLButtonElement = (<button type="button" title="下一个房间">›</button>)
@@ -136,6 +141,7 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     const stageEl: HTMLElement = (
         <div className="stage" data-room="main">
             {stageImg}
+            {stageVideo}
             {marquee}
             <div className="performers">{performers}{producerEl}</div>
             {noise}
@@ -156,12 +162,24 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         </div>)
     // 巡棚切台
     let roomIndex = 0
+    // ── 演出态皮肤：仅演播大厅；播放时视频淡入整棚苏醒，暂停回到静帧 ──
+    const setVideoLive = (live: boolean) => {
+        const on = live && ROOMS[roomIndex].id === "main"
+        stageEl.classList.toggle("video-live", on)
+        if (on) {
+            stageVideo.play().catch(() => {})
+        } else {
+            stageVideo.pause()
+            stageVideo.currentTime = 0
+        }
+    }
     const setRoom = (index: number) => {
         roomIndex = ((index % ROOMS.length) + ROOMS.length) % ROOMS.length
         const room = ROOMS[roomIndex]
         channelName.textContent = room.label
         stageEl.dataset.room = room.id
         stageImg.src = room.bg
+        setVideoLive(isPlaying)
     }
     const roleStates = new Map<RoleId, RoleState>()
     const audibleRoles = new Set<RoleId>()
@@ -190,6 +208,8 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         recBadge.textContent = playing ? "● REC" : "STANDBY"
         // 吊灯 = 能量指示灯：播放时亮起（Diegetic 绑定）
         lampGlow.classList.toggle("lit", playing)
+        // 演出态皮肤：播放 = 整棚苏醒（视频淡入），暂停 = 回到静帧
+        setVideoLive(playing)
         // 走带暂停 = 角色动画冻结（诚实状态：没有声音就没有演奏）
         root.classList.toggle("transport-paused", !playing)
         // 角色演奏动画的一拍时长由权威 BPM 驱动，不写死

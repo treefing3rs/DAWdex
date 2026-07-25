@@ -138,6 +138,28 @@ component
     &.hidden
       display: none
 
+  // 演出态皮肤：走带播放时视频淡入（整棚苏醒），sprite/光晕同步淡出
+  .stage-bg-video
+    position: absolute
+    inset: 0
+    width: 100%
+    height: 100%
+    object-fit: cover
+    image-rendering: pixelated
+    user-select: none
+    pointer-events: none
+    opacity: 0
+    transition: opacity 360ms ease
+
+  .stage.video-live
+    .stage-bg-video
+      opacity: 1
+    .obj
+      opacity: 0
+    .lamp-glow
+      animation: none // 动画会覆盖 opacity 声明，需先停掉
+      opacity: 0
+
   // 巡棚演员表：当前房间未列出的角色隐藏（站位按各房间 1600×1065 场景标定）
   .stage[data-room] .performer
     display: none
@@ -393,6 +415,7 @@ component
     pointer-events: none
     user-select: none
     image-rendering: pixelated
+    transition: opacity 300ms ease
   .obj-lamp
     left: 62.92%
     top: 0
