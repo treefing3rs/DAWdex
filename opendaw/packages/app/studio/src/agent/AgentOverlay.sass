@@ -588,7 +588,8 @@ component
     backdrop-filter: none
     pointer-events: none
     overflow: visible
-    padding: 10px 0 0
+    padding: 0 0 42px // 胶囊停靠底部，避开 openDAW 顶栏与页脚
+    justify-content: flex-end
     .stage-bezel,
     .composer,
     .interventions,
@@ -605,6 +606,10 @@ component
       border: 1px solid $shell-line
       border-radius: 999px
       box-shadow: 0 4px 18px rgba(0, 0, 0, 0.08)
+      opacity: 0.72
+      transition: opacity 160ms ease
+      &:hover
+        opacity: 1
       .last-event
         display: inline-block
   .last-event
