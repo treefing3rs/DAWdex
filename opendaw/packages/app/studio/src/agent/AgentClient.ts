@@ -192,7 +192,8 @@ const isAgentPlan = (value: unknown): value is AgentPlan => {
         && isMusicBrief(plan.brief)
         && Array.isArray(plan.actions)
         && plan.actions.every(isDawAction)
-        && (plan.source === "codex" || plan.source === "model" || plan.source === "local")
+        && (plan.source === "codex" || plan.source === "kimi" || plan.source === "qoder"
+            || plan.source === "model" || plan.source === "local")
 }
 
 const isAgentProviderStatus = (value: unknown): value is AgentProviderStatus => {

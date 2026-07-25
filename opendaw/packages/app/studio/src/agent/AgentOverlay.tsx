@@ -668,7 +668,10 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
                 appendEvent("计划已放弃")
                 renderPlanSlot()
             })
-            const source = plan.source === "codex" ? "Codex 账号" : plan.source === "model" ? "OpenAI API" : "本地回退"
+            const source = plan.source === "codex" ? "Codex 账号"
+                : plan.source === "kimi" ? "Kimi CLI"
+                : plan.source === "qoder" ? "Qoder CLI"
+                : plan.source === "model" ? "OpenAI API" : "本地回退"
             const rationale: HTMLElement = (<div className="reasoning"/>)
             appendChildren(
                 rationale,

@@ -110,44 +110,54 @@ component
     flex-direction: column
     align-items: center
     width: 100%
-    perspective: 1500px
+    perspective: 1250px // 更强的前大后小 = 键盘梯形平面感
     perspective-origin: 50% 8%
     transform-style: preserve-3d
     flex: 0 0 auto
 
-  // ── 舞台 = CRT 显示器屏幕（Fig Mint 亮象牙一体机壳，微微后仰） ────────────
+  // ── 舞台 = Fig Mint 主机前框（亮象牙一体机壳：屏嵌上部、厚下巴带软驱槽，微微后仰） ──
   // 宽度同时受视口高度约束，保证头/键盘屏/输入/抽屉一屏放下
   .stage-bezel
+    position: relative
+    z-index: 1
     width: min(1200px, 96%, calc((100vh - 420px) * 16 / 9.5))
     aspect-ratio: 16 / 9.5
-    padding: 14px
+    padding: 20px 22px 56px // 整机前框：屏嵌在上部，底部厚下巴留给软驱槽
     border: 1px solid #e3e1d9
     border-radius: 22px
     background: linear-gradient(180deg, #f7f5ef, #edebe4)
-    box-shadow: 0 18px 44px rgba(60, 58, 52, 0.22), inset 0 2px 0 rgba(255, 255, 255, 0.9)
+    box-shadow: 0 18px 44px rgba(60, 58, 52, 0.22), inset 0 2px 0 rgba(255, 255, 255, 0.9), inset -10px 0 18px rgba(60, 58, 52, 0.05), inset 10px 0 18px rgba(60, 58, 52, 0.05)
     flex: 0 0 auto
     transform: rotateX(2.5deg)
     transform-origin: 50% 100%
     transition: transform 620ms cubic-bezier(0.25, 0.8, 0.25, 1), opacity 620ms ease, filter 620ms ease, visibility 0s
+    // 下巴上的软驱槽：Fig Mint 前脸的标志细节
+    &::after
+      content: ""
+      position: absolute
+      left: 57%
+      bottom: 19px
+      width: 148px
+      height: 11px
+      border-radius: 6px
+      background: #32302b
+      box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.65), 0 1px 0 rgba(255, 255, 255, 0.75)
+      transform: translateX(-50%)
 
-  // CRT 底座（同壳料亮象牙）
+  // 底座取消：Fig Mint 主机直接坐在桌面上，独立键盘贴在下巴前方
   .crt-stand
-    width: 130px
-    height: 14px
-    margin-top: -6px
-    background: linear-gradient(180deg, #edebe4, #dcdad2)
-    clip-path: polygon(14% 0, 86% 0, 100% 100%, 0 100%)
-    transition: opacity 620ms ease, visibility 0s
+    display: none
 
   // ── 键盘甲板（Fig Mint 独立键盘：整体一块楔形固体，侧面是三角形） ──────
   // 楔形读法 = 斜面甲板 + 后缘隆起 riser 同壳一体 + 前缘厚度立面 + 中性软阴影
   .keyboard-deck
     position: relative
+    z-index: 2 // 键盘在主机下巴前方（同一桌面空间的前后关系）
     display: flex
     flex-direction: column
     gap: 14px
     width: min(1240px, 99%)
-    margin-top: -4px
+    margin-top: -34px // 键盘后缘插进主机下巴底下 = 一台机器的前后景
     margin-bottom: 6px
     padding: 14px 22px 20px
     border: 1px solid #e3e1d9
@@ -565,9 +575,7 @@ component
   .hotspots:has(.hit-shelf:hover) .obj-shelf,
   .hotspots:has(.hit-clock:hover) .obj-clock
     filter: brightness(1.45) saturate(1.2)
-  // hover 调音台：未发声的通道灯淡淡显现（可发现性线索）；发声后由 .on 常亮
-  .hotspots:has(.hit-desk:hover) .rack-led:not(.on)
-    opacity: 0.55
+  // 调音台通道灯只在 TrackAudibleChanged 真实发声后点亮（.on 常亮），hover 不再预先显现三个点
 
   // ── 轮廓命中层（clip-path 沿物件真实轮廓） ──
   // 命中层全程透明：hover 反馈 = 物件自身像素变亮/动起来（:has 联动）+ 像素风名签

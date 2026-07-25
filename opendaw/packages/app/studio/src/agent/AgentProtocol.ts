@@ -1,6 +1,6 @@
 export const DAWDEX_VERSION = "0.3.0"
 
-export type AgentPlanSource = "codex" | "model" | "local"
+export type AgentPlanSource = "codex" | "kimi" | "qoder" | "model" | "local"
 export type AgentProviderId = "codex" | "openai" | "local"
 export type MusicIntent = "create" | "add" | "restyle" | "modify"
 export type MusicRole = "drums" | "bass" | "keys"
