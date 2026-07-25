@@ -710,12 +710,14 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
             </div>
             <div className="crt-stand"/>
             <div className="keyboard-deck">
-                <div className="deck-screen">
-                    <div className="deck-idle">
-                        {deckReadout}
-                        <span className="deck-hint">点场景里的物件 · 内容在这块屏上打开</span>
+                <div className="deck-riser">
+                    <div className="deck-screen">
+                        <div className="deck-idle">
+                            {deckReadout}
+                            <span className="deck-hint">点场景里的物件 · 内容在这块屏上打开</span>
+                        </div>
+                        {panelEl}
                     </div>
-                    {panelEl}
                 </div>
                 <div className="interventions">{interventionButtons}{settingsKey}</div>
             </div>

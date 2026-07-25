@@ -115,74 +115,83 @@ component
     transform-style: preserve-3d
     flex: 0 0 auto
 
-  // ── 舞台 = CRT 显示器屏幕（Fig Mint 奶油一体机壳，微微后仰） ────────────
+  // ── 舞台 = CRT 显示器屏幕（Fig Mint 亮象牙一体机壳，微微后仰） ────────────
   // 宽度同时受视口高度约束，保证头/键盘屏/输入/抽屉一屏放下
   .stage-bezel
     width: min(1200px, 96%, calc((100vh - 420px) * 16 / 9.5))
     aspect-ratio: 16 / 9.5
     padding: 14px
-    border: 1px solid #ddd6c5
+    border: 1px solid #e3e1d9
     border-radius: 22px
-    background: linear-gradient(180deg, #f5f2ea, #e9e4d4)
-    box-shadow: 0 18px 44px rgba(85, 74, 55, 0.26), inset 0 2px 0 rgba(255, 255, 255, 0.85)
+    background: linear-gradient(180deg, #f7f5ef, #edebe4)
+    box-shadow: 0 18px 44px rgba(60, 58, 52, 0.22), inset 0 2px 0 rgba(255, 255, 255, 0.9)
     flex: 0 0 auto
     transform: rotateX(2.5deg)
     transform-origin: 50% 100%
     transition: transform 620ms cubic-bezier(0.25, 0.8, 0.25, 1), opacity 620ms ease, filter 620ms ease, visibility 0s
 
-  // CRT 底座（同壳料奶油）
+  // CRT 底座（同壳料亮象牙）
   .crt-stand
     width: 130px
     height: 14px
     margin-top: -6px
-    background: linear-gradient(180deg, #e9e4d4, #d4cdb9)
+    background: linear-gradient(180deg, #edebe4, #dcdad2)
     clip-path: polygon(14% 0, 86% 0, 100% 100%, 0 100%)
     transition: opacity 620ms ease, visibility 0s
 
-  // ── 键盘甲板（Fig Mint 独立键盘：梯形楔形薄板，后高前低，屏上键下） ──────
+  // ── 键盘甲板（Fig Mint 独立键盘：整体一块楔形固体，侧面是三角形） ──────
+  // 楔形读法 = 斜面甲板 + 后缘隆起 riser 同壳一体 + 前缘厚度立面 + 中性软阴影
   .keyboard-deck
     position: relative
     display: flex
     flex-direction: column
-    gap: 12px
+    gap: 14px
     width: min(1240px, 99%)
     margin-top: -4px
     margin-bottom: 6px
-    padding: 16px 22px 18px
-    border: 1px solid #ddd6c5
+    padding: 14px 22px 20px
+    border: 1px solid #e3e1d9
     border-radius: 14px
-    background: linear-gradient(180deg, #f6f3ea, #ebe5d5)
-    box-shadow: 0 22px 44px rgba(85, 74, 55, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.9)
+    background: linear-gradient(180deg, #f6f4ee, #edebe4)
+    box-shadow: 0 24px 48px rgba(60, 58, 52, 0.20), inset 0 1px 0 rgba(255, 255, 255, 0.9)
     transform: rotateX(45deg)
     transform-origin: 50% 0
-    transform-style: preserve-3d // 前缘立面与仰角屏活在真 3D 里
+    transform-style: preserve-3d // 前缘立面与 riser 活在真 3D 里
     transition: transform 620ms cubic-bezier(0.25, 0.8, 0.25, 1), width 620ms cubic-bezier(0.25, 0.8, 0.25, 1)
-    // 梯形楔形的"前缘立面"：从甲板前缘垂下的厚度面，让甲板不是一张纸
+    // 楔形的前缘立面：薄的一条厚度面，投影落在桌面上
     &::before
       content: ""
       position: absolute
       left: 1px
       right: 1px
       top: calc(100% - 1px)
-      height: 16px
+      height: 14px
       border-radius: 0 0 12px 12px
-      background: linear-gradient(180deg, #ddd7c5, #c8c1ab)
-      box-shadow: 0 10px 18px rgba(85, 74, 55, 0.20)
+      background: linear-gradient(180deg, #e6e4dd, #d5d3cb)
+      box-shadow: 0 12px 20px rgba(60, 58, 52, 0.18)
       transform: rotateX(-90deg)
       transform-origin: 50% 0
       transition: opacity 620ms ease
 
-  // 键盘屏（8-bit 磷光黑芯 + 扫描线；奶油边框，从甲板后缘仰起面向用户）
+  // 后缘隆起（riser）：楔形的厚端，屏幕嵌在里面 —— 与甲板同一块壳料
+  .deck-riser
+    position: relative
+    padding: 13px 16px // 屏幕四周的奶油边框厚度
+    border-radius: 14px
+    background: linear-gradient(180deg, #faf8f2, #f0eee7)
+    box-shadow: 0 12px 24px rgba(60, 58, 52, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.95)
+    transform: rotateX(-9deg) // 随楔形厚端微微后仰，不是单独掰出来的板
+    transform-origin: 50% 100%
+    transition: padding 620ms cubic-bezier(0.25, 0.8, 0.25, 1), border-radius 620ms ease, transform 620ms cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 620ms ease
+
+  // 键盘屏（8-bit 磷光黑芯 + 扫描线；嵌在 riser 里的内凹屏槽）
   .deck-screen
     position: relative
     min-height: 168px
-    border-radius: 10px
-    border: 5px solid #eee9da
+    border-radius: 8px
     background: #16121a
-    box-shadow: inset 0 2px 12px rgba(0, 0, 0, 0.7), 0 6px 14px rgba(85, 74, 55, 0.18), 0 1px 0 rgba(255, 255, 255, 0.6)
+    box-shadow: inset 0 3px 10px rgba(0, 0, 0, 0.75), 0 0 0 1px #d9d7cf // 内凹 + 一圈屏槽线
     overflow: hidden
-    transform: rotateX(-17deg) // 仰角：不随甲板平躺，立起来朝向用户
-    transform-origin: 50% 100%
     transition: min-height 620ms cubic-bezier(0.25, 0.8, 0.25, 1)
     // 扫描线
     &::after
@@ -942,23 +951,23 @@ component
       &:active
         transform: scale(0.95)
 
-  // 甲板键帽 = Fig Mint 立体键：顶面近白、侧壁可见、独立投影悬浮于板面
+  // 甲板键帽 = Fig Mint 立体键：亮白顶面、柔和侧影、空间感悬浮于板面
   // 巧思：六颗功能键按真键盘弧形列高排布（两端低、中间高），撤销键加宽，设置键收尾
   .keyboard-deck .interventions
     gap: 12px
-    margin-top: 4px
+    margin-top: 2px
     align-items: flex-end
     button
-      border: 1px solid #d9d2bf
+      border: 1px solid #e0ded6
       border-radius: 8px
       padding: 11px 20px 12px
       min-height: 44px
       font-size: 12px
       letter-spacing: 0.05em
-      background: linear-gradient(180deg, #fcf9f2 0%, #f4efe1 55%, #eae3d0 100%)
-      color: #6b6353
-      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8)
-      box-shadow: 0 4px 0 #cfc7b2, 0 9px 14px rgba(85, 74, 55, 0.22), inset 0 1px 0 #fff
+      background: linear-gradient(180deg, #fdfcf9 0%, #f4f2ec 55%, #ebe9e2 100%)
+      color: #55534d
+      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.9)
+      box-shadow: 0 3px 0 #d8d6cf, 0 10px 16px rgba(60, 58, 52, 0.18), inset 0 1px 0 #fff
       transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease
       // 弧形列高（smile curve）
       &:nth-child(1), &:nth-child(6)
@@ -968,11 +977,11 @@ component
       &:nth-child(3), &:nth-child(4)
         transform: translateY(-4px)
       &:hover
-        filter: brightness(1.03)
-        box-shadow: 0 4px 0 #cfc7b2, 0 12px 18px rgba(85, 74, 55, 0.28), inset 0 1px 0 #fff
+        filter: brightness(1.02)
+        box-shadow: 0 3px 0 #d8d6cf, 0 14px 22px rgba(60, 58, 52, 0.24), inset 0 1px 0 #fff
       &:active
         transform: translateY(4px)
-        box-shadow: 0 0 0 #cfc7b2, 0 1px 2px rgba(85, 74, 55, 0.18), inset 0 1px 0 #fff
+        box-shadow: 0 0 0 #d8d6cf, 0 1px 2px rgba(60, 58, 52, 0.16), inset 0 1px 0 #fff
       // 撤销键：加宽一档，像真键盘上的大键
       &[data-kind="undo"]
         padding-left: 30px
@@ -983,13 +992,13 @@ component
         min-height: 36px
         font-size: 11px
         border-radius: 7px
-        background: linear-gradient(180deg, #f1ecdd 0%, #e7e0cd 60%, #dcd5bf 100%)
-        color: #857c68
-        box-shadow: 0 3px 0 #c6beaa, 0 7px 11px rgba(85, 74, 55, 0.20), inset 0 1px 0 rgba(255, 255, 255, 0.9)
+        background: linear-gradient(180deg, #f2f0ea 0%, #e9e7e0 60%, #dfddd5 100%)
+        color: #75736b
+        box-shadow: 0 3px 0 #d2d0c8, 0 8px 12px rgba(60, 58, 52, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.95)
         transform: translateY(6px)
         &:active
           transform: translateY(8px)
-          box-shadow: 0 0 0 #c6beaa, 0 1px 2px rgba(85, 74, 55, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.9)
+          box-shadow: 0 0 0 #d2d0c8, 0 1px 2px rgba(60, 58, 52, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.95)
 
   // ── 运镜：面板打开 = 进入 L2 —— 演播大厅（CRT）整个退场，键盘屏居中放大 ──
   .desk-scene.deck-focus
@@ -1008,9 +1017,14 @@ component
       transform: rotateX(0deg) translateY(-40vh) // L2 放平成正视控制台，升到视口中央
       &::before
         opacity: 0 // 正视时前缘立面收起，避免悬浮残影
+    .deck-riser
+      padding: 20px 22px // 厚奶油边框 = Fig Mint 显示器外框
+      border-radius: 20px
+      transform: rotateX(0deg) // 完全正视
+      box-shadow: 0 24px 48px rgba(60, 58, 52, 0.20), inset 0 1px 0 rgba(255, 255, 255, 0.95)
     .deck-screen
       min-height: min(46vh, 470px) // 屏幕自适应放大，面板内容完整可读
-      transform: rotateX(0deg) // 屏幕完全正对用户，内容为王
+      border-radius: 10px
 
   // L2 联动：甲板变高会把输入条/抽屉挤到屏外，它们跟随甲板一起上移
   .desk-scene.deck-focus ~ .composer,
