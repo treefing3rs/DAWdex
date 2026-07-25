@@ -41,14 +41,15 @@ const AUTHOR_BADGE: Record<DanmakuAuthor, string> = {user: "", "ai-fan": "AI 乐
 
 // ── 巡棚房间注册表（§11.1：房间即工程；未绑定事件的物件保持纯装饰） ─────────
 type RoomId = "main" | "drums" | "strings" | "keys" | "control" | "lounge"
-const ROOMS: ReadonlyArray<{id: RoomId, label: string, bg: string}> = [
+// video = 演出态皮肤（帧 0 = 静态底图来源，播放时淡入整棚苏醒，暂停回到静帧）
+const ROOMS: ReadonlyArray<{id: RoomId, label: string, bg: string, video: string}> = [
     // 演播大厅 = 物件分层底图（吊灯/监视器/吉他已抠出为独立 sprite，§9 Diegetic UI）
-    {id: "main", label: "演播大厅", bg: "/dawdex/studio_base.jpg"},
-    {id: "drums", label: "鼓棚", bg: "/dawdex/room_drums.jpg"},
-    {id: "strings", label: "吉他贝斯棚", bg: "/dawdex/room_guitar_bass.jpg"},
-    {id: "keys", label: "键盘阁楼", bg: "/dawdex/room_keyboards.jpg"},
-    {id: "control", label: "控制室", bg: "/dawdex/control_room_night.jpg"},
-    {id: "lounge", label: "休息室", bg: "/dawdex/room_lounge.jpg"}
+    {id: "main", label: "演播大厅", bg: "/dawdex/studio_base.jpg", video: "/dawdex/studio_night_loop.mp4"},
+    {id: "drums", label: "鼓棚", bg: "/dawdex/room_drums.jpg", video: "/dawdex/room_drums_loop.mp4"},
+    {id: "strings", label: "吉他贝斯棚", bg: "/dawdex/room_guitar_bass.jpg", video: "/dawdex/room_guitar_bass_loop.mp4"},
+    {id: "keys", label: "键盘阁楼", bg: "/dawdex/room_keyboards.jpg", video: "/dawdex/room_keyboards_loop.mp4"},
+    {id: "control", label: "控制室", bg: "/dawdex/control_room_night.jpg", video: "/dawdex/control_room_loop.mp4"},
+    {id: "lounge", label: "休息室", bg: "/dawdex/room_lounge.jpg", video: "/dawdex/room_lounge_loop.mp4"}
 ]
 
 export const AgentOverlay = ({lifecycle, service}: Construct) => {
@@ -90,7 +91,7 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     // 帧 0 = 静态底图来源，与 sprite 淡出淡入无缝切换，暂停即回到静帧
     const stageVideo: HTMLVideoElement = (
         <video className="stage-bg-video" loop playsInline preload="auto" muted draggable={false}/>)
-    stageVideo.src = "/dawdex/studio_night_loop.mp4"
+    stageVideo.src = ROOMS[0].video
     const channelName: HTMLElement = (<span className="ch-name">{ROOMS[0].label}</span>)
     const chPrev: HTMLButtonElement = (<button type="button" title="上一个房间">‹</button>)
     const chNext: HTMLButtonElement = (<button type="button" title="下一个房间">›</button>)
@@ -189,11 +190,13 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         </div>)
     // 巡棚切台
     let roomIndex = 0
-    // ── 演出态皮肤：仅演播大厅；播放时视频淡入整棚苏醒，暂停回到静帧 ──
+    // ── 演出态皮肤：每个房间各有循环视频；播放时视频淡入整棚苏醒，暂停回到静帧 ──
     const setVideoLive = (live: boolean) => {
-        const on = live && ROOMS[roomIndex].id === "main"
+        const src = ROOMS[roomIndex].video
+        const on = live
         stageEl.classList.toggle("video-live", on)
         if (on) {
+            if (!stageVideo.src.endsWith(src)) {stageVideo.src = src}
             stageVideo.play().catch(() => {})
         } else {
             stageVideo.pause()
