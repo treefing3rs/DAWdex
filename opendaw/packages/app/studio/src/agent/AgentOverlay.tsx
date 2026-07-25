@@ -697,6 +697,9 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         lifecycle.own(Events.subscribe(btn, "click", () => intervene(kind)))
         return btn
     })
+    // 设置系统键：键列收尾的小键，在键盘屏上打开设置面板（与物件面板同一位置）
+    const settingsKey: HTMLButtonElement = (<button type="button" className="sys-key" data-kind="settings">⚙ 设置</button>)
+    lifecycle.own(Events.subscribe(settingsKey, "click", () => openPanel("settings")))
 
     // ── 伪 3D 桌面场景（运镜作用层）：CRT + 底座 + 键盘甲板 ─────────
     // 甲板布局：屏上键下，左侧无按钮（Fig Mint 式独立键盘矮板）
@@ -714,7 +717,7 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
                     </div>
                     {panelEl}
                 </div>
-                <div className="interventions">{interventionButtons}</div>
+                <div className="interventions">{interventionButtons}{settingsKey}</div>
             </div>
         </div>)
 
