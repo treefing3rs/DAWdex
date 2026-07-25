@@ -120,9 +120,9 @@ component
   .stage-bezel
     position: relative
     z-index: 1
-    width: min(1200px, 96%, calc((100vh - 420px) * 16 / 9.5))
+    width: min(1440px, 97%, calc((100vh - 360px) * 16 / 9.5))
     aspect-ratio: 16 / 9.5
-    padding: 20px 22px 56px // 整机前框：屏嵌在上部，底部厚下巴留给软驱槽
+    padding: 16px 18px 42px // 整机前框：屏嵌在上部，底部下巴留给软驱槽
     border: 1px solid #e3e1d9
     border-radius: 22px
     background: linear-gradient(180deg, #f7f5ef, #edebe4)
@@ -136,7 +136,7 @@ component
       content: ""
       position: absolute
       left: 57%
-      bottom: 19px
+      bottom: 13px
       width: 148px
       height: 11px
       border-radius: 6px
@@ -155,11 +155,11 @@ component
     z-index: 2 // 键盘在主机下巴前方（同一桌面空间的前后关系）
     display: flex
     flex-direction: column
-    gap: 14px
-    width: min(1240px, 99%)
-    margin-top: -34px // 键盘后缘插进主机下巴底下 = 一台机器的前后景
+    gap: 10px
+    width: min(1480px, 99%)
+    margin-top: -30px // 键盘后缘插进主机下巴底下 = 一台机器的前后景
     margin-bottom: 6px
-    padding: 14px 22px 20px
+    padding: 12px 20px 16px
     border: 1px solid #e3e1d9
     border-radius: 14px
     background: linear-gradient(180deg, #f6f4ee, #edebe4)
@@ -186,7 +186,7 @@ component
   // 后缘隆起（riser）：楔形的厚端，屏幕嵌在里面 —— 与甲板同一块壳料
   .deck-riser
     position: relative
-    padding: 13px 16px // 屏幕四周的奶油边框厚度
+    padding: 10px 14px // 屏幕四周的奶油边框厚度
     border-radius: 14px
     background: linear-gradient(180deg, #faf8f2, #f0eee7)
     box-shadow: 0 12px 24px rgba(60, 58, 52, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.95)
@@ -197,7 +197,7 @@ component
   // 键盘屏（8-bit 磷光黑芯 + 扫描线；嵌在 riser 里的内凹屏槽）
   .deck-screen
     position: relative
-    min-height: 168px
+    min-height: 128px
     border-radius: 8px
     background: #16121a
     box-shadow: inset 0 3px 10px rgba(0, 0, 0, 0.75), 0 0 0 1px #d9d7cf // 内凹 + 一圈屏槽线
@@ -217,7 +217,7 @@ component
     align-items: center
     justify-content: center
     gap: 12px
-    min-height: 168px
+    min-height: 128px
     font-family: "SF Mono", "Courier New", monospace
     .deck-readout
       color: $cyan
@@ -1078,7 +1078,7 @@ component
       border: 1px solid #e0ded6
       border-radius: 7px
       padding: 12px 6px 13px
-      min-height: 50px
+      min-height: 44px
       font-size: 12px
       letter-spacing: 0.05em
       white-space: nowrap
