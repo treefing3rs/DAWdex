@@ -156,9 +156,10 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     const clockHand: HTMLElement = (<div className="clock-hand"/>)
     const rackLeds = new Map<RoleId, HTMLElement>([
         ["drums", ledDrums], ["bass", ledBass], ["keys", ledKeys]])
-    // 物件功能面板（舞台内二级页面，从右缘滑出）
+    // 物件功能面板（落在下方键盘屏上：点击物件 → 屏幕亮起显示内容）
     const panelEl: HTMLElement = (<div className="object-panel"/>)
     const panelReadout: HTMLElement = (<span className="panel-readout"/>)
+    const deckReadout: HTMLElement = (<span className="deck-readout"/>)
     // 舞台容器（巡棚切换作用于此）
     const stageEl: HTMLElement = (
         <div className="stage" data-room="main">
@@ -179,7 +180,6 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
                 {clockHand}
             </div>
             {recBadge}
-            {panelEl}
             <div className="transport">
                 {transportReadout}
                 <div className="loop-bar">{transportBar}</div>
@@ -326,6 +326,7 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         clockHand.style.transform = `rotate(${(loopPos * 360).toFixed(1)}deg)`
         // 监视器面板的走带读数与壳内读数同源
         panelReadout.textContent = transportReadout.textContent
+        deckReadout.textContent = transportReadout.textContent
         requestAnimationFrame(tick)
     }
     requestAnimationFrame(tick)
@@ -843,14 +844,26 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
                 {presentButton}
                 {replayButton}
             </div>
-            <div className="stage-bezel">
-                {stageEl}
+            <div className="desk-scene">
+                <div className="stage-bezel">
+                    {stageEl}
+                </div>
+                <div className="crt-stand"/>
+                <div className="keyboard-deck">
+                    <div className="deck-screen">
+                        <div className="deck-idle">
+                            {deckReadout}
+                            <span className="deck-hint">点场景里的物件 · 内容在这块屏上打开</span>
+                        </div>
+                        {panelEl}
+                    </div>
+                    <div className="interventions">{interventionButtons}</div>
+                </div>
             </div>
             <div className="composer">
                 {input}
                 {sendButton}
             </div>
-            <div className="interventions">{interventionButtons}</div>
             <details className="drawer">
                 <summary>乐队会议 · 工作回执 · 证据</summary>
                 {providerSlot}

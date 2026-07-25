@@ -104,16 +104,78 @@ component
         box-shadow: 0 0 10px rgba($red, 0.85)
         animation: onair-breathe 1.9s ease-in-out infinite
 
-  // ── 舞台（电视机 bezel + 像素屏幕） ──────────────────────────────
-  // 宽度同时受视口高度约束，保证头/输入/操作行/抽屉一屏放下
+  // ── 伪 3D 桌面场景（§9.6：老式电脑 — CRT 显示器 + 平放键盘屏） ──────
+  .desk-scene
+    display: flex
+    flex-direction: column
+    align-items: center
+    width: 100%
+    perspective: 1500px
+    perspective-origin: 50% 8%
+    transform-style: preserve-3d
+    flex: 0 0 auto
+
+  // ── 舞台 = CRT 显示器屏幕（微微后仰） ──────────────────────────────
+  // 宽度同时受视口高度约束，保证头/键盘屏/输入/抽屉一屏放下
   .stage-bezel
-    width: min(1080px, 96%, calc((100vh - 250px) * 16 / 9.5))
+    width: min(1080px, 96%, calc((100vh - 430px) * 16 / 9.5))
     aspect-ratio: 16 / 9.5
     padding: 14px
     border-radius: 22px
     background: #26221e
     box-shadow: 0 2px 0 #3a342e inset, 0 18px 48px rgba(0, 0, 0, 0.35)
     flex: 0 0 auto
+    transform: rotateX(2.5deg)
+    transform-origin: 50% 100%
+
+  // CRT 底座
+  .crt-stand
+    width: 130px
+    height: 14px
+    margin-top: -6px
+    background: linear-gradient(180deg, #26221e, #17140f)
+    clip-path: polygon(14% 0, 86% 0, 100% 100%, 0 100%)
+
+  // ── 平放的键盘 = 第二块屏幕（内容/二级菜单显示器） + 物理按键行 ──────
+  .keyboard-deck
+    position: relative
+    width: min(1140px, 99%)
+    margin-top: -4px
+    margin-bottom: 6px
+    padding: 12px 22px 14px
+    border: 2px solid #3a342e
+    border-radius: 14px
+    background: linear-gradient(180deg, #2e2823, #1d1915)
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05)
+    transform: rotateX(45deg)
+    transform-origin: 50% 0
+
+  // 键盘屏： idle = 关屏黑底 + 青色读数；面板打开 = 屏幕点亮
+  .deck-screen
+    position: relative
+    min-height: 168px
+    border-radius: 8px
+    border: 1px solid #3a342e
+    background: #14100d
+    box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.6)
+    overflow: hidden
+  .deck-idle
+    display: flex
+    flex-direction: column
+    align-items: center
+    justify-content: center
+    gap: 10px
+    min-height: 168px
+    .deck-readout
+      color: $cyan
+      font-size: 14px
+      font-weight: 700
+      letter-spacing: 0.1em
+      text-shadow: 0 0 8px rgba($cyan, 0.5)
+    .deck-hint
+      color: rgba(255, 255, 255, 0.38)
+      font-size: 11px
+      letter-spacing: 0.14em
 
   .stage
     position: relative
@@ -641,24 +703,16 @@ component
     top: 22.2%
     animation-delay: 4.1s
 
-  // ── 物件功能面板（舞台内二级页面，右缘滑出，§9.4） ──
+  // ── 物件功能面板（落在键盘屏上：点击物件 → 屏幕点亮显示内容，§9.4） ──
   .object-panel
     position: absolute
-    top: 0
-    right: 0
-    bottom: 0
-    width: min(40%, 340px)
+    inset: 0
     z-index: 10
-    transform: translateX(103%)
-    transition: transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1)
-    background: rgba($shell-bg, 0.95)
-    backdrop-filter: blur(10px)
-    border-left: 2px solid #3a342e
+    background: rgba($shell-bg, 0.98)
     color: $shell-text
-    pointer-events: none
-    &:not(:empty)
-      transform: translateX(0)
-      pointer-events: auto
+    animation: deck-screen-on 220ms ease-out
+    &:empty
+      display: none
     .panel-inner
       display: flex
       flex-direction: column
@@ -801,8 +855,10 @@ component
         background: $cyan
         box-shadow: 0 0 8px rgba($cyan, 0.8)
 
-  // ── 底部输入（Kimi 风） ──────────────────────────────────────────
+  // ── 底部输入（Kimi 风；z-index 保证画在透视甲板之前） ──────────────
   .composer
+    position: relative
+    z-index: 2
     width: min(720px, 92%)
     display: flex
     gap: 8px
@@ -832,7 +888,7 @@ component
       &:hover
         opacity: 0.85
 
-  // FR-09 操作行
+  // FR-09 操作行（默认样式；落在键盘甲板里时变为物理键帽）
   .interventions
     display: flex
     flex-wrap: wrap
@@ -850,6 +906,27 @@ component
         border-color: $shell-muted
       &:active
         transform: scale(0.95)
+
+  // 键盘甲板上的干预键 = 物理键帽（底边加厚，按下下沉）
+  .keyboard-deck .interventions
+    gap: 10px
+    margin-top: 12px
+    button
+      border: 1px solid #4a443c
+      border-bottom: 3px solid #171310
+      border-radius: 6px
+      padding: 7px 16px
+      font-size: 12px
+      letter-spacing: 0.04em
+      background: linear-gradient(180deg, #4a443c, #35302a)
+      color: #e8e2d6
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4)
+      &:hover
+        border-color: #5a5348
+        filter: brightness(1.18)
+      &:active
+        transform: translateY(2px)
+        border-bottom-width: 1px
 
   // ── 证据抽屉 ─────────────────────────────────────────────────────
   .drawer
@@ -953,12 +1030,21 @@ component
       .event-dot
         background: $mint
 
-  // ── 投屏演示模式（§12.5-5：隐藏 C 区、缩小 B 区、A 区最大化） ────
+  // ── 投屏演示模式（§12.5-5：隐藏 C 区、缩小 B 区、A 区最大化；3D 壳压平省空间） ────
   &.presentation
     gap: 6px
+    .desk-scene
+      perspective: none
     .stage-bezel
-      width: min(1560px, 98%, calc((100vh - 130px) * 16 / 9.5))
-    .interventions,
+      width: min(1560px, 98%, calc((100vh - 260px) * 16 / 9.5))
+      transform: none
+    .crt-stand
+      display: none
+    .keyboard-deck
+      transform: none
+      margin-bottom: 0
+      .interventions
+        display: none
     .drawer
       display: none
     .composer
@@ -974,9 +1060,8 @@ component
     pointer-events: none
     overflow: visible
     padding: 0
-    .stage-bezel,
+    .desk-scene,
     .composer,
-    .interventions,
     .drawer,
     .intro-splash
       display: none
@@ -1020,6 +1105,19 @@ component
     &::before
       content: "· "
       color: $shell-line
+
+  // ── 窄屏/矮屏：伪 3D 壳压平为平面布局，保证可读可操作 ──────────────
+  @media (max-width: 900px), (max-height: 720px)
+    .desk-scene
+      perspective: none
+    .stage-bezel
+      transform: none
+      width: min(1080px, 96%, calc((100vh - 470px) * 16 / 9.5))
+    .crt-stand
+      display: none
+    .keyboard-deck
+      transform: none
+      margin-bottom: 0
 
 // ── 动效关键帧 ─────────────────────────────────────────────────────
 @keyframes danmaku-fly
@@ -1104,6 +1202,17 @@ component
 @keyframes rec-blink
   50%
     opacity: 0.25
+
+// 键盘屏点亮：面板打开时的「屏幕开机」感
+@keyframes deck-screen-on
+  0%
+    opacity: 0
+    filter: brightness(2.2)
+  60%
+    opacity: 1
+    filter: brightness(1.3)
+  100%
+    filter: brightness(1)
 
 // 闪光点：大部分时候隐身，每周期快速眨一下（8-bit 拾取提示感）
 @keyframes glint-blink
