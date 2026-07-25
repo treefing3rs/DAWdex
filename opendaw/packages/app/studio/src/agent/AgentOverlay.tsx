@@ -21,9 +21,9 @@ type Construct = {
 
 /** MVP 启用的舞台角色（契约保留 lead/producer 扩展位） */
 const STAGE_ROLES: ReadonlyArray<{id: RoleId, label: string, img: string}> = [
-    {id: "drums", label: "鼓手", img: "/dawdex/drummer_V3.png"},
-    {id: "bass", label: "贝斯手", img: "/dawdex/bassist_V3.png"},
-    {id: "keys", label: "键盘手", img: "/dawdex/keyboardist_V3.png"}
+    {id: "drums", label: "鼓手", img: "/dawdex/drummer_v2.png"},
+    {id: "bass", label: "贝斯手", img: "/dawdex/bassist_v2.png"},
+    {id: "keys", label: "键盘手", img: "/dawdex/keyboardist_v2.png"}
 ]
 
 const INTERVENTIONS: ReadonlyArray<{kind: InterventionKind, label: string}> = [
