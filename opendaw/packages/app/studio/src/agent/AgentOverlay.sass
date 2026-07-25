@@ -138,59 +138,23 @@ component
     clip-path: polygon(14% 0, 86% 0, 100% 100%, 0 100%)
     transition: opacity 620ms ease
 
-  // ── 平放的 L 形键盘甲板（浅色拟真壳 · Anthropic 奶油色系） ──────────
+  // ── 平放的键盘甲板（Fig Mint 奶油楔形薄板：屏在上、键在下，无侧翼） ──────
   .keyboard-deck
     position: relative
     display: flex
-    gap: 14px
+    flex-direction: column
+    gap: 12px
     width: min(1240px, 99%)
     margin-top: -4px
     margin-bottom: 6px
-    padding: 14px 20px 16px
-    border: 1px solid #d5cebd
-    border-radius: 18px
-    background: linear-gradient(180deg, #f6f2e8, #e7e1d1)
-    box-shadow: 0 26px 54px rgba(60, 50, 35, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.85)
+    padding: 16px 22px 18px
+    border: 1px solid #ddd6c5
+    border-radius: 14px
+    background: linear-gradient(180deg, #f3efe4, #e9e3d3)
+    box-shadow: 0 22px 44px rgba(85, 74, 55, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.9)
     transform: rotateX(45deg)
     transform-origin: 50% 0
     transition: transform 620ms cubic-bezier(0.25, 0.8, 0.25, 1)
-  .deck-main
-    flex: 1
-    min-width: 0
-
-  // 左翼：竖起的系统键列（L 形的竖起一边，略高于甲板面）
-  .deck-wing
-    display: flex
-    flex-direction: column
-    justify-content: center
-    gap: 10px
-    padding: 10px 8px
-    margin: -6px 0 -2px -6px
-    border-radius: 14px
-    background: linear-gradient(180deg, #efe9db, #e0d9c7)
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 4px 10px rgba(60, 50, 35, 0.18)
-  .wing-key
-    display: flex
-    flex-direction: column
-    align-items: center
-    gap: 2px
-    width: 52px
-    padding: 8px 0 9px
-    border: 1px solid #cfc7b4
-    border-radius: 9px
-    background: linear-gradient(180deg, #fdfbf6, #ece6d6)
-    box-shadow: 0 3px 0 #c8c0ab, 0 4px 7px rgba(60, 50, 35, 0.22), inset 0 1px 0 #fff
-    color: #6b6353
-    font-size: 15px
-    cursor: pointer
-    span
-      font-size: 9px
-      letter-spacing: 0.1em
-    &:hover
-      filter: brightness(1.04)
-    &:active
-      transform: translateY(3px)
-      box-shadow: 0 0 0 #c8c0ab, 0 1px 2px rgba(60, 50, 35, 0.18), inset 0 1px 0 #fff
 
   // 键盘屏（8-bit 风格：磷光黑底 + 扫描线 + 像素字感）
   .deck-screen
@@ -959,26 +923,27 @@ component
       &:active
         transform: scale(0.95)
 
-  // 键盘甲板上的干预键 = 拟真凸起键帽（奶油塑料质感，按下下沉）
+  // 键盘甲板上的干预键 = Fig Mint 方正奶油键帽（饱满方块、柔和键程、按下下沉）
   .keyboard-deck .interventions
-    gap: 12px
-    margin-top: 12px
+    gap: 14px
+    margin-top: 2px
     button
-      border: 1px solid #cfc7b4
-      border-radius: 8px
-      padding: 9px 18px 10px
+      border: 1px solid #d9d2bf
+      border-radius: 7px
+      padding: 10px 22px 11px
+      min-height: 42px
       font-size: 12px
       letter-spacing: 0.05em
-      background: linear-gradient(180deg, #fdfbf6 0%, #f0ebdd 55%, #e2dbc8 100%)
-      color: #5c5546
-      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.75)
-      box-shadow: 0 4px 0 #c6beaa, 0 6px 10px rgba(60, 50, 35, 0.22), inset 0 1px 0 #fff
+      background: linear-gradient(180deg, #fbf8f0 0%, #f2ecdd 60%, #e9e2cf 100%)
+      color: #6b6353
+      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8)
+      box-shadow: 0 3px 0 #cfc7b2, 0 5px 9px rgba(85, 74, 55, 0.20), inset 0 1px 0 #fff
       &:hover
         filter: brightness(1.03)
-        box-shadow: 0 4px 0 #c6beaa, 0 8px 14px rgba(60, 50, 35, 0.28), inset 0 1px 0 #fff
+        box-shadow: 0 3px 0 #cfc7b2, 0 7px 13px rgba(85, 74, 55, 0.26), inset 0 1px 0 #fff
       &:active
-        transform: translateY(4px)
-        box-shadow: 0 0 0 #c6beaa, 0 1px 2px rgba(60, 50, 35, 0.18), inset 0 1px 0 #fff
+        transform: translateY(3px)
+        box-shadow: 0 0 0 #cfc7b2, 0 1px 2px rgba(85, 74, 55, 0.18), inset 0 1px 0 #fff
 
   // ── 运镜：面板打开 → 视角转向键盘屏并俯视；CRT 退后变暗成背景 ──
   .desk-scene.deck-focus

@@ -698,12 +698,8 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         return btn
     })
 
-    // ── 键盘左翼：系统按键（L 形甲板的竖起一边） ────────────────────────
-    const wingSettings: HTMLButtonElement = (<button type="button" className="wing-key" title="设置">⚙<span>设置</span></button>)
-    const wingPresent: HTMLButtonElement = (<button type="button" className="wing-key" title="投屏模式">⛶<span>投屏</span></button>)
-    const wingWorkbench: HTMLButtonElement = (<button type="button" className="wing-key" title="打开 openDAW 工作台">⌄<span>工作台</span></button>)
-
-    // ── 伪 3D 桌面场景（运镜作用层）：CRT + 底座 + L 形键盘甲板 ─────────
+    // ── 伪 3D 桌面场景（运镜作用层）：CRT + 底座 + 键盘甲板 ─────────
+    // 甲板布局：屏上键下，左侧无按钮（Fig Mint 式独立键盘矮板）
     const deskSceneEl: HTMLElement = (
         <div className="desk-scene">
             <div className="stage-bezel">
@@ -711,19 +707,14 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
             </div>
             <div className="crt-stand"/>
             <div className="keyboard-deck">
-                <div className="deck-wing">
-                    {wingSettings}{wingPresent}{wingWorkbench}
-                </div>
-                <div className="deck-main">
-                    <div className="deck-screen">
-                        <div className="deck-idle">
-                            {deckReadout}
-                            <span className="deck-hint">点场景里的物件 · 内容在这块屏上打开</span>
-                        </div>
-                        {panelEl}
+                <div className="deck-screen">
+                    <div className="deck-idle">
+                        {deckReadout}
+                        <span className="deck-hint">点场景里的物件 · 内容在这块屏上打开</span>
                     </div>
-                    <div className="interventions">{interventionButtons}</div>
+                    {panelEl}
                 </div>
+                <div className="interventions">{interventionButtons}</div>
             </div>
         </div>)
 
@@ -966,10 +957,6 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
             event.stopPropagation()
             openPanel("desk")
         }),
-        // ── 键盘左翼系统键 ──
-        Events.subscribe(wingSettings, "click", () => openPanel("settings")),
-        Events.subscribe(wingPresent, "click", () => presentButton.click()),
-        Events.subscribe(wingWorkbench, "click", () => setCollapsed(true)),
         Events.subscribe(artHit, "click", event => {
             event.stopPropagation()
             openPanel("art")
