@@ -4,7 +4,9 @@ import {Lifecycle, Option, Terminable} from "@opendaw/lib-std"
 import {Events, Html} from "@opendaw/lib-dom"
 import {StudioService} from "@/service/StudioService"
 import {AgentClient} from "./AgentClient"
-import {AgentPlan, AgentProviderStatus, DAWDEX_VERSION, DawAction} from "./AgentProtocol"
+import {
+    AgentPlan, AgentProviderStatus, AgentRuntimeSnapshot, AgentRuntimeSummary, DAWDEX_VERSION, DawAction
+} from "./AgentProtocol"
 import {DawProjectAdapter} from "./DawProjectAdapter"
 import {RealUiEventBridge} from "./RealUiEventBridge"
 import type {
@@ -796,6 +798,153 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         })
         return rows
     }
+    // ── 运行时设置（Open Design 式行列表：读快照 / 增量重扫 / 提交选择，契约 §6） ──
+    const renderRuntimeSettings = (container: HTMLElement): void => {
+        let snapshot: AgentRuntimeSnapshot | null = null
+        let busy = false
+        const statusLine: HTMLElement = (<div className="panel-note rt-status">正在扫描本机 CLI…</div>)
+        const rows: HTMLElement = (<div className="runtime-rows"/>)
+        const rescanBtn: HTMLButtonElement = (<button type="button" className="panel-primary rt-rescan">↻ 重新扫描</button>)
+        const mergeRuntime = (runtime: AgentRuntimeSummary): void => {
+            if (snapshot === null) {return}
+            const list = snapshot.runtimes.slice()
+            const index = list.findIndex(entry => entry.id === runtime.id)
+            if (index >= 0) {list[index] = runtime} else {list.push(runtime)}
+            snapshot = {...snapshot, runtimes: list}
+        }
+        const buildRow = (options: {
+            title: string, meta: string, selected: boolean, disabled: boolean,
+            badge: string | null, stateText: string, stateOk: boolean,
+            onSelect: () => void
+        }): HTMLElement => {
+            const row: HTMLButtonElement = (
+                <button type="button" className="runtime-row" data-selected={String(options.selected)}
+                        disabled={options.disabled}>
+                    <span className="rt-radio"/>
+                    <span className="rt-main">
+                        <span className="rt-name">
+                            {options.title}
+                            {options.badge !== null && <em className="rt-badge">{options.badge}</em>}
+                        </span>
+                        <span className="rt-meta">{options.meta}</span>
+                    </span>
+                    <span className={`rt-state ${options.stateOk ? "ok" : "bad"}`}>{options.stateText}</span>
+                </button>)
+            row.onclick = () => {
+                if (!options.disabled && !busy) {options.onSelect()}
+            }
+            return row
+        }
+        const renderRows = (): void => {
+            Html.empty(rows)
+            if (snapshot === null) {return}
+            const selection = snapshot.selection
+            const locked = selection.lockedByEnvironment
+            const choose = (input: {mode: "auto" | "local-cli" | "api-key", runtimeId?: string | null, model?: string | null}) => {
+                busy = true
+                statusLine.textContent = "正在保存选择…"
+                client.selectRuntime(input)
+                    .then(next => {
+                        snapshot = next
+                        statusLine.textContent = "选择已保存，下一次弹幕创作即走新运行时"
+                    })
+                    .catch(error => {
+                        statusLine.textContent = `保存失败：${error instanceof Error ? error.message : String(error)}`
+                    })
+                    .finally(() => {
+                        busy = false
+                        if (container.isConnected) {renderRows()}
+                    })
+            }
+            rows.appendChild(buildRow({
+                title: "自动（推荐）",
+                meta: "Codex 账号 → OpenAI API → 本地回退",
+                selected: selection.mode === "auto",
+                disabled: locked,
+                badge: null,
+                stateText: "默认",
+                stateOk: true,
+                onSelect: () => choose({mode: "auto"})
+            }))
+            for (const runtime of snapshot.runtimes) {
+                const selected = selection.mode === "local-cli" && selection.runtimeId === runtime.id
+                const meta = runtime.available
+                    ? `${runtime.version ?? "版本未知"} · ${runtime.displayPath ?? ""}`
+                    : (runtime.diagnostic ?? "本机未安装")
+                rows.appendChild(buildRow({
+                    title: runtime.name,
+                    meta,
+                    selected,
+                    disabled: locked || !runtime.selectable,
+                    badge: selected ? "当前" : null,
+                    stateText: runtime.available ? "可用" : "不可用",
+                    stateOk: runtime.available,
+                    onSelect: () => choose({mode: "local-cli", runtimeId: runtime.id, model: null})
+                }))
+                // 选中且提供多模型的运行时：行内模型下拉（Qoder 实时/回退档）
+                if (selected && runtime.models.length > 1) {
+                    const modelSelect: HTMLSelectElement = (<select className="rt-model"/>)
+                    modelSelect.appendChild(<option value="">默认（CLI 配置）</option>)
+                    for (const model of runtime.models) {
+                        if (model.id === "default") {continue}
+                        const option: HTMLOptionElement = (<option value={model.id}>{model.label}</option>)
+                        option.selected = selection.model === model.id
+                        modelSelect.appendChild(option)
+                    }
+                    modelSelect.onchange = () => {
+                        const model = modelSelect.value
+                        choose({mode: "local-cli", runtimeId: runtime.id, model: model.length === 0 ? null : model})
+                    }
+                    rows.appendChild((<div className="rt-model-row"><span>模型</span>{modelSelect}</div>))
+                }
+            }
+            rows.appendChild(buildRow({
+                title: "OpenAI API Key",
+                meta: "使用服务器环境变量里的 OPENAI_API_KEY，严格不回退",
+                selected: selection.mode === "api-key",
+                disabled: locked,
+                badge: null,
+                stateText: "严格",
+                stateOk: true,
+                onSelect: () => choose({mode: "api-key"})
+            }))
+            if (locked) {
+                statusLine.textContent = "运行时选择已被环境变量 DAWDEX_AGENT_PROVIDER 锁定（运维覆盖）"
+            }
+        }
+        rescanBtn.onclick = () => {
+            if (busy) {return}
+            busy = true
+            statusLine.textContent = "正在重新扫描本机 CLI…"
+            client.scanRuntimes(runtime => {
+                mergeRuntime(runtime)
+                if (container.isConnected) {renderRows()}
+            })
+                .then(next => {
+                    snapshot = next
+                    statusLine.textContent = "扫描完成"
+                })
+                .catch(error => {
+                    statusLine.textContent = `扫描失败：${error instanceof Error ? error.message : String(error)}`
+                })
+                .finally(() => {
+                    busy = false
+                    if (container.isConnected) {renderRows()}
+                })
+        }
+        appendChildren(container, rows, (<div className="rt-actions">{rescanBtn}</div>), statusLine)
+        client.runtimes()
+            .then(next => {
+                snapshot = next
+                statusLine.textContent = ""
+            })
+            .catch(error => {
+                statusLine.textContent = `无法连接 Agent Server：${error instanceof Error ? error.message : String(error)}`
+            })
+            .finally(() => {
+                if (container.isConnected) {renderRows()}
+            })
+    }
     const openPanel = (kind: PanelKind) => {
         openPanelKind = kind
         Html.empty(panelEl)
@@ -862,7 +1011,9 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
                 (<div className="panel-row big">{`${barsPerLoop} 小节循环 · ${Math.round(bpm)} BPM · ${keySig}`}</div>),
                 (<div className="panel-note">{`指针转一圈 = 一个循环（约 ${(barsPerLoop * 4 * 60 / bpm).toFixed(1)} 秒），暂停时指针冻结`}</div>))
         } else if (kind === "settings") {
-            // 左翼设置键 = 系统功能（与顶栏同源）
+            // 设置 = 执行模式（本地 CLI 运行时）+ 系统功能（与顶栏同源）
+            const runtimeSection: HTMLElement = (<div className="runtime-section"/>)
+            renderRuntimeSettings(runtimeSection)
             const presentBtn: HTMLButtonElement = (<button type="button" className="panel-primary">投屏模式</button>)
             presentBtn.onclick = () => {
                 closePanel()
@@ -879,7 +1030,9 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
                 startMock()
             }
             appendChildren(body,
-                (<div className="panel-note">系统功能与顶栏按钮同源，投屏/工作台/回放随时可用</div>),
+                (<div className="panel-sub">执行模式 · 本地 CLI 运行时</div>),
+                runtimeSection,
+                (<div className="panel-sub">系统功能</div>),
                 presentBtn, workbenchBtn, replayBtn)
         } else {
             const strongerBtn: HTMLButtonElement = (<button type="button" className="panel-primary">更有力量</button>)

@@ -2,6 +2,33 @@ export const DAWDEX_VERSION = "0.3.0"
 
 export type AgentPlanSource = "codex" | "kimi" | "qoder" | "model" | "local"
 export type AgentProviderId = "codex" | "openai" | "local"
+
+// ── 本地 CLI 运行时适配器契约（/v1/runtimes） ────────────────────────────────
+export type AgentRuntimeId = "codex" | "kimi" | "qoder"
+export type AgentRuntimeModel = {readonly id: string, readonly label: string}
+export type AgentRuntimeSummary = {
+    readonly id: AgentRuntimeId
+    readonly name: string
+    readonly available: boolean
+    readonly selectable: boolean
+    readonly displayPath: string | null
+    readonly version: string | null
+    readonly authState: "unknown" | "authenticated" | "unauthenticated"
+    readonly models: ReadonlyArray<AgentRuntimeModel>
+    readonly modelsSource: "live" | "default" | "fallback"
+    readonly diagnostic: string | null
+}
+export type AgentRuntimeSelection = {
+    readonly mode: "auto" | "local-cli" | "api-key"
+    readonly runtimeId: AgentRuntimeId | null
+    readonly model: string | null
+    readonly lockedByEnvironment: boolean
+}
+export type AgentRuntimeSnapshot = {
+    readonly scan: {readonly state: string, readonly startedAt: string, readonly completedAt: string}
+    readonly selection: AgentRuntimeSelection
+    readonly runtimes: ReadonlyArray<AgentRuntimeSummary>
+}
 export type MusicIntent = "create" | "add" | "restyle" | "modify"
 export type MusicRole = "drums" | "bass" | "keys"
 export type SupportedStyle = string

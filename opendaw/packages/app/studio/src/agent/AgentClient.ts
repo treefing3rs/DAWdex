@@ -4,6 +4,8 @@ import {
     AgentProgress,
     AgentPlan,
     AgentProviderStatus,
+    AgentRuntimeSnapshot,
+    AgentRuntimeSummary,
     CodexLoginResult,
     DawAction,
     DawControlAction,
@@ -226,6 +228,23 @@ const isAgentProgress = (value: unknown): value is AgentProgress =>
     && ["understanding", "direction", "searching", "arranging", "review"].includes(String(value.stage))
     && typeof value.message === "string"
 
+const isRuntimeSummary = (value: unknown): value is AgentRuntimeSummary =>
+    isObject(value)
+    && ["codex", "kimi", "qoder"].includes(String(value.id))
+    && typeof value.name === "string"
+    && typeof value.available === "boolean"
+    && typeof value.selectable === "boolean"
+    && (value.displayPath === null || typeof value.displayPath === "string")
+    && (value.version === null || typeof value.version === "string")
+
+const isRuntimeSnapshot = (value: unknown): value is AgentRuntimeSnapshot =>
+    isObject(value)
+    && isObject(value.scan)
+    && isObject(value.selection)
+    && typeof value.selection.mode === "string"
+    && Array.isArray(value.runtimes)
+    && (value.runtimes as Array<unknown>).every(isRuntimeSummary)
+
 export class AgentClient {
     readonly #endpoint: string
 
@@ -332,6 +351,96 @@ export class AgentClient {
             throw new Error("Agent server completed without a valid music plan")
         }
         return finalPlan
+    }
+
+    // 运行时快照（设置屏动作 1）：无缓存时服务器会先做一次完整扫描
+    async runtimes(): Promise<AgentRuntimeSnapshot> {
+        const response = await fetch(this.#url("/v1/runtimes"), {method: "GET"})
+        const value = await response.json() as unknown
+        if (!response.ok) {
+            throw new Error(isObject(value) && typeof value.error === "string"
+                ? value.error
+                : `Agent server returned ${response.status}`)
+        }
+        if (!isRuntimeSnapshot(value)) {
+            throw new Error("Agent server returned an invalid runtime snapshot")
+        }
+        return value
+    }
+
+    // 增量重扫（设置屏动作 2）：每个探测完成的运行时即时回调，完成时返回完整快照
+    async scanRuntimes(onRuntime: (runtime: AgentRuntimeSummary) => void): Promise<AgentRuntimeSnapshot> {
+        const response = await fetch(this.#url("/v1/runtimes/scan"), {
+            method: "GET",
+            headers: {"Accept": "text/event-stream"}
+        })
+        if (!response.ok) {
+            throw new Error(`Agent server returned ${response.status}`)
+        }
+        const reader = response.body?.getReader()
+        if (reader === undefined) {
+            throw new Error("Agent server did not return a scan event stream")
+        }
+        const decoder = new TextDecoder()
+        let buffer = ""
+        let finalSnapshot: AgentRuntimeSnapshot | null = null
+        let scanError: string | null = null
+        try {
+            while (true) {
+                const {done, value} = await reader.read()
+                buffer += decoder.decode(value, {stream: !done})
+                const blocks = buffer.split("\n\n")
+                buffer = blocks.pop() ?? ""
+                for (const block of blocks) {
+                    let event = "message"
+                    let data = ""
+                    for (const line of block.split("\n")) {
+                        if (line.startsWith("event:")) {event = line.slice(6).trim()}
+                        else if (line.startsWith("data:")) {data += line.slice(5).trim()}
+                    }
+                    if (data.length === 0) {continue}
+                    const payload = JSON.parse(data) as unknown
+                    if (event === "runtime" && isRuntimeSummary(payload)) {
+                        onRuntime(payload)
+                    } else if (event === "scan-complete" && isRuntimeSnapshot(payload)) {
+                        finalSnapshot = payload
+                    } else if (event === "scan-error" && isObject(payload) && typeof payload.error === "string") {
+                        scanError = payload.error
+                    }
+                }
+                if (done) {break}
+            }
+        } finally {
+            reader.releaseLock()
+        }
+        if (scanError !== null) {throw new Error(scanError)}
+        if (finalSnapshot === null) {
+            throw new Error("Agent server completed the scan without a snapshot")
+        }
+        return finalSnapshot
+    }
+
+    // 提交执行模式选择（设置屏动作 3）：无效选择 400，环境锁定 409
+    async selectRuntime(input: {
+        mode: "auto" | "local-cli" | "api-key",
+        runtimeId?: string | null,
+        model?: string | null
+    }): Promise<AgentRuntimeSnapshot> {
+        const response = await fetch(this.#url("/v1/runtimes/selection"), {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(input)
+        })
+        const value = await response.json() as unknown
+        if (!response.ok) {
+            throw new Error(isObject(value) && typeof value.error === "string"
+                ? value.error
+                : `Agent server returned ${response.status}`)
+        }
+        if (!isRuntimeSnapshot(value)) {
+            throw new Error("Agent server returned an invalid runtime snapshot")
+        }
+        return value
     }
 
     #url(pathname: string): string {

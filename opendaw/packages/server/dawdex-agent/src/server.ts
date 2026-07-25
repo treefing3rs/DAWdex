@@ -3,6 +3,9 @@ import type {IncomingMessage, ServerResponse} from "node:http"
 import {z} from "zod"
 // import {Agent, run} from "@openai/agents"  // replaced with direct fetch
 import {CodexAppServer} from "./CodexAppServer.ts"
+import {LocalRuntimeService, SelectionError} from "./LocalRuntime.ts"
+import {KimiCliProvider, QoderCliProvider} from "./LocalCliProviders.ts"
+import type {StructuredPlanningProvider} from "./LocalCliProviders.ts"
 import {
     CreativeBriefSchema,
     createCreativeDirectorInput,
@@ -23,7 +26,10 @@ import type {MidiBundle} from "./MidiBundleRanker.ts"
 type ProgressStage = "understanding" | "direction" | "searching" | "arranging" | "review"
 type ProgressUpdate = {readonly stage: ProgressStage, readonly message: string}
 type ProgressSink = (update: ProgressUpdate) => void
-type ProviderSource = "codex" | "model"
+type ProviderSource = "codex" | "kimi" | "qoder" | "model"
+
+const isObject = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null
 
 const OPENAI_MODEL = process.env.OPENAI_MODEL ?? "gpt-5.4"
 const OPENAI_BASE = process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1"
@@ -105,6 +111,9 @@ Ignore the abbreviated example above when it differs from this exact required JS
 ${JSON.stringify(z.toJSONSchema(ProducerOutputSchema), null, 2)}`
 
 const codex = new CodexAppServer()
+const runtimes = new LocalRuntimeService({
+    probeCodexAuth: async () => (await codex.status()).authenticated ? "authenticated" : "unauthenticated"
+})
 const midiCatalog = new MidiCatalog()
 const allowedOrigin = process.env.DAWDEX_STUDIO_ORIGIN ?? "http://localhost:8080"
 const port = Number(process.env.DAWDEX_AGENT_PORT ?? "8787")
@@ -320,16 +329,20 @@ const withProgressPulse = async <T>(
     }
 }
 
+const openAiProvider: StructuredPlanningProvider = {
+    createCreativeBrief: runOpenAiBrief,
+    createPlan: runOpenAiPlan
+}
+
 const planWithProvider = async (
     source: ProviderSource,
+    provider: StructuredPlanningProvider,
     prompt: string,
     snapshot: ProjectSnapshot,
     emit: ProgressSink
 ): Promise<{source: ProviderSource, output: PlanOutput}> => {
     const brief = await withProgressPulse(
-        source === "codex"
-            ? codex.createCreativeBrief(prompt, snapshot)
-            : runOpenAiBrief(prompt, snapshot),
+        provider.createCreativeBrief(prompt, snapshot),
         emit,
         [
             {stage: "understanding", message: "正在把场景描述翻译成情绪、律动和可听见的角色分工…"},
@@ -365,9 +378,7 @@ const planWithProvider = async (
         message: `正在把 ${brief.instrumentation.join("、")} 编排成可编辑轨道…`
     })
     const rawPlan = await withProgressPulse(
-        source === "codex"
-            ? codex.createPlan(prompt, snapshot, brief, candidates, bundles)
-            : runOpenAiPlan(prompt, snapshot, brief, candidates, bundles),
+        provider.createPlan(prompt, snapshot, brief, candidates, bundles),
         emit,
         [
             {stage: "arranging", message: "正在比较 Bundle 的律动、段落长度与素材家族关系…"},
@@ -402,12 +413,37 @@ const createPlan = async (
         stage: "understanding",
         message: "正在理解情绪、场景和音乐目标，并比较可能的创作方向…"
     })
+    const selection = await runtimes.currentSelection()
+    if (!selection.lockedByEnvironment && selection.mode !== "auto") {
+        // 显式选择 = 严格路由：失败返回真实错误，绝不在服务器内部悄悄换 Provider
+        if (selection.mode === "api-key") {
+            return await planWithProvider("model", openAiProvider, prompt, snapshot, emit)
+        }
+        const summary = await runtimes.selectedRuntime()
+        if (summary === null || summary.executable === undefined) {
+            throw new Error(
+                `Selected runtime "${String(selection.runtimeId)}" is no longer available — rescan or change runtime in Settings`
+            )
+        }
+        if (summary.id === "codex") {
+            const status = await codex.status()
+            if (!status.authenticated) {
+                throw new Error(status.error ?? "Codex is not signed in with ChatGPT")
+            }
+            return await planWithProvider("codex", codex, prompt, snapshot, emit)
+        }
+        const provider = summary.id === "kimi"
+            ? new KimiCliProvider(summary.executable, selection.model)
+            : new QoderCliProvider(summary.executable, selection.model)
+        return await planWithProvider(summary.id, provider, prompt, snapshot, emit)
+    }
+    // auto / 环境锁定：保留原有自动路由 Codex ChatGPT 账号 → OpenAI API
     let codexError: unknown = null
     if (providerPreference !== "openai") {
         const status = await codex.status()
         if (status.authenticated) {
             try {
-                return await planWithProvider("codex", prompt, snapshot, emit)
+                return await planWithProvider("codex", codex, prompt, snapshot, emit)
             } catch (error) {
                 codexError = error
                 if (providerPreference === "codex") {throw error}
@@ -417,7 +453,7 @@ const createPlan = async (
         }
     }
     try {
-        return await planWithProvider("model", prompt, snapshot, emit)
+        return await planWithProvider("model", openAiProvider, prompt, snapshot, emit)
     } catch (openaiError) {
         throw new Error(codexError === null
             ? String(openaiError)
@@ -446,12 +482,65 @@ const handleStatus = async (response: ServerResponse): Promise<void> => {
             : openaiConfigured && providerPreference !== "codex"
                 ? "openai"
                 : "local"
+    const runtimeSelection = await runtimes.currentSelection()
     sendJson(response, 200, {
         activeProvider,
         preference: providerPreference,
         codex: codexStatus,
-        openai: {configured: openaiConfigured}
+        openai: {configured: openaiConfigured},
+        runtimeSelection
     })
+}
+
+// 增量扫描（SSE）：每个探测完成的运行时即时推送，设置屏无需等待最慢的 CLI
+const handleRuntimeScan = async (response: ServerResponse): Promise<void> => {
+    response.writeHead(200, {
+        ...corsHeaders,
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "X-Content-Type-Options": "nosniff",
+        "Connection": "keep-alive"
+    })
+    const send = (event: string, data: unknown): void => {
+        if (!response.writableEnded) {response.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)}
+    }
+    try {
+        send("scan-started", {startedAt: new Date().toISOString()})
+        const snapshot = await runtimes.scan(runtime => send("runtime", runtime))
+        send("scan-complete", snapshot)
+    } catch (error) {
+        send("scan-error", {error: String(error)})
+    } finally {
+        response.end()
+    }
+}
+
+const handleRuntimeSelection = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
+    const body = await readBody(request)
+    let value: unknown
+    try {
+        value = JSON.parse(body) as unknown
+    } catch {
+        sendJson(response, 400, {error: "Invalid JSON"})
+        return
+    }
+    if (!isObject(value) || typeof value.mode !== "string") {
+        sendJson(response, 400, {error: "Invalid runtime selection request"})
+        return
+    }
+    try {
+        const snapshot = await runtimes.select({
+            mode: value.mode as "auto" | "local-cli" | "api-key",
+            runtimeId: typeof value.runtimeId === "string" ? value.runtimeId : null,
+            model: typeof value.model === "string" ? value.model : null
+        })
+        sendJson(response, 200, snapshot)
+    } catch (error) {
+        if (error instanceof SelectionError) {
+            sendJson(response, error.status, {error: error.message})
+            return
+        }
+        throw error
+    }
 }
 
 const handleLogin = async (response: ServerResponse): Promise<void> => {
@@ -510,6 +599,20 @@ const server = createServer((request, response) => {
     }
     if (request.method === "GET" && request.url === "/v1/provider/status") {
         handleStatus(response).catch(error => sendJson(response, 500, {error: String(error)}))
+        return
+    }
+    if (request.method === "GET" && request.url === "/v1/runtimes") {
+        runtimes.snapshot()
+            .then(snapshot => sendJson(response, 200, snapshot))
+            .catch(error => sendJson(response, 500, {error: String(error)}))
+        return
+    }
+    if (request.method === "GET" && request.url === "/v1/runtimes/scan") {
+        handleRuntimeScan(response).catch(error => sendJson(response, 500, {error: String(error)}))
+        return
+    }
+    if (request.method === "POST" && request.url === "/v1/runtimes/selection") {
+        handleRuntimeSelection(request, response).catch(error => sendJson(response, 500, {error: String(error)}))
         return
     }
     if (request.method === "POST" && request.url === "/v1/provider/codex/login") {

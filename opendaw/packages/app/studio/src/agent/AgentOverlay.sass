@@ -875,6 +875,112 @@ component
       padding: 0
       &:hover
         color: $shell-text
+
+  // ── 运行时行列表（Open Design 式：hairline 分隔 + 单选圈 + 右侧状态） ──────
+  .runtime-rows
+    display: flex
+    flex-direction: column
+    border: 1px solid $shell-line
+    border-radius: 10px
+    overflow: hidden
+  .runtime-row
+    display: flex
+    align-items: center
+    gap: 10px
+    padding: 9px 12px
+    border: none
+    border-bottom: 1px solid $shell-line
+    background: rgba(255, 255, 255, 0.55)
+    text-align: left
+    font-size: 12px
+    color: $shell-text
+    cursor: pointer
+    &:last-child
+      border-bottom: none
+    &:hover:not(:disabled)
+      background: #fff
+    &:disabled
+      cursor: default
+      opacity: 0.55
+    &[data-selected="true"]
+      background: #fff
+      box-shadow: inset 2px 0 0 $shell-text
+      .rt-radio
+        border-color: $shell-text
+        &::after
+          content: ""
+          position: absolute
+          inset: 3px
+          border-radius: 50%
+          background: $shell-text
+  .rt-radio
+    position: relative
+    flex: 0 0 auto
+    width: 13px
+    height: 13px
+    border: 1.5px solid $shell-muted
+    border-radius: 50%
+  .rt-main
+    flex: 1
+    display: flex
+    flex-direction: column
+    gap: 2px
+    min-width: 0
+  .rt-name
+    font-weight: 700
+    letter-spacing: 0.03em
+    .rt-badge
+      margin-left: 6px
+      padding: 1px 6px
+      border-radius: 4px
+      background: $shell-text
+      color: #fff
+      font-size: 9px
+      font-style: normal
+      font-weight: 700
+      letter-spacing: 0.1em
+      vertical-align: 1px
+  .rt-meta
+    font-size: 10.5px
+    color: $shell-muted
+    font-family: "SF Mono", "Courier New", monospace
+    overflow: hidden
+    text-overflow: ellipsis
+    white-space: nowrap
+  .rt-state
+    flex: 0 0 auto
+    font-size: 10px
+    font-weight: 700
+    letter-spacing: 0.12em
+    &.ok
+      color: #4a7a5b
+    &.bad
+      color: #a08a6a
+  .rt-model-row
+    display: flex
+    align-items: center
+    gap: 8px
+    padding: 6px 12px 8px 35px
+    border-bottom: 1px solid $shell-line
+    background: rgba(255, 255, 255, 0.35)
+    font-size: 10.5px
+    color: $shell-muted
+    select
+      font-size: 11px
+      padding: 2px 6px
+      border: 1px solid $shell-line
+      border-radius: 6px
+      background: #fff
+      color: $shell-text
+  .rt-actions
+    display: flex
+    justify-content: flex-end
+    margin-top: 6px
+  .rt-rescan
+    font-size: 11px
+    padding: 5px 10px
+  .rt-status
+    min-height: 1em
         text-decoration: underline
 
   // 权威时钟 + 循环进度
