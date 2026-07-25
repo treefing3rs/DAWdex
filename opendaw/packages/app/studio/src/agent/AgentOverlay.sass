@@ -118,7 +118,7 @@ component
   // ── 舞台 = CRT 显示器屏幕（微微后仰） ──────────────────────────────
   // 宽度同时受视口高度约束，保证头/键盘屏/输入/抽屉一屏放下
   .stage-bezel
-    width: min(1080px, 96%, calc((100vh - 430px) * 16 / 9.5))
+    width: min(1200px, 96%, calc((100vh - 420px) * 16 / 9.5))
     aspect-ratio: 16 / 9.5
     padding: 14px
     border-radius: 22px
@@ -127,6 +127,7 @@ component
     flex: 0 0 auto
     transform: rotateX(2.5deg)
     transform-origin: 50% 100%
+    transition: transform 620ms cubic-bezier(0.25, 0.8, 0.25, 1), opacity 620ms ease, filter 620ms ease
 
   // CRT 底座
   .crt-stand
@@ -135,47 +136,98 @@ component
     margin-top: -6px
     background: linear-gradient(180deg, #26221e, #17140f)
     clip-path: polygon(14% 0, 86% 0, 100% 100%, 0 100%)
+    transition: opacity 620ms ease
 
-  // ── 平放的键盘 = 第二块屏幕（内容/二级菜单显示器） + 物理按键行 ──────
+  // ── 平放的 L 形键盘甲板（浅色拟真壳 · Anthropic 奶油色系） ──────────
   .keyboard-deck
     position: relative
-    width: min(1140px, 99%)
+    display: flex
+    gap: 14px
+    width: min(1240px, 99%)
     margin-top: -4px
     margin-bottom: 6px
-    padding: 12px 22px 14px
-    border: 2px solid #3a342e
-    border-radius: 14px
-    background: linear-gradient(180deg, #2e2823, #1d1915)
-    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05)
+    padding: 14px 20px 16px
+    border: 1px solid #d5cebd
+    border-radius: 18px
+    background: linear-gradient(180deg, #f6f2e8, #e7e1d1)
+    box-shadow: 0 26px 54px rgba(60, 50, 35, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.85)
     transform: rotateX(45deg)
     transform-origin: 50% 0
+    transition: transform 620ms cubic-bezier(0.25, 0.8, 0.25, 1)
+  .deck-main
+    flex: 1
+    min-width: 0
 
-  // 键盘屏： idle = 关屏黑底 + 青色读数；面板打开 = 屏幕点亮
+  // 左翼：竖起的系统键列（L 形的竖起一边，略高于甲板面）
+  .deck-wing
+    display: flex
+    flex-direction: column
+    justify-content: center
+    gap: 10px
+    padding: 10px 8px
+    margin: -6px 0 -2px -6px
+    border-radius: 14px
+    background: linear-gradient(180deg, #efe9db, #e0d9c7)
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 4px 10px rgba(60, 50, 35, 0.18)
+  .wing-key
+    display: flex
+    flex-direction: column
+    align-items: center
+    gap: 2px
+    width: 52px
+    padding: 8px 0 9px
+    border: 1px solid #cfc7b4
+    border-radius: 9px
+    background: linear-gradient(180deg, #fdfbf6, #ece6d6)
+    box-shadow: 0 3px 0 #c8c0ab, 0 4px 7px rgba(60, 50, 35, 0.22), inset 0 1px 0 #fff
+    color: #6b6353
+    font-size: 15px
+    cursor: pointer
+    span
+      font-size: 9px
+      letter-spacing: 0.1em
+    &:hover
+      filter: brightness(1.04)
+    &:active
+      transform: translateY(3px)
+      box-shadow: 0 0 0 #c8c0ab, 0 1px 2px rgba(60, 50, 35, 0.18), inset 0 1px 0 #fff
+
+  // 键盘屏（8-bit 风格：磷光黑底 + 扫描线 + 像素字感）
   .deck-screen
     position: relative
     min-height: 168px
-    border-radius: 8px
-    border: 1px solid #3a342e
-    background: #14100d
-    box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.6)
+    border-radius: 6px
+    border: 3px solid #2b2530
+    background: #16121a
+    box-shadow: inset 0 2px 12px rgba(0, 0, 0, 0.7), 0 1px 0 rgba(255, 255, 255, 0.5)
     overflow: hidden
+    // 扫描线
+    &::after
+      content: ""
+      position: absolute
+      inset: 0
+      pointer-events: none
+      background: repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 3px)
+      z-index: 20
   .deck-idle
     display: flex
     flex-direction: column
     align-items: center
     justify-content: center
-    gap: 10px
+    gap: 12px
     min-height: 168px
+    font-family: "SF Mono", "Courier New", monospace
     .deck-readout
       color: $cyan
-      font-size: 14px
+      font-size: 15px
       font-weight: 700
-      letter-spacing: 0.1em
-      text-shadow: 0 0 8px rgba($cyan, 0.5)
-    .deck-hint
-      color: rgba(255, 255, 255, 0.38)
-      font-size: 11px
       letter-spacing: 0.14em
+      text-shadow: 0 0 8px rgba($cyan, 0.55), 0 0 2px rgba($cyan, 0.8)
+    .deck-hint
+      color: rgba($amber, 0.55)
+      font-size: 11px
+      letter-spacing: 0.22em
+      text-shadow: 0 0 6px rgba($amber, 0.3)
 
   .stage
     position: relative
@@ -907,26 +959,37 @@ component
       &:active
         transform: scale(0.95)
 
-  // 键盘甲板上的干预键 = 物理键帽（底边加厚，按下下沉）
+  // 键盘甲板上的干预键 = 拟真凸起键帽（奶油塑料质感，按下下沉）
   .keyboard-deck .interventions
-    gap: 10px
+    gap: 12px
     margin-top: 12px
     button
-      border: 1px solid #4a443c
-      border-bottom: 3px solid #171310
-      border-radius: 6px
-      padding: 7px 16px
+      border: 1px solid #cfc7b4
+      border-radius: 8px
+      padding: 9px 18px 10px
       font-size: 12px
-      letter-spacing: 0.04em
-      background: linear-gradient(180deg, #4a443c, #35302a)
-      color: #e8e2d6
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4)
+      letter-spacing: 0.05em
+      background: linear-gradient(180deg, #fdfbf6 0%, #f0ebdd 55%, #e2dbc8 100%)
+      color: #5c5546
+      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.75)
+      box-shadow: 0 4px 0 #c6beaa, 0 6px 10px rgba(60, 50, 35, 0.22), inset 0 1px 0 #fff
       &:hover
-        border-color: #5a5348
-        filter: brightness(1.18)
+        filter: brightness(1.03)
+        box-shadow: 0 4px 0 #c6beaa, 0 8px 14px rgba(60, 50, 35, 0.28), inset 0 1px 0 #fff
       &:active
-        transform: translateY(2px)
-        border-bottom-width: 1px
+        transform: translateY(4px)
+        box-shadow: 0 0 0 #c6beaa, 0 1px 2px rgba(60, 50, 35, 0.18), inset 0 1px 0 #fff
+
+  // ── 运镜：面板打开 → 视角转向键盘屏并俯视；CRT 退后变暗成背景 ──
+  .desk-scene.deck-focus
+    .stage-bezel
+      transform: rotateX(2.5deg) translateY(-52px) scale(0.78)
+      opacity: 0.45
+      filter: saturate(0.7) brightness(0.9)
+    .crt-stand
+      opacity: 0.3
+    .keyboard-deck
+      transform: rotateX(13deg) translateY(-72px) scale(1.06)
 
   // ── 证据抽屉 ─────────────────────────────────────────────────────
   .drawer
@@ -1118,6 +1181,11 @@ component
     .keyboard-deck
       transform: none
       margin-bottom: 0
+    .desk-scene.deck-focus
+      .stage-bezel, .keyboard-deck
+        transform: none
+        opacity: 1
+        filter: none
 
 // ── 动效关键帧 ─────────────────────────────────────────────────────
 @keyframes danmaku-fly

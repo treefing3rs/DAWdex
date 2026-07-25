@@ -698,8 +698,37 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         return btn
     })
 
+    // ── 键盘左翼：系统按键（L 形甲板的竖起一边） ────────────────────────
+    const wingSettings: HTMLButtonElement = (<button type="button" className="wing-key" title="设置">⚙<span>设置</span></button>)
+    const wingPresent: HTMLButtonElement = (<button type="button" className="wing-key" title="投屏模式">⛶<span>投屏</span></button>)
+    const wingWorkbench: HTMLButtonElement = (<button type="button" className="wing-key" title="打开 openDAW 工作台">⌄<span>工作台</span></button>)
+
+    // ── 伪 3D 桌面场景（运镜作用层）：CRT + 底座 + L 形键盘甲板 ─────────
+    const deskSceneEl: HTMLElement = (
+        <div className="desk-scene">
+            <div className="stage-bezel">
+                {stageEl}
+            </div>
+            <div className="crt-stand"/>
+            <div className="keyboard-deck">
+                <div className="deck-wing">
+                    {wingSettings}{wingPresent}{wingWorkbench}
+                </div>
+                <div className="deck-main">
+                    <div className="deck-screen">
+                        <div className="deck-idle">
+                            {deckReadout}
+                            <span className="deck-hint">点场景里的物件 · 内容在这块屏上打开</span>
+                        </div>
+                        {panelEl}
+                    </div>
+                    <div className="interventions">{interventionButtons}</div>
+                </div>
+            </div>
+        </div>)
+
     // ── 物件功能面板（舞台内二级页面：点击物件从右缘滑出，§9.4） ─────────────
-    type PanelKind = "monitor" | "desk" | "guitar" | "lamp" | "art" | "shelf" | "clock"
+    type PanelKind = "monitor" | "desk" | "guitar" | "lamp" | "art" | "shelf" | "clock" | "settings"
     const PANEL_TITLES: Record<PanelKind, string> = {
         monitor: "REC 监视器 · 走带",
         desk: "调音台 · 轨道",
@@ -707,12 +736,14 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         lamp: "吊灯 · 能量",
         art: "声波挂画 · 工程概览",
         shelf: "书架 · 素材架",
-        clock: "挂钟 · 循环"
+        clock: "挂钟 · 循环",
+        settings: "设置 · 系统"
     }
     let openPanelKind: PanelKind | null = null
     const closePanel = () => {
         openPanelKind = null
-        Html.empty(panelEl) // CSS 以 :empty 判定关闭态（滑出舞台右缘）
+        Html.empty(panelEl) // CSS 以 :empty 判定关闭态（屏幕熄灭）
+        deskSceneEl.classList.remove("deck-focus") // 运镜回位：视角从键盘屏拉回正式机位
     }
     // 轨道列表（监视器/调音台面板共用；发声点 = 真实 TrackAudibleChanged 状态）
     const buildTrackRows = (): HTMLElement => {
@@ -737,6 +768,7 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     const openPanel = (kind: PanelKind) => {
         openPanelKind = kind
         Html.empty(panelEl)
+        deskSceneEl.classList.add("deck-focus") // 运镜：视角转向并俯视键盘屏
         const closeBtn: HTMLButtonElement = (<button type="button" className="panel-close" title="关闭（Esc）">✕</button>)
         closeBtn.onclick = () => closePanel()
         const openInDaw: HTMLButtonElement = (<button type="button" className="panel-daw-link">在 openDAW 中打开 →</button>)
@@ -798,6 +830,26 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
             appendChildren(body,
                 (<div className="panel-row big">{`${barsPerLoop} 小节循环 · ${Math.round(bpm)} BPM · ${keySig}`}</div>),
                 (<div className="panel-note">{`指针转一圈 = 一个循环（约 ${(barsPerLoop * 4 * 60 / bpm).toFixed(1)} 秒），暂停时指针冻结`}</div>))
+        } else if (kind === "settings") {
+            // 左翼设置键 = 系统功能（与顶栏同源）
+            const presentBtn: HTMLButtonElement = (<button type="button" className="panel-primary">投屏模式</button>)
+            presentBtn.onclick = () => {
+                closePanel()
+                presentButton.click()
+            }
+            const workbenchBtn: HTMLButtonElement = (<button type="button" className="panel-primary">打开 openDAW 工作台</button>)
+            workbenchBtn.onclick = () => {
+                closePanel()
+                setCollapsed(true)
+            }
+            const replayBtn: HTMLButtonElement = (<button type="button" className="panel-primary">回放 90 秒演示</button>)
+            replayBtn.onclick = () => {
+                closePanel()
+                startMock()
+            }
+            appendChildren(body,
+                (<div className="panel-note">系统功能与顶栏按钮同源，投屏/工作台/回放随时可用</div>),
+                presentBtn, workbenchBtn, replayBtn)
         } else {
             const strongerBtn: HTMLButtonElement = (<button type="button" className="panel-primary">更有力量</button>)
             const lighterBtn: HTMLButtonElement = (<button type="button" className="panel-primary">更轻松</button>)
@@ -844,22 +896,7 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
                 {presentButton}
                 {replayButton}
             </div>
-            <div className="desk-scene">
-                <div className="stage-bezel">
-                    {stageEl}
-                </div>
-                <div className="crt-stand"/>
-                <div className="keyboard-deck">
-                    <div className="deck-screen">
-                        <div className="deck-idle">
-                            {deckReadout}
-                            <span className="deck-hint">点场景里的物件 · 内容在这块屏上打开</span>
-                        </div>
-                        {panelEl}
-                    </div>
-                    <div className="interventions">{interventionButtons}</div>
-                </div>
-            </div>
+            {deskSceneEl}
             <div className="composer">
                 {input}
                 {sendButton}
@@ -929,6 +966,10 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
             event.stopPropagation()
             openPanel("desk")
         }),
+        // ── 键盘左翼系统键 ──
+        Events.subscribe(wingSettings, "click", () => openPanel("settings")),
+        Events.subscribe(wingPresent, "click", () => presentButton.click()),
+        Events.subscribe(wingWorkbench, "click", () => setCollapsed(true)),
         Events.subscribe(artHit, "click", event => {
             event.stopPropagation()
             openPanel("art")
@@ -957,12 +998,12 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     }
     // 支持 ?workbench=1 深链：直接以收起态（openDAW 工作台）启动
     if (new URLSearchParams(window.location.search).has("workbench")) {setCollapsed(true)}
-    // 支持 ?panel=monitor|desk|guitar|lamp|art|shelf|clock 深链：直接打开物件功能面板（演示导航用）
+    // 支持 ?panel=monitor|desk|guitar|lamp|art|shelf|clock|settings 深链：直接打开物件功能面板（演示导航用）
     const initialPanel = new URLSearchParams(window.location.search).get("panel")
     if (initialPanel === "monitor" || initialPanel === "desk"
         || initialPanel === "guitar" || initialPanel === "lamp"
         || initialPanel === "art" || initialPanel === "shelf"
-        || initialPanel === "clock") {openPanel(initialPanel)}
+        || initialPanel === "clock" || initialPanel === "settings") {openPanel(initialPanel)}
 
     // 巡棚房间背景 + 物件 sprite 预载（避免首次切台白闪）
     const preloadImage = (src: string) => {
