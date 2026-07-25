@@ -1,5 +1,6 @@
 import {createServer} from "node:http"
 import type {IncomingMessage, ServerResponse} from "node:http"
+import {z} from "zod"
 // import {Agent, run} from "@openai/agents"  // replaced with direct fetch
 import {CodexAppServer} from "./CodexAppServer.ts"
 import {
@@ -7,7 +8,9 @@ import {
     createCreativeDirectorInput,
     createProducerInput,
     CREATIVE_DIRECTOR_INSTRUCTIONS,
+    parseProducerPlan,
     PlanOutputSchema,
+    ProducerOutputSchema,
     PRODUCER_INSTRUCTIONS,
     RequestSchema
 } from "./MusicPlan.ts"
@@ -94,6 +97,10 @@ const chatCompletion = async (system: string, user: string): Promise<string> => 
     const json = await res.json() as any
     return json.choices[0].message.content
 }
+const PRODUCER_SCHEMA_HINT = `${PLAN_SCHEMA_HINT}
+
+Ignore the abbreviated example above when it differs from this exact required JSON Schema:
+${JSON.stringify(z.toJSONSchema(ProducerOutputSchema), null, 2)}`
 
 const codex = new CodexAppServer()
 const midiCatalog = new MidiCatalog()
@@ -185,11 +192,11 @@ const runOpenAiPlan = async (
 ): Promise<PlanOutput> => {
     ensureOpenAi()
     const text = await chatCompletion(
-        PRODUCER_INSTRUCTIONS + PLAN_SCHEMA_HINT,
+        PRODUCER_INSTRUCTIONS + PRODUCER_SCHEMA_HINT,
         createProducerInput(prompt, snapshot, brief, candidates)
     )
     const parsed = extractJson(text)
-    return PlanOutputSchema.parse(parsed)
+    return parseProducerPlan(parsed)
 }
 
 const planCandidates = async (
@@ -218,6 +225,7 @@ const validatePlan = (
     const allowed = new Map(candidates.map(candidate => [candidate.id, candidate]))
     const actions = plan.actions.map(action => {
         if (action.type === "set-tempo") {return action}
+        if (action.type === "control") {return action}
         const candidate = allowed.get(action.midiAssetId)
         if (candidate === undefined || candidate.role !== action.role) {
             throw new Error(`Arranger selected an invalid ${action.role} MIDI asset`)

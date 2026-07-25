@@ -1,7 +1,7 @@
 import {ClassicWaveform} from "@opendaw/lib-dsp"
 import {VoicingMode} from "@opendaw/studio-enums"
 import {VaporisateurDeviceBox} from "@opendaw/studio-boxes"
-import type {MusicRole, SupportedStyle} from "../AgentProtocol"
+import type {MusicRole, SupportedStyle, TrackSoundDesign} from "../AgentProtocol"
 
 type ProfileStyle = "dubstep" | "rnb"
 
@@ -168,4 +168,98 @@ export const applyRoleInstrumentProfile = (
     box.noise.hold.setValue(profile.noise.hold)
     box.noise.release.setValue(profile.noise.release)
     box.noise.volume.setValue(profile.noise.volume)
+}
+
+export const createRoleTrackSound = (
+    role: MusicRole,
+    style: SupportedStyle
+): TrackSoundDesign => {
+    const normalized = style.toLowerCase()
+    const profileStyle: ProfileStyle = [
+        "dubstep", "edm", "house", "techno", "electro", "dance"
+    ].some(term => normalized.includes(term)) ? "dubstep" : "rnb"
+    const profile = RoleInstrumentProfiles[profileStyle][role]
+    const presetLabel = profileStyle === "dubstep"
+        ? role === "drums" ? "Tight Electronic Percussion"
+            : role === "bass" ? "Heavy Wobble Bass"
+                : "Wide Digital Stabs"
+        : role === "drums" ? "Soft Electronic Percussion"
+            : role === "bass" ? "Warm Soul Bass"
+                : "Velvet Electric Keys"
+    const effects: TrackSoundDesign["effects"] = role === "drums"
+        ? [{
+            kind: "compressor",
+            enabled: true,
+            thresholdDb: profileStyle === "dubstep" ? -24 : -18,
+            ratio: profileStyle === "dubstep" ? 5 : 3,
+            attackMs: profileStyle === "dubstep" ? 8 : 18,
+            releaseMs: profileStyle === "dubstep" ? 130 : 220,
+            mix: profileStyle === "dubstep" ? 0.92 : 0.68
+        }]
+        : role === "bass"
+            ? [{
+                kind: "compressor",
+                enabled: true,
+                thresholdDb: -20,
+                ratio: profileStyle === "dubstep" ? 4.5 : 2.8,
+                attackMs: profileStyle === "dubstep" ? 6 : 28,
+                releaseMs: profileStyle === "dubstep" ? 110 : 240,
+                mix: profileStyle === "dubstep" ? 0.9 : 0.72
+            }, {
+                kind: "maximizer",
+                enabled: profileStyle === "dubstep",
+                thresholdDb: -3
+            }]
+            : [{
+                kind: "reverb",
+                enabled: true,
+                preDelayMs: profileStyle === "dubstep" ? 8 : 24,
+                decay: profileStyle === "dubstep" ? 0.42 : 0.68,
+                damping: profileStyle === "dubstep" ? 0.34 : 0.58,
+                wetDb: profileStyle === "dubstep" ? -18 : -13
+            }, {
+                kind: "stereo",
+                enabled: true,
+                width: profileStyle === "dubstep" ? 0.42 : 0.68
+            }]
+    return {
+        instrument: {
+            kind: "vaporisateur",
+            presetLabel,
+            parameters: {
+                attack: profile.attack,
+                decay: profile.decay,
+                sustain: profile.sustain,
+                release: profile.release,
+                cutoff: profile.cutoff,
+                resonance: profile.resonance,
+                voicing: profile.voicingMode === VoicingMode.Monophonic ? "mono" : "poly",
+                unisonCount: profile.unisonCount,
+                unisonDetune: profile.unisonDetune,
+                oscillator1: {
+                    waveform: ClassicWaveform[profile.oscillators[0].waveform] as
+                        "sine" | "triangle" | "saw" | "square",
+                    volumeDb: profile.oscillators[0].volume,
+                    octave: profile.oscillators[0].octave
+                },
+                oscillator2: {
+                    waveform: ClassicWaveform[profile.oscillators[1].waveform] as
+                        "sine" | "triangle" | "saw" | "square",
+                    volumeDb: profile.oscillators[1].volume,
+                    octave: profile.oscillators[1].octave
+                },
+                noiseAttack: profile.noise.attack,
+                noiseHold: profile.noise.hold,
+                noiseRelease: profile.noise.release,
+                noiseVolumeDb: profile.noise.volume
+            }
+        },
+        mixer: {
+            volumeDb: role === "drums" ? -3 : role === "bass" ? -4 : -7,
+            panning: 0,
+            mute: false,
+            solo: false
+        },
+        effects
+    }
 }

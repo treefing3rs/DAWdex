@@ -1,7 +1,5 @@
 import {describe, expect, it} from "vitest"
 import {PPQN} from "@opendaw/lib-dsp"
-import {readFile} from "node:fs/promises"
-import {fileURLToPath} from "node:url"
 import {compileMidiAsset} from "./MidiAsset"
 
 const singleNoteMidi = (pitch: number): ArrayBuffer => new Uint8Array([
@@ -17,8 +15,22 @@ const singleNoteMidi = (pitch: number): ArrayBuffer => new Uint8Array([
     0x00, 0xFF, 0x2F, 0x00
 ]).buffer
 
-const toArrayBuffer = (value: Buffer): ArrayBuffer =>
-    value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength) as ArrayBuffer
+const chordMidi = (root: number): ArrayBuffer => new Uint8Array([
+    0x4D, 0x54, 0x68, 0x64,
+    0x00, 0x00, 0x00, 0x06,
+    0x00, 0x00,
+    0x00, 0x01,
+    0x01, 0xE0,
+    0x4D, 0x54, 0x72, 0x6B,
+    0x00, 0x00, 0x00, 0x1D,
+    0x00, 0x90, root, 0x64,
+    0x00, 0x90, root + 3, 0x5A,
+    0x00, 0x90, root + 7, 0x50,
+    0x83, 0x60, 0x80, root, 0x00,
+    0x00, 0x80, root + 3, 0x00,
+    0x00, 0x80, root + 7, 0x00,
+    0x00, 0xFF, 0x2F, 0x00
+]).buffer
 
 describe("compileMidiAsset", () => {
     it("moves low Keys material out of the bass register and loops it to the requested bars", () => {
@@ -43,15 +55,9 @@ describe("compileMidiAsset", () => {
         expect(notes.every(note => note.pitch === 36)).toBe(true)
     })
 
-    it("imports a real R&B Keys asset from the checked-in library above the bass register", async () => {
-        const path = fileURLToPath(new URL(
-            "../../../../../../../midi/easy/keys/EZkeys Library/MIDI/"
-            + "000970@Piano-Loops/000915@RnB_Piano_Ballads_Vol_1/"
-            + "025@Song3_C_70_1_bar_rhythms/D_MINOR_RHY.mid",
-            import.meta.url
-        ))
-        const notes = compileMidiAsset(toArrayBuffer(await readFile(path)), "keys", 4)
-        expect(notes.length).toBeGreaterThan(0)
+    it("imports a representative polyphonic Keys MIDI fixture above the bass register", () => {
+        const notes = compileMidiAsset(chordMidi(36), "keys", 4)
+        expect(notes).toHaveLength(12)
         expect(Math.min(...notes.map(note => note.pitch))).toBeGreaterThanOrEqual(48)
         expect(Math.max(...notes.map(note => note.pitch))).toBeLessThanOrEqual(88)
     })
