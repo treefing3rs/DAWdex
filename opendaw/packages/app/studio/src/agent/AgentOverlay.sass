@@ -388,6 +388,94 @@ component
       color: rgba(255, 255, 255, 0.8)
       font-size: clamp(11px, 1.3vw, 14px)
 
+  // ── 演播大厅物件热点（Diegetic UI §9，仅 main 房间渲染） ──
+  // 坐标：1920×1080 视频帧标定 → cover 换算（stage_x% = fx*105.56 - 2.78，y 不裁）
+  .hotspots
+    position: absolute
+    inset: 0
+    z-index: 6
+    pointer-events: none
+
+  .stage:not([data-room="main"]) .hotspots
+    display: none
+
+  .hotspot
+    position: absolute
+    pointer-events: auto
+    cursor: pointer
+    border-radius: 6px
+    transition: background 180ms ease, box-shadow 180ms ease
+    &:hover
+      background: rgba(255, 255, 255, 0.06)
+      box-shadow: 0 0 0 1px rgba($amber, 0.55), 0 0 18px rgba($amber, 0.25)
+
+  // REC 监视器（视频帧 x330-505 y440-575）= 真实走带播放/暂停
+  .rec-monitor
+    left: 15.2%
+    top: 40.5%
+    width: 9.9%
+    height: 12.8%
+
+  // 沙发旁的吉他（视频帧 x880-1070 y680-1075）= 换乐器干预
+  .guitar
+    left: 45.4%
+    top: 62.5%
+    width: 10.6%
+    height: 37%
+
+  // 调音台角色色通道灯（视频帧 y768；x 370/435/500）= TrackAudibleChanged 发声确认
+  .rack-led
+    position: absolute
+    top: 70.2%
+    width: 0.85%
+    aspect-ratio: 1
+    border-radius: 50%
+    background: #39322b
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.65)
+    transition: background 200ms ease, box-shadow 200ms ease
+    &[data-role="drums"]
+      left: 17.2%
+      &.on
+        background: $amber
+        box-shadow: 0 0 8px rgba($amber, 0.95), 0 0 2px $amber
+    &[data-role="bass"]
+      left: 20.8%
+      &.on
+        background: $mint
+        box-shadow: 0 0 8px rgba($mint, 0.95), 0 0 2px $mint
+    &[data-role="keys"]
+      left: 24.4%
+      &.on
+        background: $magenta
+        box-shadow: 0 0 8px rgba($magenta, 0.95), 0 0 2px $magenta
+
+  // 吊灯光晕（视频帧中心 x1295 y290）= 走带能量指示，播放时亮起
+  .lamp-glow
+    position: absolute
+    left: 58.5%
+    top: 13%
+    width: 20%
+    height: 32%
+    border-radius: 50%
+    background: radial-gradient(ellipse at center, rgba(255, 196, 90, 0.50), rgba(255, 196, 90, 0) 68%)
+    mix-blend-mode: screen
+    opacity: 0
+    transition: opacity 600ms ease
+    &.lit
+      opacity: 1
+
+  // 墙上时钟指针（视频帧中心 x1780 y315）= 循环进度，随 loopPos 旋转
+  .clock-hand
+    position: absolute
+    left: 94.9%
+    top: 26.4%
+    width: 3px
+    height: 2.9%
+    background: rgba(24, 18, 14, 0.92)
+    border-radius: 2px
+    transform-origin: 50% 100%
+    pointer-events: none
+
   // 权威时钟 + 循环进度
   .transport
     position: absolute

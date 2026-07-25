@@ -80,16 +80,12 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     // 屏幕内 REC 灯牌（权威播放指示，与 ON AIR 同源）
     const recBadge: HTMLElement = (<div className="rec-badge standby">STANDBY</div>)
     // 舞台背景：夜晚棚内循环视频（唯一皮肤，无昼夜切换）
+    // 平时保持静帧（poster = 去水印首帧，与视频同规格 1920×1080 对齐 cover 裁剪）；
+    // 只有 hover 演播厅时才苏醒播放，点击背景可钉住常播
     const stageVideo: HTMLVideoElement = (
-        <video className="stage-bg-video" loop playsInline poster="/dawdex/studio_night.jpg" draggable={false}/>)
+        <video className="stage-bg-video" loop playsInline preload="auto" poster="/dawdex/studio_night.jpg" draggable={false}/>)
     stageVideo.src = "/dawdex/studio_night_loop.mp4"
     stageVideo.muted = true
-    stageVideo.autoplay = true
-    stageVideo.play().catch(() => {
-        // 自动播放被拒时保持 poster 静帧，首次点击页面后补播
-        const resume = () => stageVideo.play().catch(() => {})
-        window.addEventListener("click", resume, {once: true})
-    })
     // 巡棚：非主场景的静态房间背景（切台硬切，TV 气质）
     const stageImg: HTMLImageElement = (
         <img className="stage-bg-img hidden" alt="" draggable={false}/>)
@@ -117,6 +113,19 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
             <span className="lamp"/>
             <label>制作人</label>
         </div>)
+    // ── 演播大厅物件热点（Diegetic UI §9：场景物件 = 真实 DAW 数据源/操作入口） ──
+    // 坐标按 1920×1080 视频帧标定，并换算 cover 裁剪（舞台 16:9.5）：stage_x% = fx*105.56 - 2.78
+    const recMonitor: HTMLElement = (
+        <div className="hotspot rec-monitor" title="REC 监视器 · 点击播放 / 暂停走带"/>)
+    const ledDrums: HTMLElement = (<span className="rack-led" data-role="drums" title="鼓轨道 · 发声确认灯"/>)
+    const ledBass: HTMLElement = (<span className="rack-led" data-role="bass" title="贝斯轨道 · 发声确认灯"/>)
+    const ledKeys: HTMLElement = (<span className="rack-led" data-role="keys" title="键盘轨道 · 发声确认灯"/>)
+    const lampGlow: HTMLElement = (<div className="lamp-glow"/>)
+    const clockHand: HTMLElement = (<div className="clock-hand"/>)
+    const guitarHotspot: HTMLElement = (
+        <div className="hotspot guitar" title="沙发旁的吉他 · 点击触发「换乐器」干预"/>)
+    const rackLeds = new Map<RoleId, HTMLElement>([
+        ["drums", ledDrums], ["bass", ledBass], ["keys", ledKeys]])
     // 舞台容器（巡棚切换作用于此）
     const stageEl: HTMLElement = (
         <div className="stage" data-room="main">
@@ -126,6 +135,13 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
             <div className="performers">{performers}{producerEl}</div>
             {noise}
             {danmakuLayer}
+            <div className="hotspots">
+                {lampGlow}
+                {recMonitor}
+                {ledDrums}{ledBass}{ledKeys}
+                {clockHand}
+                {guitarHotspot}
+            </div>
             {recBadge}
             <div className="transport">
                 {transportReadout}
@@ -134,6 +150,15 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         </div>)
     // 巡棚切台
     let roomIndex = 0
+    // ── 场景苏醒：平时静帧，hover 播放；点击背景钉住/取消常播 ──
+    let bgPinned = false
+    const bgPlay = () => {
+        if (ROOMS[roomIndex].bg === null) {stageVideo.play().catch(() => {})}
+    }
+    const bgStop = () => {
+        stageVideo.pause()
+        stageVideo.currentTime = 0
+    }
     const setRoom = (index: number) => {
         roomIndex = ((index % ROOMS.length) + ROOMS.length) % ROOMS.length
         const room = ROOMS[roomIndex]
@@ -142,10 +167,12 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         if (room.bg === null) {
             stageImg.classList.add("hidden")
             stageVideo.classList.remove("hidden")
+            if (bgPinned) {bgPlay()}
         } else {
             stageImg.src = room.bg
             stageImg.classList.remove("hidden")
             stageVideo.classList.add("hidden")
+            stageVideo.pause()
         }
     }
     const roleStates = new Map<RoleId, RoleState>()
@@ -173,6 +200,8 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         onAirLamp.classList.toggle("lit", playing)
         recBadge.classList.toggle("standby", !playing)
         recBadge.textContent = playing ? "● REC" : "STANDBY"
+        // 吊灯 = 能量指示灯：播放时亮起（Diegetic 绑定）
+        lampGlow.classList.toggle("lit", playing)
         // 走带暂停 = 角色动画冻结（诚实状态：没有声音就没有演奏）
         root.classList.toggle("transport-paused", !playing)
         // 角色演奏动画的一拍时长由权威 BPM 驱动，不写死
@@ -226,6 +255,8 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
                 ? `BAR ${bar}/${barsPerLoop} · ${Math.round(bpm)} BPM · ${keySig}`
                 : `⏸ 已暂停 · BAR ${bar}/${barsPerLoop} · ${Math.round(bpm)} BPM · ${keySig}`
         transportBar.style.width = `${(loopPos * 100).toFixed(1)}%`
+        // 墙上时钟 = 循环进度（指针随 loopPos 旋转，暂停即冻结）
+        clockHand.style.transform = `rotate(${(loopPos * 360).toFixed(1)}deg)`
         requestAnimationFrame(tick)
     }
     requestAnimationFrame(tick)
@@ -293,6 +324,8 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
                 break
             case "TrackAudibleChanged":
                 enterRole(event.role)
+                // 调音台角色色通道灯 = 轨道发声确认（Diegetic 绑定）
+                rackLeds.get(event.role)?.classList.toggle("on", event.audible)
                 if (event.audible) {
                     audibleRoles.add(event.role)
                     const pendingReason = pendingPerforming.get(event.role)
@@ -342,6 +375,7 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         danmakuText.clear()
         Html.empty(receiptList)
         audibleRoles.clear()
+        rackLeds.forEach(led => led.classList.remove("on"))
         pendingPerforming.clear()
         enteredRoles.clear()
         STAGE_ROLES.forEach(({id}) => {
@@ -676,6 +710,26 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         }),
         Events.subscribe(chPrev, "click", () => setRoom(roomIndex - 1)),
         Events.subscribe(chNext, "click", () => setRoom(roomIndex + 1)),
+        // ── 场景苏醒：hover 播放，移出归静帧；点击背景钉住常播 ──
+        Events.subscribe(stageEl, "mouseenter", bgPlay),
+        Events.subscribe(stageEl, "mouseleave", () => {
+            if (!bgPinned) {bgStop()}
+        }),
+        Events.subscribe(stageEl, "click", () => {
+            bgPinned = !bgPinned
+            if (bgPinned) {bgPlay()} else {bgStop()}
+        }),
+        // ── 演播大厅物件热点：REC 监视器 = 真实走带开关；吉他 = 换乐器干预 ──
+        Events.subscribe(recMonitor, "click", event => {
+            event.stopPropagation()
+            const result = daw.setTransport(!isPlaying)
+            appendEvent(`REC 监视器：${result.message}`, result.success ? "success" : "normal")
+        }),
+        Events.subscribe(guitarHotspot, "click", event => {
+            event.stopPropagation()
+            appendEvent("拿起了沙发旁的吉他…", "working")
+            intervene("swap-instrument")
+        }),
         Terminable.create(stopLoginPolling)
     )
 
