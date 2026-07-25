@@ -120,7 +120,7 @@ component
   .stage-bezel
     position: relative
     z-index: 1
-    width: min(1440px, 97%, calc((100vh - 418px) * 16 / 9.5 + 36px))
+    width: min(1560px, 98%, calc((100vh - 392px) * 16 / 9.5 + 36px))
     padding: 16px 18px 42px // 整机前框：屏嵌在上部，底部下巴留给软驱槽（高度由 .stage 的 16/9.5 + 边框推出，保证屏区比例恒定）
     border: 1px solid #e3e1d9
     border-radius: 22px
@@ -154,11 +154,11 @@ component
     z-index: 2 // 键盘在主机下巴前方（同一桌面空间的前后关系）
     display: flex
     flex-direction: column
-    gap: 10px
-    width: min(1480px, 99%)
+    gap: 8px
+    width: min(1600px, 99%, calc(((100vh - 392px) * 16 / 9.5 + 36px) * 1.06)) // 跟随主机宽度略出沿，不再远大于屏幕
     margin-top: -30px // 键盘后缘插进主机下巴底下 = 一台机器的前后景
-    margin-bottom: 6px
-    padding: 12px 20px 16px
+    margin-bottom: 2px
+    padding: 8px 20px 10px
     border: 1px solid #e3e1d9
     border-radius: 14px
     background: linear-gradient(180deg, #f6f4ee, #edebe4)
@@ -185,7 +185,7 @@ component
   // 后缘隆起（riser）：楔形的厚端，屏幕嵌在里面 —— 与甲板同一块壳料
   .deck-riser
     position: relative
-    padding: 10px 14px // 屏幕四周的奶油边框厚度
+    padding: 8px 12px // 屏幕四周的奶油边框厚度
     border-radius: 14px
     background: linear-gradient(180deg, #faf8f2, #f0eee7)
     box-shadow: 0 12px 24px rgba(60, 58, 52, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.95)
@@ -196,7 +196,7 @@ component
   // 键盘屏（8-bit 磷光黑芯 + 扫描线；嵌在 riser 里的内凹屏槽）
   .deck-screen
     position: relative
-    min-height: 128px
+    min-height: 112px
     border-radius: 8px
     background: #16121a
     box-shadow: inset 0 3px 10px rgba(0, 0, 0, 0.75), 0 0 0 1px #d9d7cf // 内凹 + 一圈屏槽线
@@ -216,7 +216,7 @@ component
     align-items: center
     justify-content: center
     gap: 12px
-    min-height: 128px
+    min-height: 112px
     font-family: "SF Mono", "Courier New", monospace
     .deck-readout
       color: $cyan
@@ -1084,7 +1084,7 @@ component
       flex: 1
       border: none
       outline: none
-      padding: 10px 12px
+      padding: 8px 12px
       font-size: 14px
       background: transparent
       color: $shell-text
@@ -1121,7 +1121,7 @@ component
 
   // 甲板键帽 = 真立方体按键：顶面受光、前壁可见、铺满全宽的均匀阵列（参考 Fig Mint）
   .keyboard-deck .interventions
-    gap: 10px
+    gap: 8px
     margin-top: 2px
     width: 100%
     align-items: stretch
@@ -1131,8 +1131,8 @@ component
       flex: 1 1 0 // 均匀阵列铺满全宽，不再是中间一小簇
       border: 1px solid #e0ded6
       border-radius: 7px
-      padding: 12px 6px 13px
-      min-height: 44px
+      padding: 9px 6px 10px
+      min-height: 38px
       font-size: 12px
       letter-spacing: 0.05em
       white-space: nowrap
@@ -1228,7 +1228,7 @@ component
     background: #fff
     transition: transform 620ms cubic-bezier(0.25, 0.8, 0.25, 1)
     summary
-      padding: 10px 16px
+      padding: 8px 16px
       font-size: 13px
       font-weight: 600
       cursor: pointer
@@ -1405,7 +1405,7 @@ component
       perspective: none
     .stage-bezel
       transform: none
-      width: min(1080px, 96%, calc((100vh - 528px) * 16 / 9.5 + 36px))
+      width: min(1080px, 96%, calc((100vh - 470px) * 16 / 9.5 + 36px))
     .crt-stand
       display: none
     .keyboard-deck
