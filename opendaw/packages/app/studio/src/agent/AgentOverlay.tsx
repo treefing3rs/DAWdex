@@ -41,7 +41,8 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     const client = new AgentClient()
     const daw = new DawProjectAdapter(service)
     const uiSession = getDawdexUiSession(service)
-    const demoMode = new URLSearchParams(window.location.search).has("mock")
+    const initialSearchParams = new URLSearchParams(window.location.search)
+    const demoMode = initialSearchParams.has("mock")
 
     // ── DOM 骨架 ────────────────────────────────────────────────────────────
     const danmakuLayer: HTMLElement = (<div className="danmaku-layer"/>)
@@ -69,9 +70,9 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     const lastEvent: HTMLElement = (<span className="last-event"/>)
     // 屏幕内 REC 灯牌（权威播放指示，与 ON AIR 同源）
     const recBadge: HTMLElement = (<div className="rec-badge standby">STANDBY</div>)
-    // 显示器上的「新建工程」键：产品页出发的建工程入口——点击后 DAW 自动建工程并直落工作台
+    // 显示器上的「新建工程」键：产品页出发的建工程入口——点击后仍停留完整演播厅
     const newProjectButton: HTMLButtonElement = (
-        <button type="button" className="new-project" title="新建 openDAW 工程并进入工作台">＋ 新建工程</button>)
+        <button type="button" className="new-project" title="新建 openDAW 工程">＋ 新建工程</button>)
     // 巡棚：全部房间均为静态底图（切台硬切，TV 气质）
     const stageImg: HTMLImageElement = (
         <img className="stage-bg-img" alt="" draggable={false}/>)
@@ -1190,17 +1191,15 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     )
 
     // 支持 ?room=<id> 深链（演示导航用）
-    const initialRoom = new URLSearchParams(window.location.search).get("room")
+    const initialRoom = initialSearchParams.get("room")
     if (initialRoom !== null) {
         const idx = DAWDEX_ROOMS.findIndex(r => r.id === initialRoom)
         if (idx >= 0) {setRoom(idx)}
     }
-    // 支持 ?workbench=1 深链：直接以收起态（openDAW 工作台）启动
-    if (new URLSearchParams(window.location.search).has("workbench")) {setCollapsed(true)}
-    // 打开/新建任何工程 ⇒ 直落工作台，右下角缩略视窗即刻可见；
+    // 打开/新建任何工程 ⇒ 回到完整演播厅；显式 ?workbench=1 只作用于首次工程打开。
     // Agent 在舞台内自动补建工程（isBusy）时不切形态，不打断正在观看的演出。
     // 同一订阅维护：显示器「新建工程」键只在无工程时亮起；缩略窗停靠层只在有工程时可用。
-    const projectMode = new DawdexProjectModeController(uiSession)
+    const projectMode = new DawdexProjectModeController(uiSession, initialSearchParams.has("workbench"))
     lifecycle.own(service.projectProfileService.catchupAndSubscribe(option => {
         const hasProject = option.nonEmpty()
         newProjectButton.classList.toggle("hidden", hasProject)

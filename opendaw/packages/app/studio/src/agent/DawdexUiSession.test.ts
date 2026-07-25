@@ -103,23 +103,24 @@ describe("DawdexUiSession", () => {
         expect(session.viewMode.getValue()).toBe("product")
     })
 
-    it("drops every newly opened project into the workbench without resetting the stage", () => {
+    it("starts every newly opened project in product mode without resetting the stage", () => {
         const session = new DawdexUiSession()
         const controller = new DawdexProjectModeController(session)
         session.setRoom("keys")
+        session.setViewMode("workbench")
 
         controller.update(true)
 
-        expect(session.viewMode.getValue()).toBe("workbench")
+        expect(session.viewMode.getValue()).toBe("product")
         expect(session.stage.getValue().roomId).toBe("keys")
 
-        session.setViewMode("product")
+        session.setViewMode("workbench")
         controller.update(true)
-        expect(session.viewMode.getValue()).toBe("product")
+        expect(session.viewMode.getValue()).toBe("workbench")
 
         controller.update(false)
         controller.update(true)
-        expect(session.viewMode.getValue()).toBe("workbench")
+        expect(session.viewMode.getValue()).toBe("product")
     })
 
     it("keeps the stage in front when the agent creates the project itself", () => {
@@ -131,6 +132,18 @@ describe("DawdexUiSession", () => {
 
         controller.update(false)
         controller.update(true)
+        expect(session.viewMode.getValue()).toBe("product")
+    })
+
+    it("honors the workbench deep link only for the first opened project", () => {
+        const session = new DawdexUiSession()
+        const controller = new DawdexProjectModeController(session, true)
+
+        controller.update(true)
         expect(session.viewMode.getValue()).toBe("workbench")
+
+        controller.update(false)
+        controller.update(true)
+        expect(session.viewMode.getValue()).toBe("product")
     })
 })
