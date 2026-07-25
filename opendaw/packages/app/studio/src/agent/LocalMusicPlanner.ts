@@ -8,6 +8,7 @@ import {
     UpsertRoleTrackAction
 } from "./AgentProtocol"
 import {StyleProfiles} from "./music/StyleProfiles"
+import {createRoleTrackSound} from "./music/RoleInstrumentProfiles"
 
 type LocalStyle = keyof typeof StyleProfiles
 
@@ -119,7 +120,8 @@ const createRoleAction = (
         density,
         energy,
         midiAssetId: `auto:${style}:${role}:${seed}`,
-        midiAssetPath: `Automatic ${style} ${role} library match`
+        midiAssetPath: `Automatic ${style} ${role} library match`,
+        sound: createRoleTrackSound(role, style)
     }
 }
 
