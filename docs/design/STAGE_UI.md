@@ -1,10 +1,12 @@
 # 舞台 UI 说明（PR #6）
 
-> 维护：成员 A（UI 与舞台层）· 最近更新：2026-07-25（R2，回应评审）
+> 维护：成员 A（UI 与舞台层）· 最近更新：2026-07-25（R3，真实事件联调）
 
 舞台 UI 是 DAWdex 的呈现层：复古监视器外壳 + 像素录音棚舞台 + 屏幕内弹幕。
-它只消费 `ui-contract.ts` 的结构化事件，不解析模型自由文本、不直接改
-openDAW 工程。设计依据见 [`DESIGN_DIRECTION.md`](./DESIGN_DIRECTION.md)（v2.3）。
+舞台视觉状态只消费 `ui-contract.ts` 的结构化事件，不解析模型自由文本。
+当前 `AgentOverlay` 同时承载控制器职责：调用计划、批准、执行和撤销，再由
+真实事件桥接器把执行结果与 openDAW 工程快照翻译为同一套 UI 事件。
+设计依据见 [`DESIGN_DIRECTION.md`](./DESIGN_DIRECTION.md)（v2.3）。
 
 ## 文件地图
 
@@ -13,6 +15,7 @@ openDAW 工程。设计依据见 [`DESIGN_DIRECTION.md`](./DESIGN_DIRECTION.md)�
 | `opendaw/packages/app/studio/src/agent/ui-contract.ts` | 三方契约 v0.1（7 个下行事件 + 2 个上行命令，冻结候选） |
 | `opendaw/packages/app/studio/src/agent/AgentOverlay.tsx` | 舞台 UI 主组件（外壳/舞台/弹幕/抽屉/干预） |
 | `opendaw/packages/app/studio/src/agent/AgentOverlay.sass` | 舞台样式（角色动画时长由 `--beat` CSS 变量驱动） |
+| `opendaw/packages/app/studio/src/agent/RealUiEventBridge.ts` | 将真实 Plan、Apply/Undo 回执、Transport 与轨道可听状态翻译为 UI 事件 |
 | `opendaw/packages/app/studio/src/agent/mock-timeline.ts` | 90 秒演示事件序列（与真实接口同一签名） |
 | `opendaw/packages/app/studio/public/dawdex/` | 舞台素材（夜景循环视频、角色立绘） |
 
@@ -23,9 +26,10 @@ Mock **不再默认自动播放**，只在两种情况下运行：
 - URL 带 `?mock=1`（打开即进入 90 秒演示）
 - 点击顶栏 `↻` 按钮（随时回放，也用作现场故障兜底）
 
-默认打开舞台为真实模式：走带显示 `STANDBY · 等待走带同步`，角色待机，
-等待 B/C 的真实事件接入。Mock 与真实事件共用同一 `emit(event: UiEvent)`
-签名，联调时只需替换事件来源。
+默认打开舞台为真实模式。`RealUiEventBridge` 每 500 ms 从
+`DawProjectAdapter.snapshot()` 同步走带、循环小节和实际可听轨道；Plan、
+Apply、Undo 与用户干预回执也通过该桥接器进入舞台。Mock 与真实事件共用
+同一 `emit(event: UiEvent)` 签名，演示播放时会暂停真实桥接，结束后恢复。
 
 ## 真实性闸门（R2 新增）
 
@@ -42,18 +46,21 @@ Mock **不再默认自动播放**，只在两种情况下运行：
    `保留` 放弃待批准计划；其余四项翻译成真实计划请求（走 `/v1/plan` 链路，
    用户批准后真实修改音乐）。不再显示"下一循环生效"这类无兑现的文案。
 
-## 已知边界（联调前）
+## 已知边界
 
 - 干预操作目前在前端映射为计划请求；B 的 `/v1/intervention` 端点就绪后
   改为直发 `UserIntervention`（契约已定义，UI 改动极小）。
-- `AgentUiEvent` 三个悬案待 B/C 确认：echo 归属、`operationRef` 格式、
-  Transport 全量 vs 增量（UI 目前按全量处理）。
+- `AgentUiEvent` 仍需在后续版本冻结：当前 echo 来自同一 Plan 的
+  `decisionSummary`，`operationRef` 使用 `planId/op-N`，Transport 按全量事件处理。
+- 当前可听判断基于真实走带位置、Region 音符、轨道/Region 静音、Solo 与
+  乐器存在状态；它不是音频电平表。未来接入真实峰值事件后可进一步确认
+  “有信号”而非“理论上应发声”。
 - 弹幕范围按 v2.3 §13.1 裁决：**只在屏幕内**（取代旧 v2.2 的"全屏弹幕
   遮罩"条款）；输入与安全区在屏幕外。
 
 ## 验证
 
 - `npx tsc --noEmit` 零错误
-- `npx vitest run`：9 个文件 27 个测试全部通过
+- `npm.cmd run test -w @opendaw/app-studio`：10 个文件 33 个测试全部通过
 - 无头浏览器截图验证两种模式：默认模式无 Mock 自动播放；`?mock=1`
   演示模式下发声闸门按时间轴逐轨点亮

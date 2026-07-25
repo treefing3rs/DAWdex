@@ -6,6 +6,7 @@ import {StudioService} from "@/service/StudioService"
 import {AgentClient} from "./AgentClient"
 import {AgentPlan, AgentProviderStatus, DAWDEX_VERSION, DawAction} from "./AgentProtocol"
 import {DawProjectAdapter} from "./DawProjectAdapter"
+import {RealUiEventBridge} from "./RealUiEventBridge"
 import type {
     DanmakuAuthor, InterventionKind, RoleId, RoleState, UiEvent
 } from "./ui-contract"
@@ -39,6 +40,7 @@ const AUTHOR_BADGE: Record<DanmakuAuthor, string> = {user: "", "ai-fan": "AI 乐
 export const AgentOverlay = ({lifecycle, service}: Construct) => {
     const client = new AgentClient()
     const daw = new DawProjectAdapter(service)
+    const demoMode = new URLSearchParams(window.location.search).has("mock")
 
     // ── DOM 骨架 ────────────────────────────────────────────────────────────
     const danmakuLayer: HTMLElement = (<div className="danmaku-layer"/>)
@@ -179,7 +181,10 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
 
     // ── Mock 事件引擎（与真实接口同一签名，联调时直接替换来源） ─────────────
     const danmakuText = new Map<string, string>()
+    let lastEventSeq = -1
     const emit = (event: UiEvent) => {
+        if (event.seq <= lastEventSeq) {return}
+        lastEventSeq = event.seq
         switch (event.type) {
             case "DanmakuReceived":
                 danmakuText.set(event.danmakuId, event.text)
@@ -242,6 +247,7 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
                 break
         }
     }
+    const realBridge = new RealUiEventBridge(emit)
     const showMarquee = (text: string) => {
         const span = marquee.querySelector(".marquee-text")
         if (span !== null) {span.textContent = `★ 已采纳：${text} ★`}
@@ -249,16 +255,24 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         setTimeout(() => marquee.classList.add("hidden"), 11000)
     }
     // Mock 只在显式演示模式（?mock=1）或手动点 ↻ 时播放——绝不默认启动，避免与真实 Agent 并行
-    const demoMode = new URLSearchParams(window.location.search).has("mock")
     let cancelMock: (() => void) | null = null
+    const stopMock = () => {
+        cancelMock?.()
+        cancelMock = null
+        lastEventSeq = -1
+        realBridge.setEnabled(true)
+        realBridge.sync(daw.snapshot())
+    }
     const startMock = () => {
         cancelMock?.()
+        realBridge.setEnabled(false)
+        lastEventSeq = -1
         danmakuText.clear()
         Html.empty(receiptList)
         audibleRoles.clear()
         pendingPerforming.clear()
         STAGE_ROLES.forEach(({id}) => setRoleState(id, "waiting"))
-        cancelMock = playMockTimeline(emit)
+        cancelMock = playMockTimeline(emit, {onDone: stopMock})
     }
     if (demoMode) {startMock()}
     lifecycle.own({terminate: () => cancelMock?.()})
@@ -370,14 +384,16 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     const submitDanmaku = () => {
         const text = input.value.trim()
         if (text.length === 0) {return}
+        if (cancelMock !== null) {stopMock()}
         input.value = ""
-        launchDanmaku(text, "user")
-        requestPlan(text)
+        const danmakuId = realBridge.receiveDanmaku(text)
+        requestPlan(text, danmakuId)
     }
     const intervene = (kind: InterventionKind) => {
         if (kind === "undo") {
             const result = daw.undo()
-            appendEvent(result.message, result.success ? "success" : "normal")
+            realBridge.finishUndo(result)
+            realBridge.sync(daw.snapshot())
             if (result.success) {launchDanmaku("↩ 已撤销上一次 DAWdex 修改", "system")}
             return
         }
@@ -401,13 +417,19 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
             return
         }
         appendEvent(`用户干预：${label} — 正在生成修改计划…`, "working")
-        requestPlan(`【干预】${label}（在保留当前工程结构的前提下调整音乐）`)
+        requestPlan(`【干预】${label}（在保留当前工程结构的前提下调整音乐）`,
+            undefined, "intervention")
     }
 
     // ── plan/apply 链路（v0.2.0 真实链路，收入证据抽屉） ─────────────────────
     let currentPlan = Option.None as Option<AgentPlan>
+    let currentPlanKind: "apply" | "intervention" = "apply"
     let isBusy = false
-    const requestPlan = (prompt: string) => {
+    const requestPlan = (
+        prompt: string,
+        danmakuId?: string,
+        operationKind: "apply" | "intervention" = "apply"
+    ) => {
         if (isBusy) {return}
         isBusy = true
         appendEvent("制作人正在把你的想法翻译成音乐计划…", "working")
@@ -416,6 +438,8 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         }).then(plan => {
             isBusy = false
             currentPlan = Option.wrap(plan)
+            currentPlanKind = operationKind
+            realBridge.acceptPlan(plan, danmakuId, daw.snapshot())
             appendEvent(`${plan.actions.length} 个安全动作待批准`, "success")
             renderPlanSlot()
         }, reason => {
@@ -436,9 +460,12 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
                 isBusy = true
                 applyButton.disabled = true
                 appendEvent("正在把批准的计划写入 openDAW…", "working")
+                realBridge.beginPlan(plan)
                 daw.apply(plan).then(result => {
                     isBusy = false
                     applyButton.disabled = false
+                    realBridge.finishPlan(plan, currentPlanKind, result)
+                    realBridge.sync(daw.snapshot())
                     if (result.success) {
                         appendEvent(result.message, "success")
                         launchDanmaku(`✓ ${plan.title}`, "producer")
@@ -450,7 +477,9 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
                 }, reason => {
                     isBusy = false
                     applyButton.disabled = false
-                    appendEvent(`执行失败：${String(reason)}`)
+                    const message = `执行失败：${String(reason)}`
+                    realBridge.finishPlan(plan, currentPlanKind, {success: false, message})
+                    appendEvent(message)
                 })
             })
             Events.subscribe(dismissButton, "click", () => {
@@ -549,6 +578,9 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
 
     renderProviderSlot()
     refreshProviderStatus(true).catch(reason => appendEvent(`模型状态检查失败：${String(reason)}`))
+    const realSyncTimer = window.setInterval(() => realBridge.sync(daw.snapshot()), 500)
+    lifecycle.own(Terminable.create(() => window.clearInterval(realSyncTimer)))
+    if (!demoMode) {realBridge.sync(daw.snapshot())}
     appendEvent(demoMode
         ? "DAWdex 舞台就绪（演示模式 · Mock 驱动）"
         : "DAWdex 舞台就绪 — 发送弹幕开始创作，或点 ↻ 回放 90 秒演示", "success")
