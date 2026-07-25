@@ -1,5 +1,14 @@
 # DAWdex
 
+[![openDAW](https://img.shields.io/badge/openDAW-Audio_Engine-14B8A6?style=flat-square)](https://github.com/andremichelle/openDAW)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=flat-square&logo=typescript&logoColor=white)
+![Rust / WASM](https://img.shields.io/badge/Rust-WASM-000000?style=flat-square&logo=rust&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-7-646CFF?style=flat-square&logo=vite&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-MIDI_Catalog-003B57?style=flat-square&logo=sqlite&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A523-339933?style=flat-square&logo=node.js&logoColor=white)
+![Codex](https://img.shields.io/badge/Codex-Agent-111827?style=flat-square&logo=openai&logoColor=white)
+![MIDI](https://img.shields.io/badge/MIDI-193%2C320_assets-FF4D6D?style=flat-square)
+
 > 弹幕驱动的 AI 虚拟录音棚。让一句话，真正进入可编辑的音乐工程。
 
 **19 万级真实 MIDI · Plan Approval（计划审批）· openDAW 可编辑工程**
@@ -43,17 +52,30 @@ DAWdex 不是给 DAW 加一个聊天框。它把 AI 放进一条真实的音乐�
 90 秒内，用户从一句弹幕出发，看见音乐意图如何被理解、安排和执行，并在 openDAW
 中留下可以继续编辑的结果。
 
-```text
-用户弹幕
-→ Producer 采纳
-→ Creative Brief（创作简报）
-→ Grounded Retrieval（可追溯素材检索）
-→ Agent Plan（制作计划）
-→ 用户审批
-→ openDAW 写入
-→ 发声确认
-→ 虚拟乐手演奏
-→ 二次干预 / Undo
+```mermaid
+flowchart LR
+    USER["用户弹幕"] --> PRODUCER["Producer<br/>采纳意图"]
+    PRODUCER --> BRIEF["Creative Brief<br/>创作简报"]
+    BRIEF --> RETRIEVAL["Grounded Retrieval<br/>可追溯音乐检索"]
+    RETRIEVAL --> PLAN["Agent Plan<br/>制作计划"]
+    PLAN --> APPROVAL{"Plan Approval<br/>用户审批"}
+    APPROVAL -->|批准| DAW["openDAW<br/>写入工程"]
+    APPROVAL -->|调整| BRIEF
+    DAW --> AUDIBLE["Audibility Gate<br/>发声确认"]
+    AUDIBLE --> BAND["虚拟乐手<br/>开始演奏"]
+    BAND --> ITERATE["二次干预<br/>或 Undo"]
+
+    classDef intent fill:#E0F2FE,stroke:#0284C7,color:#0C4A6E,stroke-width:1.5px;
+    classDef intelligence fill:#EDE9FE,stroke:#7C3AED,color:#4C1D95,stroke-width:1.5px;
+    classDef approval fill:#FEF3C7,stroke:#D97706,color:#78350F,stroke-width:1.5px;
+    classDef engine fill:#CCFBF1,stroke:#0F766E,color:#134E4A,stroke-width:1.5px;
+    classDef feedback fill:#FFE4E6,stroke:#E11D48,color:#881337,stroke-width:1.5px;
+
+    class USER,PRODUCER intent;
+    class BRIEF,RETRIEVAL,PLAN intelligence;
+    class APPROVAL approval;
+    class DAW engine;
+    class AUDIBLE,BAND,ITERATE feedback;
 ```
 
 ### 90 秒演示节奏
@@ -184,31 +206,41 @@ DAW 工作台。
 
 ## 7. 技术架构
 
-```text
-┌────────────────────────────────────────────────────────────┐
-│ Experience Layer（体验层）                                 │
-│ 弹幕 · 虚拟录音棚 · Plan 审批 · 乐队会议 · Workbench      │
-└──────────────────────────┬─────────────────────────────────┘
-                           ▼
-┌────────────────────────────────────────────────────────────┐
-│ Agent Harness（智能调度层）                                │
-│ Snapshot · Provider · Planning · Validation · Transaction  │
-└──────────────────────────┬─────────────────────────────────┘
-                           ▼
-┌────────────────────────────────────────────────────────────┐
-│ Music Intelligence（音乐智能层）                           │
-│ Creative Brief · MIDI Retrieval · Arrangement · Sound      │
-└──────────────────────────┬─────────────────────────────────┘
-                           ▼
-┌────────────────────────────────────────────────────────────┐
-│ openDAW Engine（音乐引擎）                                 │
-│ MIDI · Track · Instrument · Effects · Mixer · Undo         │
-└──────────────────────────┬─────────────────────────────────┘
-                           ▼
-┌────────────────────────────────────────────────────────────┐
-│ Causal Feedback（因果反馈层）                              │
-│ UiEvent · Audibility Gate · Role State · Evidence          │
-└────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    USER["用户 / 弹幕"] --> EXPERIENCE["Experience Layer<br/>DAWdex Studio · 虚拟录音棚 · Workbench"]
+    EXPERIENCE --> HARNESS["Agent Harness<br/>Snapshot · Planning · Validation · Transaction"]
+
+    HARNESS --> PROVIDERS["Model Providers<br/>Codex · OpenAI-compatible"]
+    HARNESS --> CATALOG["MIDI Catalog<br/>SQLite Index · Retrieval · Fingerprint"]
+
+    PROVIDERS --> INTELLIGENCE["Music Intelligence<br/>Creative Brief · Arrangement · Sound Design"]
+    CATALOG --> INTELLIGENCE
+
+    INTELLIGENCE --> APPROVAL{"Plan Approval<br/>用户审批"}
+    APPROVAL -->|批准| ENGINE["openDAW Engine<br/>MIDI · Track · Instrument · Effects · Mixer · Undo"]
+    APPROVAL -->|调整| HARNESS
+
+    ENGINE --> FEEDBACK["Causal Feedback<br/>UiEvent · Audibility Gate · Role State · Evidence"]
+    FEEDBACK --> EXPERIENCE
+
+    classDef user fill:#F8FAFC,stroke:#64748B,color:#0F172A,stroke-width:1.5px;
+    classDef experience fill:#E0F2FE,stroke:#0284C7,color:#0C4A6E,stroke-width:1.5px;
+    classDef harness fill:#EDE9FE,stroke:#7C3AED,color:#4C1D95,stroke-width:1.5px;
+    classDef source fill:#F1F5F9,stroke:#475569,color:#0F172A,stroke-width:1.5px;
+    classDef intelligence fill:#FAE8FF,stroke:#C026D3,color:#701A75,stroke-width:1.5px;
+    classDef approval fill:#FEF3C7,stroke:#D97706,color:#78350F,stroke-width:1.5px;
+    classDef engine fill:#CCFBF1,stroke:#0F766E,color:#134E4A,stroke-width:1.5px;
+    classDef feedback fill:#FFE4E6,stroke:#E11D48,color:#881337,stroke-width:1.5px;
+
+    class USER user;
+    class EXPERIENCE experience;
+    class HARNESS harness;
+    class PROVIDERS,CATALOG source;
+    class INTELLIGENCE intelligence;
+    class APPROVAL approval;
+    class ENGINE engine;
+    class FEEDBACK feedback;
 ```
 
 Harness 位于模型和 DAW 之间。它决定模型可以看见什么、能修改什么、何时需要审批、
