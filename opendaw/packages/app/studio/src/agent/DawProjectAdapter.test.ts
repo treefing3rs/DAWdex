@@ -72,6 +72,21 @@ const singleNoteMidi = (pitch: number): ArrayBuffer => new Uint8Array([
     0x00, 0xFF, 0x2F, 0x00
 ]).buffer
 
+const sustainPedalMidi = (): ArrayBuffer => new Uint8Array([
+    0x4D, 0x54, 0x68, 0x64,
+    0x00, 0x00, 0x00, 0x06,
+    0x00, 0x00,
+    0x00, 0x01,
+    0x01, 0xE0,
+    0x4D, 0x54, 0x72, 0x6B,
+    0x00, 0x00, 0x00, 0x16,
+    0x00, 0xB0, 0x40, 0x7F,
+    0x00, 0x90, 0x3C, 0x64,
+    0x83, 0x60, 0x80, 0x3C, 0x00,
+    0x83, 0x60, 0xB0, 0x40, 0x00,
+    0x00, 0xFF, 0x2F, 0x00
+]).buffer
+
 const testAssetLoader = async (assetId: string): Promise<ArrayBuffer> => {
     const [, style, role, rawSeed] = assetId.split(":")
     const roleBase = role === "drums" ? 36 : role === "bass" ? 40 : 64
@@ -111,6 +126,59 @@ const playfieldPresetBytes = (): ArrayBuffer => {
 }
 
 describe("DawProjectAdapter", () => {
+    it("writes the CC64-held duration into the generated Keys note region", async () => {
+        const {Project} = await import("@opendaw/studio-core")
+        const {DawProjectAdapter} = await import("./DawProjectAdapter")
+        const project = Project.fromSkeleton({
+            audioContext: undefined,
+            audioWorklets: undefined,
+            sampleManager: createSampleManager(),
+            soundfontManager: undefined,
+            sampleService: undefined,
+            soundfontService: undefined
+        } as never, ProjectSkeleton.empty({createDefaultUser: true, createOutputMaximizer: false}))
+        const service = {
+            hasProfile: true,
+            project,
+            newProject: async () => {}
+        } as never
+        const adapter = new DawProjectAdapter(
+            service,
+            async () => sustainPedalMidi(),
+            noDrumKitPreset
+        )
+        const generated = LocalMusicPlanner.create(
+            "Create one bar of R&B keys",
+            adapter.snapshot()
+        )
+        const keysAction = generated.actions.find(action =>
+            action.type === "upsert-role-track" && action.role === "keys")
+        if (keysAction?.type !== "upsert-role-track") {
+            throw new Error("Missing generated Keys action")
+        }
+        const plan: AgentPlan = {
+            ...generated,
+            actions: [{...keysAction, bars: 1}]
+        }
+
+        try {
+            expect((await adapter.apply(plan)).success).toBe(true)
+            const keysAudioUnit = project.rootBoxAdapter.audioUnits.adapters()
+                .find(audioUnit => audioUnit.label.includes("Keys"))
+            const region = keysAudioUnit?.tracks.values()[0]
+                ?.regions.collection.asArray()
+                .find(candidate => candidate.isNoteRegion())
+            const note = region?.isNoteRegion()
+                ? region.optCollection.unwrap("Missing Keys note collection")
+                    .events.asArray()[0]
+                : undefined
+
+            expect(note?.duration).toBe(PPQN.Quarter * 2)
+        } finally {
+            project.terminate()
+        }
+    })
+
     it("restyles in place, preserves Keys during a Drum-only edit, and restores each change with one Undo",
         async () => {
             const {Project} = await import("@opendaw/studio-core")

@@ -32,6 +32,21 @@ const chordMidi = (root: number): ArrayBuffer => new Uint8Array([
     0x00, 0xFF, 0x2F, 0x00
 ]).buffer
 
+const sustainPedalMidi = new Uint8Array([
+    0x4D, 0x54, 0x68, 0x64,
+    0x00, 0x00, 0x00, 0x06,
+    0x00, 0x00,
+    0x00, 0x01,
+    0x01, 0xE0,
+    0x4D, 0x54, 0x72, 0x6B,
+    0x00, 0x00, 0x00, 0x16,
+    0x00, 0xB0, 0x40, 0x7F,
+    0x00, 0x90, 0x3C, 0x64,
+    0x83, 0x60, 0x80, 0x3C, 0x00,
+    0x83, 0x60, 0xB0, 0x40, 0x00,
+    0x00, 0xFF, 0x2F, 0x00
+]).buffer
+
 describe("compileMidiAsset", () => {
     it("moves low Keys material out of the bass register and loops it to the requested bars", () => {
         const notes = compileMidiAsset(singleNoteMidi(24), "keys", 4)
@@ -68,5 +83,11 @@ describe("compileMidiAsset", () => {
         expect(notes).toHaveLength(12)
         expect(Math.min(...notes.map(note => note.pitch))).toBeGreaterThanOrEqual(48)
         expect(Math.max(...notes.map(note => note.pitch))).toBeLessThanOrEqual(88)
+    })
+
+    it("keeps a Keys note sounding until CC64 pedal-up", () => {
+        const notes = compileMidiAsset(sustainPedalMidi, "keys", 1)
+        expect(notes).toHaveLength(1)
+        expect(notes[0].duration).toBe(PPQN.Quarter * 2)
     })
 })

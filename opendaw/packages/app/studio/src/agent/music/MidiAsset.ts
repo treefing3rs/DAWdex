@@ -1,6 +1,7 @@
-import {clamp, isDefined} from "@opendaw/lib-std"
+import {clamp} from "@opendaw/lib-std"
 import {PPQN} from "@opendaw/lib-dsp"
-import {ControlType, MidiFile} from "@opendaw/lib-midi"
+import {MidiFile} from "@opendaw/lib-midi"
+import {decodeMidiNoteSpans} from "@/midi/MidiNoteSpans"
 import type {MusicRole} from "../AgentProtocol"
 import type {CompiledNote} from "./PatternCompiler"
 
@@ -18,51 +19,14 @@ export const loadMidiAsset: MidiAssetLoader = async assetId => {
     return response.arrayBuffer()
 }
 
-type ActiveNote = {
-    readonly position: number
-    readonly pitch: number
-    readonly velocity: number
-}
-
 const decodeNotes = (buffer: ArrayBuffer): ReadonlyArray<CompiledNote> => {
     const format = MidiFile.decoder(buffer).decode()
-    const notes: Array<CompiledNote> = []
-    for (const track of format.tracks) {
-        for (const [channel, events] of track.controlEvents) {
-            const active = new Map<number, Array<ActiveNote>>()
-            for (const event of events) {
-                const position = PPQN.fromSignature(event.ticks / format.timeDivision, 4)
-                const isNoteOn = event.type === ControlType.NOTE_ON && event.param1 > 0
-                const isNoteOff = event.type === ControlType.NOTE_OFF
-                    || (event.type === ControlType.NOTE_ON && event.param1 === 0)
-                if (isNoteOn) {
-                    const queue = active.get(event.param0) ?? []
-                    queue.push({
-                        position,
-                        pitch: event.param0,
-                        velocity: event.param1 / 127
-                    })
-                    active.set(event.param0, queue)
-                } else if (isNoteOff) {
-                    const queue = active.get(event.param0)
-                    const started = queue?.shift()
-                    if (queue?.length === 0) {active.delete(event.param0)}
-                    if (!isDefined(started) || position <= started.position) {continue}
-                    notes.push({
-                        position: started.position,
-                        duration: position - started.position,
-                        pitch: started.pitch,
-                        velocity: started.velocity
-                    })
-                }
-            }
-            if (channel === 9) {
-                // Channel 10 is conventionally drums. The role-specific range pass below still
-                // decides whether pitches are preserved or normalized.
-            }
-        }
-    }
-    return notes
+    return decodeMidiNoteSpans(format).flatMap(({notes}) => notes.map(note => ({
+        position: PPQN.fromSignature(note.ticks / format.timeDivision, 4),
+        duration: PPQN.fromSignature(note.durationTicks / format.timeDivision, 4),
+        pitch: note.pitch,
+        velocity: note.velocity
+    })))
 }
 
 const roleRange = (role: Exclude<MusicRole, "drums">) =>
