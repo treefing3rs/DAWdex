@@ -72,11 +72,6 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     const statusDot: HTMLElement = (<span className="status-dot checking" title="创作模型状态"/>)
     const presentButton: HTMLButtonElement = (
         <button type="button" className="present-toggle" title="投屏演示模式：隐藏抽屉、放大舞台">⛶ 投屏</button>)
-    // 掀开舞台地板：收起外壳露出底下的真实 openDAW（Esc 或 ?workbench=1 深链）
-    const collapseButton: HTMLButtonElement = (
-        <button type="button" className="collapse-toggle" title="收起演播厅，打开 openDAW 工作台（Esc 往返）">⌄ 工作台</button>)
-    // 收起态窄条上的最近事件（收起来也有生命体征）
-    const lastEvent: HTMLElement = (<span className="last-event"/>)
     // 屏幕内 REC 灯牌（权威播放指示，与 ON AIR 同源）
     const recBadge: HTMLElement = (<div className="rec-badge standby">STANDBY</div>)
     // 舞台背景：夜晚棚内循环视频（唯一皮肤，无昼夜切换）
@@ -234,7 +229,6 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     const appendEvent = (message: string, style: "normal" | "working" | "success" = "normal") => {
         activity.prepend(<div className={`event ${style}`}><span className="event-dot"/><span>{message}</span></div>)
         while (activity.childElementCount > 8) {activity.lastElementChild?.remove()}
-        lastEvent.textContent = message
     }
     const appendReceipt = (role: RoleId, summary: string, audible: string, ref: string) => {
         const label = STAGE_ROLES.find(r => r.id === role)?.label ?? role
@@ -616,9 +610,7 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
                 {onAirLamp}
                 {statusDot}
                 <span className="channel">CH{chPrev}{channelName}{chNext}</span>
-                {lastEvent}
                 <span className="header-spacer"/>
-                {collapseButton}
                 {presentButton}
                 {replayButton}
             </div>
@@ -643,22 +635,6 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     root.classList.add("transport-paused")
     root.style.setProperty("--beat", `${(60 / bpm).toFixed(3)}s`)
 
-    // ── 收起外壳 = 掀开舞台地板，露出底下真实 openDAW（事件桥持续同步，回来即最新） ──
-    const setCollapsed = (force?: boolean) => {
-        const on = force ?? !root.classList.contains("collapsed")
-        root.classList.toggle("collapsed", on)
-        collapseButton.classList.toggle("active", on)
-        collapseButton.textContent = on ? "⌃ 演播厅" : "⌄ 工作台"
-        collapseButton.title = on ? "回到 DAWdex 演播厅（Esc 往返）" : "收起演播厅，打开 openDAW 工作台（Esc 往返）"
-        if (on && root.classList.contains("presentation")) {
-            root.classList.remove("presentation")
-            presentButton.classList.remove("active")
-        }
-    }
-    lifecycle.own(Events.subscribe(window, "keydown", (event: KeyboardEvent) => {
-        if (event.key === "Escape" && !(event.target instanceof HTMLInputElement)) {setCollapsed()}
-    }))
-
     lifecycle.ownAll(
         Events.subscribe(sendButton, "click", submitDanmaku),
         Events.subscribe(input, "keydown", (event: KeyboardEvent) => {
@@ -667,9 +643,7 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         Events.subscribe(presentButton, "click", () => {
             const on = root.classList.toggle("presentation")
             presentButton.classList.toggle("active", on)
-            if (on) {setCollapsed(false)} // 投屏与收起互斥
         }),
-        Events.subscribe(collapseButton, "click", () => setCollapsed()),
         Events.subscribe(replayButton, "click", () => {
             appendEvent("回放 90 秒演示（Mock 驱动）", "working")
             startMock()
@@ -685,8 +659,6 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         const idx = ROOMS.findIndex(r => r.id === initialRoom)
         if (idx >= 0) {setRoom(idx)}
     }
-    // 支持 ?workbench=1 深链：直接以收起态（openDAW 工作台）启动
-    if (new URLSearchParams(window.location.search).has("workbench")) {setCollapsed(true)}
 
     // 巡棚房间背景预载（避免首次切台白闪）
     ROOMS.forEach(room => {

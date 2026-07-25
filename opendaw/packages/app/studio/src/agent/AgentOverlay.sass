@@ -582,48 +582,6 @@ component
       &:hover, &:focus-within
         opacity: 1
 
-  // ── 收起态（掀开舞台地板）：外壳整体让位，露出底下真实 openDAW ──
-  &.collapsed
-    background: transparent
-    backdrop-filter: none
-    pointer-events: none
-    overflow: visible
-    padding: 0 0 42px // 胶囊停靠底部，避开 openDAW 顶栏与页脚
-    justify-content: flex-end
-    .stage-bezel,
-    .composer,
-    .interventions,
-    .drawer,
-    .intro-splash
-      display: none
-    .shell-header
-      pointer-events: auto
-      width: fit-content
-      max-width: 96%
-      gap: 10px
-      padding: 6px 12px
-      background: rgba($shell-bg, 0.94)
-      border: 1px solid $shell-line
-      border-radius: 999px
-      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.08)
-      opacity: 0.72
-      transition: opacity 160ms ease
-      &:hover
-        opacity: 1
-      .last-event
-        display: inline-block
-  .last-event
-    display: none
-    max-width: 320px
-    overflow: hidden
-    text-overflow: ellipsis
-    white-space: nowrap
-    font-size: 11px
-    color: $shell-muted
-    &::before
-      content: "· "
-      color: $shell-line
-
 // ── 动效关键帧 ─────────────────────────────────────────────────────
 @keyframes danmaku-fly
   to
