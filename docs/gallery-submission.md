@@ -1,94 +1,77 @@
 # DAWdex — Gallery 提交文案
 
-> 当前提交事实：0.3.0 / PR #12
-> 完整歌曲是正式产品方向，不表述为已经交付
-
 ## 项目名称
 
 DAWdex
 
-## 标题
+## 标题（一句话摘要）
 
-弹幕驱动的 AI 虚拟录音棚——让每一句话都变成可编辑的音乐操作
+弹幕驱动的 AI 虚拟录音棚——用日常语言指挥一首完整歌曲的诞生
 
-## 简介
+## 简介（约 3 行）
 
-DAWdex 让用户用“再炸一点”“钢琴柔一点”这样的弹幕指挥虚拟乐队。Agent 从 19 万级真实 MIDI 资料中检索素材，提出可审批的编排、音色和 DAW 操作，再把结果写入 openDAW。角色只有在轨道真实发声后才会演奏，产出始终是可继续编辑和撤销的工程。
+DAWdex 是一个基于 openDAW 的 AI 虚拟录音棚。你不需要懂乐理——发一条弹幕"再炸一点"或"换成 R&B"，制作人 Agent 就会从 19 万条专业 MIDI 素材中检索、编排，指挥虚拟鼓手、贝斯手、吉他手和键盘手在录音棚里逐轨演奏。产出不是黑盒音频，而是一份可继续编辑、可撤销的完整 DAW 工程。
 
-## 详细描述
+## 详细描述（Markdown）
 
 ### 它是什么
 
-DAWdex 是一个基于 openDAW 的完整歌曲 AI 虚拟录音棚 Harness。
+DAWdex 把 openDAW 的专业能力包装成一个沉浸式虚拟录音棚：观众用自然语言弹幕指挥，AI 制作人理解意图、设计编排、选择素材、调配音色，然后让五位虚拟乐手（制作人、鼓手、贝斯手、吉他手、键盘手）在各自的录音房间里依次演奏。
 
-当前 0.3.0 已跑通一条真实垂直切片：
+每一步都可审批、可试听、可撤销。你看到的角色动画和你听到的声音来自同一份工程事实——不是表演性文案。
 
-```text
-弹幕
-→ Creative Brief
-→ 真实 MIDI 检索
-→ Agent Plan
-→ 用户审批
-→ openDAW 写入
-→ 发声确认
-→ 角色演奏
-→ 再次干预或撤销
+### 核心链路
+
+```
+用户弹幕 → AI 理解意图 & 生成 Creative Brief
+→ 19 万 MIDI 素材库结构化检索（SQLite 索引）
+→ 编排计划（可预览、可审批）
+→ 一键写入 openDAW（风格化音色 + 角色化混音）
+→ 虚拟乐手实时演奏 → 用户再次干预或撤销
 ```
 
-前端把 DAW 翻译成一部可以操作的动画片：轨道成为乐手，设备成为录音棚物件，Transport 成为走带，Plan 与 Undo 成为乐队会议中的证据。
+### 为什么不一样
 
-### 当前亮点
-
-- **真实 MIDI，不是固定模板**：本地资料共 194,553 个文件，193,320 个通过目录校验；Agent 只从候选中选择精确 Asset ID。
-- **Codex 账号或 OpenAI API**：本机 Codex `app-server`、OpenAI-compatible Provider 和本地回退共同保证演示可用。
-- **计划后执行**：用户先看到音乐方向、素材、音色和操作，再决定是否写入。
-- **可编辑、可撤销**：角色轨道可以原位替换，一轮修改合并为一个 Undo 步骤。
-- **安全 DAW 控制**：支持 Transport、Track、Region、MIDI Transform、Instrument、Effects、Automation、Bus、Send 和 Routing，全部经过 Capability 与目标 ID 校验。
-- **音乐与画面同源**：没有轨道可听确认，就没有角色演奏动画。
-- **可巡游的录音棚**：电梯进棚、五套角色素材、演播大厅与五个功能房间形成统一世界；当前活跃轨道角色为 drums/bass/keys。
-- **一键证明真实 DAW**：收起演播厅外壳即可露出同一个 openDAW 工程，事件同步不会中断。
-
-### 与 Prompt-to-Song 的区别
-
-| Prompt-to-Song | DAWdex |
+| 传统方案 | DAWdex |
 |---|---|
-| 一次生成黑盒音频 | 多轮计划并修改可编辑工程 |
-| 用户等待结果 | 用户持续指挥、审批和撤销 |
-| 很难局部替换 | 指定角色、轨道和设备进行 Patch |
-| 画面只是进度 | 角色与房间翻译真实工程状态 |
-| 来源不可见 | MIDI Asset、Plan 和 Operation 可追踪 |
+| Prompt → 黑盒音频 | 弹幕 → 可编辑 MIDI 工程 |
+| 一次生成、不可修改 | 多轮对话、局部 Patch、完整 Undo |
+| AI 文字与声音脱节 | 角色动画、计划文案和发声共享同一事实来源 |
+| 单人创作 | 多人弹幕共同驱动 |
+| 只出 Loop | 面向完整歌曲（Song Blueprint） |
 
-### 完整歌曲方向
+### 产品体验
 
-当前版本仍以 4/8 小节垂直切片为主。下一阶段会增加：
+- **虚拟录音棚**：六个房间（演播大厅、鼓棚、吉他贝斯棚、键盘阁楼、控制室、休息室），角色有入场动画和状态变化
+- **审批制**：Agent 先提出可解释计划，展示所选 MIDI 和音色参数，用户批准后才执行
+- **掀开地板**：随时切换到底层 openDAW 工作台直接编辑，外壳收起时事件桥继续同步
+- **风格切换**：说"换成 dubstep"会原位替换已有轨道的素材和音色，不是叠加新轨
+- **完整 Undo**：每次操作都是一个事务步骤
 
-```text
-Song Blueprint
-└── Section
-    └── Phrase
-        └── Region
-            └── Notes
-```
+### 技术亮点
 
-用户将能够锁定 Chorus、替换 Verse、让第二次副歌发展第一次的动机，并在控制室编曲白板上看见整首歌的结构。它是正式产品方向，不是本次 Demo 已完成能力。
-
-### 音色边界
-
-当前 Agent 可以为 Vaporisateur 设计合成器、Mixer 和效果链。SoundFont、Sampler 和其他资产型设备必须先有工程资产；完整的风格乐器/音色目录仍在下一阶段。
+- **双 AI 链路**：Codex CLI（零 API 费用）或 OpenAI 兼容 API（支持任意中转），自动 fallback
+- **19 万 MIDI 素材库**：SQLite 索引，按角色/风格/BPM/密度/音域结构化检索，非向量 RAG
+- **风格化音色系统**：每种风格（Dubstep / R&B / Lo-fi 等）对 Drums/Bass/Keys 有独立合成器参数
+- **WASM 音频引擎**：Rust 编译的 25 个 DSP 设备插件，浏览器内实时合成
+- **RealUiEventBridge**：DAW 工程事件 → 角色动画状态的单向同步，保证"没发声就不演奏"
+- **Song Blueprint**：面向完整歌曲的结构化编排（Section → Phrase → Region → Notes）
 
 ### 技术栈
 
-openDAW · TypeScript · Rust/WASM · Vite · SQLite · Codex app-server · OpenAI-compatible API · Node.js · MIDI
+openDAW · TypeScript · Rust/WASM (25 DSP plugins) · Vite · SQLite · OpenAI Agents · Node.js
 
 ### 团队
 
-- **成员 A**：Experience & Story — UI/UX、虚拟录音棚、角色和 Demo。
-- **成员 B**：Agent & Music Intent — Provider、Brief、Plan 和 MIDI 检索。
-- **成员 C**：Music Pipeline & Integration — 数据、质量闸门和 openDAW 执行。
+三人 48 小时黑客松作品
+
+- **成员 A**：Experience & Story Lead — 视觉系统、角色设计、录音棚 UI、Demo 脚本
+- **成员 B**：Agent & Music Intent Lead — AI Agent Server、MIDI 索引、协议设计、Codex 集成
+- **成员 C**：Music Pipeline & Integration Lead — 音乐数据处理、质量闸门、WASM 编译、工程集成
 
 ## 技术栈标签
 
-openDAW, TypeScript, Rust, WebAssembly, SQLite, Codex, OpenAI, Node.js, Vite, MIDI, AI Music
+openDAW, TypeScript, Rust, WebAssembly, SQLite, OpenAI, Node.js, Vite, MIDI, AI Music, DSP
 
 ## GitHub 仓库
 
@@ -96,4 +79,4 @@ https://github.com/treefing3rs/DAWdex
 
 ## 在线演示
 
-部署后补充。
+（如果部署了填这里）
