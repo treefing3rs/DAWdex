@@ -588,28 +588,40 @@ component
     backdrop-filter: none
     pointer-events: none
     overflow: visible
-    padding: 0 0 42px // 胶囊停靠底部，避开 openDAW 顶栏与页脚
-    justify-content: flex-end
+    padding: 0
     .stage-bezel,
     .composer,
     .interventions,
     .drawer,
     .intro-splash
       display: none
+    // 右边缘侧拉抽屉：平时只露一条竖签，hover 整条胶囊滑出
     .shell-header
       pointer-events: auto
+      position: fixed
+      right: 0
+      top: 50%
+      transform: translate(calc(100% - 30px), -50%)
+      transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1)
       width: fit-content
-      max-width: 96%
+      max-width: 96vw
       gap: 10px
-      padding: 6px 12px
-      background: rgba($shell-bg, 0.94)
+      padding: 10px 14px 10px 8px
+      background: rgba($shell-bg, 0.96)
       border: 1px solid $shell-line
-      border-radius: 999px
-      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.08)
-      opacity: 0.72
-      transition: opacity 160ms ease
+      border-right: none
+      border-radius: 14px 0 0 14px
+      box-shadow: -4px 0 18px rgba(0, 0, 0, 0.10)
       &:hover
-        opacity: 1
+        transform: translate(0, -50%)
+      &::before
+        content: "◂ DAWDEX"
+        writing-mode: vertical-rl
+        font-size: 9px
+        font-weight: 800
+        letter-spacing: 0.22em
+        color: $shell-muted
+        padding: 4px 0
       .last-event
         display: inline-block
   .last-event
