@@ -755,6 +755,61 @@ component
     top: 22.2%
     animation-delay: 4.1s
 
+  // ── 巡棚房间物件（§13 冒险游戏管线：替身零像素差 + 轮廓命中 + :has 联动） ──
+  .room-slots
+    position: absolute
+    inset: 0
+    z-index: 6
+    pointer-events: none
+    transition: opacity 360ms ease
+  // 演出态皮肤淡入时，物件层同步淡出（与演播大厅 .obj 一致）
+  .stage.video-live .room-slots
+    opacity: 0
+  .obj-slot
+    position: absolute
+    display: none
+    pointer-events: none
+    img
+      position: absolute
+      inset: 0
+      width: 100%
+      height: 100%
+      pointer-events: none
+      user-select: none
+      transition: filter 200ms ease
+    .obj-hit
+      position: absolute
+      inset: 0
+      width: 100%
+      height: 100%
+      pointer-events: auto
+      cursor: pointer
+  // 按房间显隐（演播大厅走 §9 的 hotspots 体系，不走 slot）
+  .stage[data-room="drums"] .obj-slot[data-room="drums"],
+  .stage[data-room="strings"] .obj-slot[data-room="strings"],
+  .stage[data-room="keys"] .obj-slot[data-room="keys"],
+  .stage[data-room="control"] .obj-slot[data-room="control"],
+  .stage[data-room="lounge"] .obj-slot[data-room="lounge"]
+    display: block
+  // hover：物件自身像素变亮（clip-path 裁剪后只亮轮廓，无遮罩矩感）
+  .obj-slot:has(.obj-hit:hover) img
+    filter: brightness(1.45) saturate(1.2)
+  // REC 灯牌绑定：发声确认 / 走带播放时点亮
+  .obj-slot.lit img
+    filter: brightness(1.7) saturate(1.35) drop-shadow(0 0 6px rgba($red, 0.55))
+  // slot 内闪光点：统一挂物件右上角
+  .slot-glint
+    top: 6%
+    right: 8%
+  // 边缘物件的名签防溢出
+  .slot-hit.align-right::after
+    left: auto
+    right: 0
+    transform: none
+  .slot-hit.align-left::after
+    left: 0
+    transform: none
+
   // ── 物件功能面板（落在键盘屏上：点击物件 → 屏幕点亮显示内容，§9.4） ──
   .object-panel
     position: absolute
