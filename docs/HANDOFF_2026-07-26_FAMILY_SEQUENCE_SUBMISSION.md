@@ -1,8 +1,10 @@
-# DAWdex Family Sequence 提交与合并交接
+# DAWdex Family Sequence 提交与合并交接（已完成归档）
 
 > 日期：2026-07-26
-> 用途：在新的 Codex 对话中安全检查远端、提交当前工作树、推送新分支并创建 PR
-> 当前工作树：尚未提交、尚未推送
+> 状态：提交与推送已完成；本文仅保留为历史操作记录，不要再次执行提交流程
+> 完成提交：`a7d4ab94f`
+> 远端分支：`origin/codex/family-sequence-arrangement-v2`
+> 待办：创建以 `main` 为 base 的新 PR
 > 重要约束：保留所有现有改动；禁止 `reset --hard`、`checkout --`、整批采用
 > `ours/theirs`，禁止重写 Codex Provider
 

@@ -118,7 +118,8 @@ npm run dev:dawdex-agent
 
 ## 七、禁止夸大
 
-- 不说“已经生成完整歌曲”；当前是 4/8 小节垂直切片；
+- 不说“已经完成完整歌曲系统”；当前已支持素材 Family 内的多段 Sequence 和
+  单轨多 Region，但尚无持久 Song Blueprint、可锁定 Section 与完整动机发展；
 - 不说“每个角色都是独立 Agent”，除非真实运行结构如此；
 - 不说角色动画代表音频电平；当前代表轨道可听状态；
 - 不说 SoundFont/风格音色目录已经完成；

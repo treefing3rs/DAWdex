@@ -156,12 +156,13 @@ DAWdex opened 193320 indexed MIDI assets
 
 `MidiCatalog`：
 
-1. 根据 role 和 Creative Brief 查询；
-2. 使用结构化特征排序；
-3. 去除重复 fingerprint；
-4. 给模型少量精确候选；
-5. 校验模型返回的 Asset ID 与路径；
-6. 只允许 `/v1/midi-assets/:id` 读取目录内资产。
+1. 根据 role、Creative Brief、BPM 和搜索词查询 Family Sequence；
+2. 优先返回至少三个可靠 Section 的 Family，每个原始顺序只选择一个 Variant；
+3. 使用实际音符、节奏、调性、能量和鼓映射覆盖率排序；
+4. 去除重复音乐 fingerprint；
+5. 给模型少量 Family 锚点，由 Harness 展开精确 Section Asset ID 与路径；
+6. 找不到可靠 Family 时显式回退单段候选，不得静默返回无关素材；
+7. 只允许 `/v1/midi-assets/:id` 读取目录内资产。
 
 模型不能浏览整个目录，也不能编造文件路径。
 
@@ -197,7 +198,7 @@ type MusicBrief = {
     instrumentation: readonly string[]
     bpm: number
     key: string
-    bars: 4 | 8
+    bars: number // integer, 4..64
     energy: number
     swing: number
     preserveTrackIds: readonly string[]
@@ -224,7 +225,19 @@ type UpsertRoleTrackAction = {
     energy: number
     midiAssetId: string
     midiAssetPath: string
+    transposeSemitones: number
+    midiSections?: readonly MidiSectionSelection[]
     sound: TrackSoundDesign
+}
+
+type MidiSectionSelection = {
+    assetId: string
+    assetPath: string
+    label: string
+    sectionKind: string
+    startBar: number
+    bars: number
+    transposeSemitones: number
 }
 ```
 
@@ -233,6 +246,8 @@ type UpsertRoleTrackAction = {
 - `replace` 只能指向当前 Snapshot 中的 DAWdex 生成轨道；
 - 用户轨道和 `preserveTrackIds` 不得修改；
 - Asset ID/Path 必须来自给定候选；
+- `midiSections` 只能引用所选 Family 中已验证且顺序合法的真实 Asset；
+- 单个 Section 为 1–16 小节，Brief 总长度为 4–64 小节；
 - 不同角色使用不同 seed；
 - Keys 不放入 Bass 音区；
 - 一轮动作总数不超过 8。

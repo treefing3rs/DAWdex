@@ -319,6 +319,7 @@ OpenAI-compatible API · Node.js · MIDI
 
 ## 11. 文档
 
+- [当前状态与验证结果](docs/STATUS.md)
 - [完整产品定义](docs/PRODUCT_VISION.md)
 - [产品需求文档](docs/PRD_DAWdex.md)
 - [系统架构](docs/architecture.md)

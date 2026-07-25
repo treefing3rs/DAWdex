@@ -6,12 +6,13 @@
 
 ## 权威顺序
 
-1. [`../README.md`](../README.md)：仓库入口、当前能力和启动方式。
-2. [`PRODUCT_VISION.md`](./PRODUCT_VISION.md)：完整产品定义，以及从 Loop 走向完整歌曲的正式方向。
-3. [`PRD_DAWdex.md`](./PRD_DAWdex.md)：产品范围、体验流程和验收标准。
-4. [`architecture.md`](./architecture.md)：系统分层、数据流和当前/下一阶段边界。
-5. [`DAWdex_TechSpec.md`](./DAWdex_TechSpec.md)：工程契约、MIDI 主链和验证命令。
-6. [`design/README.md`](./design/README.md)：前端设计与当前舞台实现。
+1. [`STATUS.md`](./STATUS.md)：当前实现、已知限制、验证结果和 Git 状态。
+2. [`../README.md`](../README.md)：仓库入口、当前能力和启动方式。
+3. [`PRODUCT_VISION.md`](./PRODUCT_VISION.md)：完整产品定义，以及从 Loop 走向完整歌曲的正式方向。
+4. [`PRD_DAWdex.md`](./PRD_DAWdex.md)：产品范围、体验流程和验收标准。
+5. [`architecture.md`](./architecture.md)：系统分层、数据流和当前/下一阶段边界。
+6. [`DAWdex_TechSpec.md`](./DAWdex_TechSpec.md)：工程契约、MIDI 主链和验证命令。
+7. [`design/README.md`](./design/README.md)：前端设计与当前舞台实现。
 
 发生冲突时，以当前代码、已合并 PR、测试结果和以上顺序为准。
 
@@ -19,6 +20,7 @@
 
 | 文档 | 负责回答 |
 |---|---|
+| [`STATUS.md`](./STATUS.md) | 当前真实完成度、限制和最近验证 |
 | [`PRODUCT_VISION.md`](./PRODUCT_VISION.md) | DAWdex 最终要成为什么 |
 | [`PRD_DAWdex.md`](./PRD_DAWdex.md) | 用户体验、功能范围和完成标准 |
 | [`architecture.md`](./architecture.md) | Agent、Harness、MIDI、openDAW 与前端如何协作 |
@@ -35,11 +37,19 @@
 以下文件保留当时的任务、判断和分工，不再代表当前状态：
 
 - [`HANDOFF_2026-07-24.md`](./HANDOFF_2026-07-24.md)
+- [`HANDOFF_2026-07-25_SONG_DEVELOPMENT.md`](./HANDOFF_2026-07-25_SONG_DEVELOPMENT.md)
+- [`HANDOFF_2026-07-26_FAMILY_SEQUENCE_SUBMISSION.md`](./HANDOFF_2026-07-26_FAMILY_SEQUENCE_SUBMISSION.md)
 - [`division-of-labor.md`](./division-of-labor.md)
 - [`design/DESIGN_BRIEFS.md`](./design/DESIGN_BRIEFS.md)
 
+## 实施证据
+
+- [`PHASE0_MIDI_FAMILY_AUDIT_2026-07-26.md`](./PHASE0_MIDI_FAMILY_AUDIT_2026-07-26.md)：Family 覆盖率、Section 分布和鼓映射审计。
+- [`superpowers/specs/2026-07-25-local-cli-runtime-adapter-design.md`](./superpowers/specs/2026-07-25-local-cli-runtime-adapter-design.md)：本地 CLI 多运行时契约。
+
 ## 在制品分支
 
+- `codex/family-sequence-arrangement-v2`：已提交并推送，尚未创建 PR；状态见 [`STATUS.md`](./STATUS.md)。
 - `codex/dual-mode-stage-preview`（8 提交，工作台停靠舞台预览/共享 UI 会话）：**未合并、未提 PR**，其设计与实施计划文档只存在于该分支；采纳或搁置待决策，主干文档暂不描述其功能。
 
 ## 当前事实与正式方向

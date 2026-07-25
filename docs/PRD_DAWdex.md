@@ -159,8 +159,12 @@ Brief 必须表达开放风格，而不是只允许 Dubstep/R&B：
 ### FR-03：真实 MIDI 检索
 
 - 只从授权资料库返回精确 Asset ID 与路径；
-- 按 role、长度、节拍、密度、音域和音乐特征过滤排序；
-- 去除重复 fingerprint；
+- 优先以 Family/Section Sequence 为检索单位，而不是把每个 MIDI 当作孤立文件；
+- 按 role、长度、节拍、密度、音域、实际调性、能量和鼓映射覆盖率过滤排序；
+- Family 至少包含三个可靠 Section，并保留素材自己的原始顺序；
+- 每个 Section 顺序只选择一个真实 Variant，去除重复音乐 fingerprint；
+- 模型选择合法 Family 锚点，Harness 展开精确 Section Asset ID 与路径；
+- 找不到可靠 Family 时必须显式回退单段候选，不得静默补入无关素材；
 - 不允许模型编造路径；
 - 完整索引缺失时明确使用小规模回退；
 - 正式路径不得回到固定 Bass/Chord/Pulse/Lead 模板。
@@ -168,9 +172,11 @@ Brief 必须表达开放风格，而不是只允许 Dubstep/R&B：
 ### FR-04：编排与变换
 
 - 创建角色轨道或替换已有生成轨道；
+- 每个角色维护一条 DAWdex 主轨，同一轨道允许多个连续 Note Region；
+- 按共同时间槽对齐 Drums、Bass、Keys 的 Section，并保持各素材 Family 的原始顺序；
 - 不覆盖用户轨道；
 - 支持移调、量化、力度、humanize、裁剪、循环和音域适配；
-- 下一阶段支持 Section/Phrase Patch 与动机发展；
+- 下一阶段支持持久 Song Blueprint、Section/Phrase 锁定、局部 Patch 与动机发展；
 - 所有变换记录来源和参数。
 
 ### FR-05：音色与工程控制

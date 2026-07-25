@@ -108,7 +108,9 @@ natural-language request
 → resnapshot and emit real UI events
 ```
 
-正式主链不允许使用旧 `PatternCompiler` 或固定 Bass/Chord/Pulse/Lead 模板合成替代音符。旧模块可以保留为历史测试或明确回退证据，但不能被描述为生产检索路径。
+正式主链不允许使用旧 `PatternCompiler` 或固定 Bass/Chord/Pulse/Lead 模板合成
+替代音符。该模块已经从代码中删除，只能在历史文档中作为架构演进证据出现，
+不得恢复为生产或回退路径。
 
 ## 四、Provider 架构
 
@@ -264,7 +266,9 @@ Plan/Approval，仍不允许视觉层直接改工程。
 
 ## 九、完整歌曲目标架构
 
-0.3.0 的 Brief 仍以 4/8 小节角色片段为主。完整歌曲需要在现有链路上增加持久的 Song 层，而不是推翻现有实现：
+当前 Brief 支持 4–64 小节，Family Sequence 可以把多个真实 Section 写成连续
+Region；但这些 Section 尚未形成可持久保存、锁定和局部 Patch 的 Song
+Blueprint。完整歌曲需要在现有链路上增加持久 Song 层，而不是推翻现有实现：
 
 ```text
 ┌──────────────────────────────────────────────┐
