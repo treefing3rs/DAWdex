@@ -1,8 +1,8 @@
 # DAWdex Codex Notes
 
-Read `docs/HANDOFF_2026-07-24.md` before changing the Agent or music execution
-path. Preserve unrelated uncommitted work and do not reset or rewrite the
-existing Codex Provider.
+Read `docs/README.md`, `docs/PRODUCT_VISION.md`, and `docs/architecture.md`
+before changing the Agent or music execution path. Preserve unrelated
+uncommitted work and do not reset or rewrite the existing Codex Provider.
 
 ## MIDI source of truth
 
@@ -10,10 +10,11 @@ DAWdex must retrieve and import existing MIDI assets. The production planning
 path must not synthesize replacement note patterns with the legacy
 `PatternCompiler` or fixed Bass/Chord/Pulse/Lead templates.
 
-The authorized library is under `midi/easy/`:
+The recorded authorized library inventory, when provisioned locally under
+`midi/easy/`, is:
 
 - 194,553 MIDI files total;
-- 193,320 files currently pass catalog validation;
+- 193,320 files passed catalog validation in the recorded local index;
 - roles are `drums`, `bass`, and `keys`.
 
 The Agent Server uses
@@ -24,8 +25,9 @@ the selected asset from `/v1/midi-assets/:id`, parses it, and writes those notes
 to openDAW.
 
 The generated database is `midi/.dawdex/catalog.sqlite`. It is intentionally
-ignored by Git and is never downloaded with the repository. After a fresh clone
-or after changing `midi/easy/`, build it locally:
+ignored by Git and is never downloaded with the repository. A fresh clone
+contains neither the MIDI pack nor the database. After provisioning the
+authorized library, or after changing it, build the catalog locally:
 
 ```powershell
 cd opendaw

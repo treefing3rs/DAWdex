@@ -1,6 +1,10 @@
 # DAWdex 前端设计文档
 
-> 当前实现：PR #17 / 2026-07-25（含巡棚箭头换台与全房间物件交互修复）
+> **历史实现索引。** 本文记录 PR #17 / 2026-07-25 的多角色舞台基线，
+> 不代表当前参赛切片已经交付多乐器或多轨编排。当前公开证明范围以仓库
+> [`README.md`](../../README.md) 为准。
+>
+> 记录基线：PR #17 / 2026-07-25（含巡棚箭头换台与全房间物件交互修复）
 > 核心定义：把 openDAW 翻译成一部可以操作的动画片
 
 前端是音乐状态翻译层，不拥有 Agent、MIDI 或 openDAW 业务逻辑。每一个有意义的视觉变化都必须来自结构化事件。
@@ -10,10 +14,9 @@
 1. [`../PRODUCT_VISION.md`](../PRODUCT_VISION.md)：完整产品与完整歌曲方向。
 2. [`DESIGN_DIRECTION.md`](./DESIGN_DIRECTION.md)：当前视觉世界、交互原则和下一阶段编曲白板。
 3. [`STAGE_UI.md`](./STAGE_UI.md)：PR #17 后的实际文件、五房间物件管线、工作台切换、演示模式和真实性闸门。
-4. [`DESIGN_BRIEFS.md`](./DESIGN_BRIEFS.md)：早期方案比较，仅作历史背景。
-5. [`../architecture.md`](../architecture.md)：UI 与 Agent/openDAW 的架构边界。
+4. [`../architecture.md`](../architecture.md)：UI 与 Agent/openDAW 的架构边界。
 
-## 当前已经落地
+## PR #17 基线已经落地
 
 - 暖白页面壳 + 深色复古监视器；
 - 夜晚录音棚视频主场景；

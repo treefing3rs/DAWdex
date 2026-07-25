@@ -7,17 +7,26 @@
 ![SQLite](https://img.shields.io/badge/SQLite-MIDI_Catalog-003B57?style=flat-square&logo=sqlite&logoColor=white)
 ![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A523-339933?style=flat-square&logo=node.js&logoColor=white)
 ![Codex](https://img.shields.io/badge/Codex-Agent-111827?style=flat-square&logo=openai&logoColor=white)
-![MIDI](https://img.shields.io/badge/MIDI-193%2C320_assets-FF4D6D?style=flat-square)
+![MIDI](https://img.shields.io/badge/MIDI-SQLite_Retrieval-FF4D6D?style=flat-square)
 
-> 弹幕驱动的 AI 虚拟录音棚。让一句话，真正进入可编辑的音乐工程。
+> 弹幕驱动的 AI 乐队 Agent。让一句话，真正进入可编辑的音乐工程。
 
-**19 万级真实 MIDI · Plan Approval（计划审批）· openDAW 可编辑工程**
+**SQLite MIDI 检索 · Plan Approval（计划审批）· 可追溯 DAW 操作**
 
-DAWdex 把自然语言、音乐素材、Agent 决策和专业 DAW 组织成一座看得见、听得到、
-可以继续操作的虚拟录音棚。
+DAWdex 把自然语言、音乐素材、Agent 决策和专业 DAW 串成一条看得见、听得到、
+可以继续操作的音乐制作链路。
 
-用户负责说出想要的音乐结果。DAWdex 负责理解、检索、编排、验证和执行。最终留下的
-不是一次性生成音频，而是一个可以播放、修改、替换和撤销的 openDAW 工程。
+用户负责说出想要的音乐结果。DAWdex 负责把语言转换成结构化音乐意图、可理解的
+编排步骤和可追溯的 DAW 操作。最终留下的不是一次性生成音频，而是可以继续编辑的
+openDAW 工程对象。
+
+> **公有代码的证据边界：** 可核对的实现包括 Agent 结构化 Plan、SQLite
+> 检索器代码、用户审批门、DAW 写入与失败回滚，以及 Plan 到实际操作的引用。
+> 当前点击 `↻` 可运行 Drums、Bass、Keys 三角色固定事件演示；它证明界面叙事
+> 与事件契约，不冒充实时 Agent、MIDI 检索或 DAW 写入。
+> 一个选定乐器、一条可编辑轨道和固定的
+> `Intro → Verse → Chorus → Bridge` 是本次**拟展示的前端切片**，尚未作为
+> 公有分支可运行功能落地。多乐器、多轨和完整歌曲是后续产品方向。
 
 ## 1. 品牌故事：把音乐制作变成一场可以指挥的演出
 
@@ -32,10 +41,10 @@ DAWdex 选择了第三条路：
 
 - “再炸一点，像最终 Boss 出场。”
 - “钢琴柔一点，给人声留空间。”
-- “保留 Keys，只让鼓和 Bass 更有力量。”
+- “让主奏更有力量，但保留段落结构。”
 
-Producer Agent（制作人 Agent）把这些要求转成音乐决策。虚拟乐手把决策变成看得懂
-的动作。openDAW 则保留所有真实的轨道、音符、设备、效果和 Undo（撤销）。
+Producer Agent（制作人 Agent）把这些要求转成音乐决策和可理解的编排步骤。
+openDAW 则保留实际写入的轨道、音符和操作引用，让结果可以检查和继续编辑。
 
 |          | 传统 DAW         | Prompt-to-Song | DAWdex                      |
 | -------- | ---------------- | -------------- | --------------------------- |
@@ -47,23 +56,30 @@ Producer Agent（制作人 Agent）把这些要求转成音乐决策。虚拟乐
 
 DAWdex 不是给 DAW 加一个聊天框。它把 AI 放进一条真实的音乐制作流程。
 
-## 2. Demo：90 秒看见一次完整的 AI 制作过程
+## 2. 当前可运行展示与拟接入切片
 
-90 秒内，用户从一句弹幕出发，看见音乐意图如何被理解、安排和执行，并在 openDAW
-中留下可以继续编辑的结果。
+当前点击顶栏 `↻` 会运行一条固定的 90 秒 Guided Demo：观众弹幕被采纳，
+Drums、Bass、Keys 依次领任务、进入演奏状态，并产生带 `operationRef` 的结果事件。
+它用于证明弹幕、角色反馈和证据回执的界面叙事可以运行；这条时间线直接派发 UI
+事件，不调用实时 Agent、SQLite 检索或 DAW Adapter 写入。
+
+下面是正在接入的产品展示切片。它会把同一套产品意义收敛到一个乐器、一条可编辑
+轨道和四个固定段落，让评委更容易核对语言、计划与工程结果：
+
+### 拟接入的产品链路
 
 ```mermaid
 flowchart LR
     USER["用户弹幕"] --> PRODUCER["Producer<br/>采纳意图"]
     PRODUCER --> BRIEF["Creative Brief<br/>创作简报"]
     BRIEF --> RETRIEVAL["Grounded Retrieval<br/>可追溯音乐检索"]
-    RETRIEVAL --> PLAN["Agent Plan<br/>制作计划"]
+    RETRIEVAL --> PLAN["Arrangement Plan<br/>可理解的编排步骤"]
     PLAN --> APPROVAL{"Plan Approval<br/>用户审批"}
     APPROVAL -->|批准| DAW["openDAW<br/>写入工程"]
     APPROVAL -->|调整| BRIEF
-    DAW --> AUDIBLE["Audibility Gate<br/>发声确认"]
-    AUDIBLE --> BAND["虚拟乐手<br/>开始演奏"]
-    BAND --> ITERATE["二次干预<br/>或 Undo"]
+    DAW --> TRACK["Editable Track<br/>一个乐器 · 一条轨道"]
+    TRACK --> STRUCTURE["Song Structure<br/>Intro · Verse · Chorus · Bridge"]
+    STRUCTURE --> EVIDENCE["Operation Evidence<br/>可追溯操作"]
 
     classDef intent fill:#E0F2FE,stroke:#0284C7,color:#0C4A6E,stroke-width:1.5px;
     classDef intelligence fill:#EDE9FE,stroke:#7C3AED,color:#4C1D95,stroke-width:1.5px;
@@ -75,19 +91,20 @@ flowchart LR
     class BRIEF,RETRIEVAL,PLAN intelligence;
     class APPROVAL approval;
     class DAW engine;
-    class AUDIBLE,BAND,ITERATE feedback;
+    class TRACK,STRUCTURE,EVIDENCE feedback;
 ```
 
-### 90 秒演示节奏
+### 当前 `↻` 的 90 秒节奏
 
-| 时间     | 发生什么                                              |
+| 时间     | 当前固定事件演示                                      |
 | -------- | ----------------------------------------------------- |
-| 0–30 秒  | 空舞台、用户弹幕、Producer 理解并采纳音乐要求         |
-| 31–45 秒 | drums、bass、keys 乐手依次进入录音棚并接收任务        |
-| 45–68 秒 | Plan 获得批准，音乐写入 openDAW；角色等待真实发声确认 |
-| 68–90 秒 | 用户提出第二次干预，展示局部替换、Undo 和专业工作台   |
+| 0–18 秒  | 系统开场，用户弹幕与 AI 乐迷附和进入屏幕              |
+| 18–30 秒 | Producer 采纳意见并给出结构化 Brief                   |
+| 30–45 秒 | Drums、Bass、Keys 依次领取带引用的角色任务            |
+| 45–68 秒 | 三个角色依次进入 queued / performing 状态             |
+| 68–90 秒 | 第二次 Bass 干预与 Operation Result 收尾              |
 
-演示过程中，用户可以巡游六个空间：
+虚拟乐队的产品方向会把这条机制扩展为六个可巡游空间：
 
 - 演播大厅
 - 鼓棚
@@ -96,38 +113,38 @@ flowchart LR
 - 控制室
 - 休息室
 
-乐队会议会展示 Plan、角色任务和执行证据。按 `Esc` 或点击“工作台”，舞台会收起，
-直接露出 Agent 正在操作的同一个 openDAW 工程。
+乐队会议、工作台切换、多房间和多乐手逐轨进入都属于拟展示或产品方向，不作为
+公有分支已经完成的证明。
 
-> **先有声音，后有表演。**
->
-> Audibility Gate（发声闸门）只有在轨道确认可听后，才允许角色进入演奏状态。
+## 3. 代码链路与体验方向
 
-## 3. 三种使用方式
+### Live Agent 代码链路
 
-### Live Agent（实时 Agent）
+公有代码包含 Project Snapshot、结构化 Plan、SQLite 检索、用户审批和 DAW
+写入/回滚的组成部分，并通过操作引用关联计划与执行结果。
 
-Studio 读取 openDAW Project Snapshot（工程快照），Producer Agent 调用可用模型、
-检索音乐素材并返回结构化 Plan。用户批准后，系统执行真实工程修改。
+### Guided Demo（当前固定事件演示）
 
-### Guided Demo（引导演示）
+点击 `↻` 会沿着 UI Event Contract（界面事件协议）播放固定的三角色时间线，
+呈现弹幕、制作人采纳、角色任务、演奏状态与结果回执。它是可复现的界面演示，
+不是实时模型或真实三轨工程写入。
 
-点击顶栏 `↻` 可以进入 90 秒 Showcase。它沿用 Live Agent 的 UI Event Contract
-（界面事件协议），完整呈现从用户请求到专业工作台的交互节奏。
+单乐器、单轨、四段式会作为下一版展示切片接入；Live Agent 的公有代码已经提供
+结构化规划与工程执行基础。
 
-Guided Demo 聚焦完整的现场体验；Live Agent 负责实时规划与工程执行。
+### openDAW Workbench（体验方向）
 
-### openDAW Workbench（专业工作台）
-
-按 `Esc`、点击工作台按钮或使用 `?workbench=1`，可以收起虚拟录音棚并直接操作
-openDAW。工作台打开期间事件持续同步，返回录音棚后立即呈现最新工程状态。
+产品方向允许用户从虚拟录音棚进入底层 openDAW，直接检查和继续编辑工程。具体
+工作台切换与事件同步体验应以公有分支实际可运行版本为准。
 
 ## 4. 核心能力
 
 ### Grounded Music Retrieval（可追溯音乐检索）
 
-授权 MIDI 资料共 194,553 个文件，其中 193,320 个通过目录校验并可进入完整索引。
-系统先按角色、长度和音乐特征缩小候选，再交给 Agent 做编排判断。
+本地数据集曾为 194,553 个 MIDI 文件建立目录，其中 193,320 个通过校验并进入本地
+SQLite 索引。公有仓库包含检索器与建库代码，但不分发这批 MIDI 数据或生成后的
+`catalog.sqlite`；clean clone 不能直接复现 19 万条素材检索，必须另行准备获授权
+的数据并在本地建库。
 
 底层以 Asset ID（素材唯一标识）保留可追溯关系；界面聚焦音乐选择、角色任务和工程
 影响。
@@ -139,50 +156,39 @@ Agent 先把用户语言整理成 Creative Brief 和结构化 Plan。Plan 说明
 
 ### Controlled DAW Execution（受控 DAW 执行）
 
-DAWdex 可以操作：
+公有代码可以核对：Harness 把获批 Plan 翻译成带目标标识的 DAW 写入；执行失败时
+回滚本轮变更。拟展示切片会使用其中最小的一组能力创建单乐器、单轨四段结构，但该
+组合尚未作为公有分支可运行功能落地。
 
-- Transport（播放控制）与 Loop（循环范围）
-- Track（轨道）与 Region（片段）
-- MIDI Transform（MIDI 变换）
-- Instrument（乐器）与 Effect（效果器）
-- Automation（自动化）
-- Bus、Send 与 Routing（总线、发送与路由）
+### Traceable Editing（可追溯编辑）
 
-所有动作都经过 Capability Registry（能力白名单）和 Target ID Validation
-（目标标识校验）。模型负责音乐判断，Harness 在经过验证的能力范围内完成执行。
-
-### Transactional Undo（事务级撤销）
-
-一轮批准的工程修改会合并为一个 Undo 步骤。执行失败时，本轮事务回滚，此前可以播放
-的工程保持不变。
+公有代码通过 Operation Reference（操作引用）关联 Plan、目标对象和实际写入动作，
+使评委可以核对“计划了什么”和“实际执行了什么”。
 
 ### Role-aware Sound Design（角色化声音设计）
 
-MIDI 决定“演奏什么”，TrackSound（轨道声音设计）决定“听起来像什么”。系统可以
-创建 Vaporisateur 合成器音色，并设置 Mixer、Compression、Delay、Reverb、
-Stereo 与 Maximizer 等制作参数。
+MIDI 决定“演奏什么”，TrackSound（轨道声音设计）决定“听起来像什么”。拟展示
+切片会选择一个乐器呈现这层关系；角色化音色、多乐器配置和更完整的混音是产品方向。
 
 ### Causal UI（因果界面）
 
-角色、房间和动画不维护另一套虚构状态。Plan、Apply、Undo、Transport 和轨道可听
-状态由统一的 UI Event Contract 驱动，并通过 Operation Reference（操作引用）
-追踪。
+角色、房间和动画不应维护另一套虚构状态。公有代码已有 Plan、Apply 和操作引用；
+用这些事实驱动完整虚拟乐队角色状态，仍是后续前端产品方向。
 
 屏幕不是装饰。它是音乐工程状态的可视化投影。
 
-## 5. 项目交付内容
+## 5. 公有代码证据与产品方向
 
-| 交付物                  | 内容                                                                |
-| ----------------------- | ------------------------------------------------------------------- |
-| DAWdex Studio           | 弹幕输入、Plan 审批、虚拟录音棚、六房间巡棚和 openDAW 工作台        |
-| Producer Agent          | Creative Brief、结构化 Plan、模型接入与音乐编排                     |
-| MIDI Retrieval Engine   | 本地索引、候选排序、Fingerprint（音乐指纹）去重和素材调度           |
-| openDAW Execution Layer | MIDI 解析、角色轨道创建或替换、声音设计、效果和 Mixer               |
-| DAW Control Plane       | Transport、Track、Region、Instrument、Effect、Automation 与 Routing |
-| Safety & Recovery       | 能力校验、目标校验、用户审批、事务执行、失败回滚和 Undo             |
-| UI Event Contract       | Agent、openDAW、角色动画、走带状态和执行证据的统一事件协议          |
-| Guided Demo             | 90 秒引导演示、首次入场、电梯过场、房间巡游和乐队会议               |
-| Project Documentation   | 产品定义、PRD、架构、技术方案、前端设计、Demo Runbook 与协作规范    |
+| 层级              | 公有仓库可核对内容或状态                                              |
+| ----------------- | --------------------------------------------------------------------- |
+| Agent             | Creative Brief 与结构化 Plan                                          |
+| MIDI Retrieval    | SQLite 建库、查询、候选排序与 Fingerprint（音乐指纹）去重代码         |
+| Approval          | 用户批准后才进入工程执行的控制点                                      |
+| DAW Execution     | 带目标标识的写入、失败回滚与 Operation Reference                     |
+| Local Data        | 本地曾索引 193,320 条；数据集和生成后的 SQLite 库不随公有仓库分发     |
+| Current Demo      | `↻` 启动 Drums、Bass、Keys 固定 UI 事件时间线                         |
+| Proposed Demo     | 单乐器、单轨、固定四段式前端切片；尚非公有分支可运行功能              |
+| Product Direction | 多乐器、多轨、完整歌曲、角色动画与六房间虚拟乐队体验                  |
 
 ## 6. 虚拟录音棚：前端不是皮肤
 
@@ -198,13 +204,17 @@ DAWdex 的前端把 openDAW 翻译成一部可以操作的动画片：
 | Plan / Operation（计划 / 操作）    | 乐队会议与执行证据               |
 | openDAW Project（工程）            | 整座录音棚背后的真实音乐状态     |
 
-弹幕是用户指挥乐队的常驻自然语言入口。Producer 常驻控制室；drums、bass、keys
-承担可听轨道角色。角色动作、房间状态和 openDAW 工程由同一份事件事实驱动。
+弹幕是用户指挥乐队的自然语言入口。拟展示切片计划让 Producer 的 Plan 与一条真实轨道
+同源；未来再让 drums、bass、keys 等角色扩展为多乐器、多轨的完整乐队体验。
 
 这使非专业用户能看懂“音乐正在怎样被制作”，专业用户也能随时掀开舞台，回到完整
 DAW 工作台。
 
-## 7. 技术架构
+## 7. 目标技术架构
+
+下图同时包含公有代码事实和产品方向。当前可核对事实集中在结构化 Plan、SQLite
+检索、审批门、DAW 写入/回滚和 Operation Reference；Experience 与完整角色反馈
+仍需以实际落地版本验证。
 
 ```mermaid
 flowchart TB
@@ -221,7 +231,7 @@ flowchart TB
     APPROVAL -->|批准| ENGINE["openDAW Engine<br/>MIDI · Track · Instrument · Effects · Mixer · Undo"]
     APPROVAL -->|调整| HARNESS
 
-    ENGINE --> FEEDBACK["Causal Feedback<br/>UiEvent · Audibility Gate · Role State · Evidence"]
+    ENGINE --> FEEDBACK["Causal Feedback<br/>UiEvent · Operation Reference · Evidence"]
     FEEDBACK --> EXPERIENCE
 
     classDef user fill:#F8FAFC,stroke:#64748B,color:#0F172A,stroke-width:1.5px;
@@ -243,11 +253,8 @@ flowchart TB
     class FEEDBACK feedback;
 ```
 
-Harness 位于模型和 DAW 之间。它决定模型可以看见什么、能修改什么、何时需要审批、
-怎样验证目标、如何执行和如何撤销。
-
-这条边界让 Agent 有足够的音乐判断空间，同时让每一次修改都保持可解释、可验证和
-可恢复。
+Harness 位于模型和 DAW 之间。它把结构化音乐意图、编排步骤和目标对象连接起来，
+并保留计划与实际工程操作之间的引用。
 
 ## 8. 本地运行
 
@@ -269,12 +276,14 @@ npm run dev:dawdex-studio
 
 打开 [http://localhost:8080](http://localhost:8080)。
 
-- 点击顶栏 `↻` 启动 Guided Demo；
-- 按 `Esc` 在虚拟录音棚与 openDAW Workbench 之间切换。
+- 点击顶栏 `↻` 运行当前三角色固定事件演示；
+- 这一步不代表实时 Agent/MIDI/DAW 执行；
+- 单乐器单轨四段式切片仍在接入。
 
 ### 建立 MIDI 索引
 
-首次克隆或 `midi/easy/` 内容变化后运行：
+公有仓库不包含本地 19 万级 MIDI 数据集，也不包含生成后的 SQLite 库。只有在另行
+准备获授权的 `midi/easy/` 数据后，才运行：
 
 ```bash
 cd DAWdex/opendaw
@@ -293,7 +302,7 @@ npm run dev:dawdex-agent
 ```
 
 Provider 配置和接口说明见
-[技术方案](docs/DAWdex_TechSpec.md)。完整演示流程见
+[技术方案](docs/DAWdex_TechSpec.md)。拟展示流程见
 [Demo Runbook](docs/DEMO_RUNBOOK.md)。
 
 ## 9. 仓库结构
@@ -304,7 +313,7 @@ DAWdex/
 │   └── packages/
 │       ├── app/studio/          DAWdex Studio 与 openDAW 前端
 │       └── server/dawdex-agent/ Producer Agent、Provider 与 MIDI API
-├── midi/easy/                   MIDI 资料库
+├── midi/easy/                   本地 MIDI 资料挂载约定（资产不进 Git）
 ├── docs/                        产品、架构、技术、设计和 Demo 文档
 ├── CONTRIBUTING.md              GitHub Flow 与协作规范
 └── VERSION                      项目版本

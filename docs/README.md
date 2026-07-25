@@ -1,6 +1,6 @@
 # DAWdex 文档索引
 
-> 最近核对：2026-07-25 · 代码基线：`0.3.0` / PR #17（含 main 直推的巡棚箭头换台与全房间物件交互修复）
+> 最近核对：2026-07-26 · 当前仓库证据：Agent/DAW 组件 + 三角色 Guided Demo
 
 这个目录区分四类信息：当前事实、正式产品方向、实施契约和历史证据。阅读时不要把未来设计误认为已经完成，也不要用旧交接覆盖当前代码。
 
@@ -24,28 +24,18 @@
 | [`architecture.md`](./architecture.md) | Agent、Harness、MIDI、openDAW 与前端如何协作 |
 | [`DAWdex_TechSpec.md`](./DAWdex_TechSpec.md) | 当前代码、接口和后续技术契约 |
 | [`design/DESIGN_DIRECTION.md`](./design/DESIGN_DIRECTION.md) | 前端世界观和发展方向 |
-| [`design/STAGE_UI.md`](./design/STAGE_UI.md) | PR #17 后舞台 UI、五房间物件管线与 openDAW 工作台切换的真实实现 |
-| [`DEMO_RUNBOOK.md`](./DEMO_RUNBOOK.md) | 现场演示、真实链与 Mock 兜底 |
+| [`design/STAGE_UI.md`](./design/STAGE_UI.md) | 舞台 UI 与 openDAW 工作台的设计和实现证据 |
+| [`DEMO_RUNBOOK.md`](./DEMO_RUNBOOK.md) | 当前公开演示步骤与讲解边界 |
 | [`coding-conventions.md`](./coding-conventions.md) | 编码约定 |
 | [`gallery-submission.md`](./gallery-submission.md) | 对外提交文案 |
 | [`track-strategy.md`](./track-strategy.md) | 比赛赛道策略 |
 
-## 历史证据
-
-以下文件保留当时的任务、判断和分工，不再代表当前状态：
-
-- [`HANDOFF_2026-07-24.md`](./HANDOFF_2026-07-24.md)
-- [`division-of-labor.md`](./division-of-labor.md)
-- [`design/DESIGN_BRIEFS.md`](./design/DESIGN_BRIEFS.md)
-
-## 在制品分支
-
-- `codex/dual-mode-stage-preview`（8 提交，工作台停靠舞台预览/共享 UI 会话）：**未合并、未提 PR**，其设计与实施计划文档只存在于该分支；采纳或搁置待决策，主干文档暂不描述其功能。
-
 ## 当前事实与正式方向
 
-- **当前事实**：0.3.0 / PR #17 已跑通自然语言计划、真实 MIDI 素材检索与导入、审批、openDAW 写入、Undo、真实 UI 事件桥接、发声闸门、五套角色素材、电梯过场、六房间巡棚（顶栏 CH、舞台两侧箭头与方向键切台），以及可收起并露出真实 openDAW 的工作台模式；PR #16/#17 另新增五房间冒险游戏物件管线（28 物件替身 + 轮廓命中 + 功能面板）、Fig Mint 主机壳与键盘甲板、演出态视频皮肤、AI 乐迷附和弹幕、Codex/Kimi/Qoder 本地 CLI 三运行时适配器和 MidiBundleRanker 质量捆绑排序；当前活跃轨道角色仍为 drums/bass/keys。
-- **正式方向**：DAWdex 要创作可持续修改的完整歌曲，不以无限堆叠单一 Loop 为终点。
-- **尚未完成**：Song Blueprint 执行器、跨 Section 编排、动机发展、正式乐器/音色目录、真实音频电平，以及房间物件与底层 DAW 的完整双向映射（物件面板已通，反向同步未完成）。
+- **产品意义**：DAWdex 是弹幕驱动的 AI 乐队 Agent，把普通人的表达转成可理解、可追踪的音乐创作过程，而不是黑盒 Prompt-to-Audio。
+- **当前代码证据**：结构化 Plan、SQLite 检索器、用户批准闸门、DAW 写入/回滚，以及带 `operationRef` 的真实 UI 回执桥。
+- **当前可运行展示**：`↻` 启动固定的 Drums、Bass、Keys 三角色 Guided Demo；它演示 UI 事件叙事，不冒充实时 Agent/MIDI/DAW 执行。
+- **正在接入的展示切片**：选择一种乐器，用一条轨道依次完成 Intro、Verse、Chorus 和 Bridge；当前公有分支尚无该 Flow/View/资产实现。
+- **正式方向**：再扩展到多乐器、多轨道、Song Blueprint、Agent 编排和完整歌曲创作。
 
-版本号和 PR 只能说明代码基线；产品完成度以这里的边界以及实际验证结果为准。
+仓库只跟踪 MIDI 资料说明，不分发授权 MIDI 资产或生成的 SQLite 数据库。完整资料库检索需要在本地另行配置资产并建索引，clean clone 不能直接复现。

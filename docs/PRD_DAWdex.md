@@ -5,9 +5,10 @@
 | 项目 | 内容 |
 |---|---|
 | 文档状态 | 当前基线与正式产品方向 |
-| 当前实现 | 0.3.0 / PR #12 |
-| 当前产品形态 | Loop 导向的真实垂直切片 |
-| 正式下一阶段 | Song Blueprint 驱动的完整歌曲创作 |
+| 当前代码证据 | Structured Plan、SQLite Retriever、Approval、DAW Write/Rollback、Operation Ref |
+| 当前可运行展示 | Drums / Bass / Keys 三角色 Guided Demo |
+| 正在接入的展示切片 | 单乐器、单轨道、Intro → Verse → Chorus → Bridge |
+| 正式下一阶段 | 多乐器、多轨道、Song Blueprint 驱动的完整歌曲创作 |
 | 音乐底座 | openDAW |
 | 核心输入 | 屏幕内弹幕及后续多轮对话 |
 
@@ -49,32 +50,23 @@
 8. **MIDI 与音色分离**：分别处理“演奏什么”和“听起来像什么”。
 9. **模型自由度可调**：用户可以开放创作，也可以锁定结构、轨道或段落。
 
-## 四、当前 0.3.0 体验
+## 四、当前证据与展示边界
 
-### Flow A：真实计划与执行
+### 4.1 当前代码证据
 
-1. 用户在录音棚界面输入弹幕；
-2. Studio 读取当前工程 Snapshot；
-3. Codex、OpenAI 或本地 Planner 生成 Creative Brief 和 Plan；
-4. Agent 从 SQLite 目录给出的真实 MIDI 候选中选择精确资产；
-5. Plan 显示 MIDI、音色、效果和 DAW 操作；
-6. 用户批准；
-7. Studio 以一个 Undo 事务写入 openDAW；
-8. `RealUiEventBridge` 同步执行、走带和轨道可听状态；
-9. 角色在真实发声后进入演奏状态；
-10. 用户可以再次干预、替换或撤销。
+- Agent Server 有结构化 Creative Brief / `AgentPlan` Schema 与解析器；
+- `MidiCatalog` 有 SQLite 检索、排序、去重和候选校验实现；
+- Studio 只有在用户点击“批准并执行”后才调用 DAW Adapter；
+- Adapter 把工程修改写入一个 Undo 编辑，并在异常或写后校验失败时回滚；
+- `RealUiEventBridge` 用 Plan ID / `operationRef` 关联角色任务和 Operation Result。
 
-### Flow B：90 秒演示
+### 4.2 当前可运行 Guided Demo
 
-Mock 不默认运行。只有 `?mock=1` 或点击 `↻` 才启动固定时间线，用于现场演示与故障兜底。Mock 与真实链共用同一 UI 事件签名，不能被描述为真实模型已完成的操作。
+点击 `↻` 会运行固定的 Drums、Bass、Keys 三角色时间线：弹幕被采纳，三个角色依次领任务并进入演奏状态，最后产生带 `operationRef` 的结果事件。它证明 UI 事件契约与叙事可以运行，不代表实时模型、MIDI 检索或真实三轨 DAW 写入已经发生。
 
-### Flow C：巡棚
+### 4.3 正在接入的最小展示切片
 
-用户可以切换演播大厅、鼓棚、吉他贝斯棚、键盘阁楼、控制室和休息室。当前房间展示对应角色和全局走带/弹幕状态；控制室是制作人与未来编曲白板的主要空间。
-
-### Flow D：掀开舞台地板
-
-用户可以点击“工作台”、按 `Esc` 或使用 `?workbench=1` 收起演播厅外壳，直接操作底层真实 openDAW。外壳收起时事件桥继续同步；返回演播厅后立刻显示最新工程状态。工作台与投屏模式互斥。
+目标体验是从 Drums、Bass、Keys 中选择一种乐器，用一条轨道按 `Intro → Verse → Chorus → Bridge` 推进。当前公有分支没有对应 Flow 控制器、View 或演示 MIDI 资产，因此它是界面设计目标和正在接入的验证路径，不是当前功能。
 
 ## 五、完整歌曲体验
 
@@ -134,6 +126,8 @@ Blueprint 至少包含：
 
 ## 六、功能需求
 
+以下条目同时记录仓库已有工程契约和下一阶段产品要求；代码存在不等于 clean clone 已完成端到端产品验证。
+
 ### FR-01：弹幕与自然语言输入
 
 - 弹幕只在录音棚屏幕世界内显示；
@@ -162,8 +156,9 @@ Brief 必须表达开放风格，而不是只允许 Dubstep/R&B：
 - 按 role、长度、节拍、密度、音域和音乐特征过滤排序；
 - 去除重复 fingerprint；
 - 不允许模型编造路径；
-- 完整索引缺失时明确使用小规模回退；
 - 正式路径不得回到固定 Bass/Chord/Pulse/Lead 模板。
+
+`MidiCatalog` 与索引命令已在仓库实现，但授权 MIDI 文件和生成的 SQLite 数据库不随 Git 分发。clean clone 只能核对实现，不能直接复现完整资料库检索。
 
 ### FR-04：编排与变换
 
@@ -175,7 +170,7 @@ Brief 必须表达开放风格，而不是只允许 Dubstep/R&B：
 
 ### FR-05：音色与工程控制
 
-当前支持：
+仓库控制契约包括：
 
 - Vaporisateur 合成器结构化参数；
 - Mixer、Compression、Delay、Reverb、Stereo 和 Maximizer 等安全效果；
@@ -216,7 +211,7 @@ idle -> thinking -> preparing -> queued -> performing
 - 乐队会议显示 Plan、角色任务、执行回执和失败；
 - 每个公开结论可以追溯到 Plan、Asset 或 openDAW 操作；
 - 用户可定位受影响轨道；
-- Mock、Fallback 和真实模型来源必须明确区分。
+- AI 生成内容与真实工程状态必须明确区分。
 
 ### FR-09：完整歌曲状态
 
@@ -243,23 +238,28 @@ MIDI 提供音符和节奏，不能保证风格音色。R&B 的 Bass MIDI 如果
 - 音域与复音限制；
 - 资产是否已导入、可用和可分发。
 
-当前可使用 Vaporisateur 自动设计安全音色；外部 SF2 和采样必须先导入工程。浏览器不能直接访问用户电脑里的任意 AU/VST。
+技术路径可以使用 Vaporisateur 设计安全音色；外部 SF2 和采样必须先导入工程。浏览器不能直接访问用户电脑里的任意 AU/VST。当前 Guided Demo 不据此宣称正式风格音色目录已经完成。
 
 ## 八、范围
 
-### 当前已交付
+### 当前仓库可证
 
-- 真实 MIDI 目录检索与资产下载；
-- Prompt → Brief → Plan → Approval → openDAW → Undo；
-- 角色轨道 create/replace；
-- 安全 DAW 控制平面；
-- 真实 UI 事件桥接和发声闸门；
-- 五套角色素材、电梯过场、六房间巡棚；当前活跃轨道角色为 drums/bass/keys；
-- 可收起演播厅外壳并露出真实 openDAW 的工作台模式；
-- 明确触发的 Mock 兜底。
+- 结构化 Brief / Plan Schema 与解析；
+- SQLite Retriever 实现；
+- 用户批准后执行的 UI 闸门；
+- DAW Adapter 写入、Undo 与失败回滚；
+- 带 `operationRef` 的角色任务和执行回执；
+- 固定 Drums、Bass、Keys 三角色 Guided Demo。
+
+### 正在接入
+
+- 单乐器、单轨道选择与状态流；
+- `Intro → Verse → Chorus → Bridge` 固定段落推进；
+- 对应 View、演示 MIDI 资产和结果交付。
 
 ### 正式下一阶段
 
+- 多乐器、多轨道协作；
 - Song Blueprint 与 Patch；
 - 48–64 小节完整歌曲实验；
 - 5–7 个 Section；
@@ -278,20 +278,27 @@ MIDI 提供音符和节奏，不能保证风格音色。R&B 的 Bass MIDI 如果
 
 ## 九、验收标准
 
-### 0.3.0 垂直切片
+### 当前仓库证据
 
-- [x] 用户请求生成结构化计划；
-- [x] Plan 使用真实 MIDI Asset ID；
-- [x] 用户批准后写入 openDAW；
-- [x] 替换生成角色时不无限叠轨；
-- [x] 操作为一个 Undo 步骤；
-- [x] 角色仅在轨道可听后演奏；
-- [x] Mock 不默认冒充真实链；
-- [x] 六个房间可切换；
-- [ ] 完成代表性风格的人工听感验收。
+- [x] Structured Plan 通过 Schema 解析；
+- [x] `MidiCatalog` 实现 SQLite 检索与去重；
+- [x] Plan 必须经过用户批准按钮才交给 Adapter；
+- [x] Adapter 支持一个 Undo 编辑与失败回滚；
+- [x] UI 回执使用 Plan ID / `operationRef`；
+- [x] Guided Demo 运行 Drums、Bass、Keys 三角色固定事件时间线。
+
+### 最小展示切片
+
+- [ ] 用户可以选择 Drums、Bass 或 Keys；
+- [ ] 一次旅程只使用一种乐器和一条轨道；
+- [ ] 段落严格按 Intro、Verse、Chorus、Bridge 推进；
+- [ ] 界面显示当前、完成与待进行状态；
+- [ ] Bridge 结束后进入单轨完成态；
+- [ ] 完成代表性素材的人工听感验收。
 
 ### 完整歌曲 P1
 
+- [ ] 多种乐器可以形成多条可独立编辑的轨道；
 - [ ] 生成 48–64 小节 Blueprint；
 - [ ] 至少包含 Intro、Verse、Chorus、Bridge/Breakdown 和 Outro；
 - [ ] 第二次 Chorus 与第一次有关联但不完全复制；
@@ -305,16 +312,16 @@ MIDI 提供音符和节奏，不能保证风格音色。R&B 的 Bass MIDI 如果
 
 用户应在 10 秒内理解：“我可以用一句话指挥这支乐队。”
 
-用户应在 90 秒内看到完整因果链：
+最小展示切片接入后，用户应在 90 秒内看到：
 
 ```text
-弹幕
-→ 采纳
-→ 真实素材与计划
-→ 角色准备
-→ openDAW 写入
-→ 真实发声
-→ 可以继续修改或撤销
+选择一种乐器
+→ 创建一条轨道
+→ Intro
+→ Verse
+→ Chorus
+→ Bridge
+→ 单轨完成结果
 ```
 
 产品长期成功的标准不是生成多少 Loop，而是用户能否在不掌握传统 DAW 的前提下，对一首完整歌曲持续做出有意义、可控和可恢复的音乐决策。

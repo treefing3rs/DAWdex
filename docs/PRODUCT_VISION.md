@@ -1,8 +1,7 @@
 # DAWdex 完整产品定义
 
-> 状态：正式产品方向
-> 当前实现基线：0.3.0 / PR #17
-> 最近核对：2026-07-25
+> 状态：正式产品方向、当前仓库证据与展示切片接入边界
+> 最近核对：2026-07-26
 
 ## 一、最终结论
 
@@ -16,39 +15,29 @@ DAWdex 不是“Prompt 生成一个 Loop”，也不是给 openDAW 加一层聊�
 
 最终目标是让用户通过多轮对话完成一首有 Intro、Verse、Chorus、Bridge、Outro 和发展关系的歌曲，同时保留底层 MIDI、轨道、设备和 Undo，使作品仍然是可编辑工程，而不是一次性黑盒音频。
 
-## 二、当前已经实现什么
+## 二、当前仓库可证什么
 
-0.3.0 是一条真实、可演示的垂直切片，不是完整歌曲系统。
+当前公有分支可以直接核对以下工程事实：
 
-当前已实现：
+- Agent Server 定义并解析结构化 Creative Brief 与 `AgentPlan`；
+- `MidiCatalog` 实现本地 SQLite 查询、候选排序和指纹去重；
+- Studio 在用户点击“批准并执行”后才把计划交给 `DawProjectAdapter`；
+- DAW 修改以可撤销编辑写入，动作或写后校验失败时回滚；
+- `RealUiEventBridge` 用 Plan ID 和 `operationRef` 关联角色任务与执行结果。
 
-- 自然语言请求、工程快照、结构化计划、用户审批、执行和一步 Undo；
-- 从 `midi/easy/` 的真实 MIDI 资产中检索、去重、选择并导入 openDAW；
-- SQLite 元数据目录，以及目录缺失时的小规模回退扫描；
-- 对既有角色轨道执行 upsert/replace，避免每轮只会无限新增；
-- openDAW Studio 与 Agent Server 的计划和素材下载链路；
-- `RealUiEventBridge` 将计划、执行、Undo、Transport 和可听轨道状态翻译为 UI 事件；
-- 演奏真实性闸门：角色只有在轨道确认可听后才进入演奏状态；
-- 明确触发的 90 秒 Mock 演示，默认真实模式；
-- 五套角色素材、首次事件入场、电梯过场和六个录音棚频道；当前活跃轨道角色仍为 drums/bass/keys，制作人常驻控制室，guitarist 为扩展位；
-- 五房间冒险游戏物件管线：28 个物件替身 sprite、轮廓命中、无遮罩 hover 与舞台内功能面板，以及走带播放时的演出态视频皮肤；
-- Fig Mint 复古主机壳与键盘甲板承载舞台与物件面板；
-- Agent Server 支持 Codex/Kimi/Qoder 本地 CLI 三运行时扫描、选择与严格路由，并用 MidiBundleRanker 对检索捆绑做质量排序；
-- 演播厅外壳可以收起，直接操作底层真实 openDAW；`Esc`、工作台按钮和 `?workbench=1` 提供切换，收起期间真实事件仍持续同步；
-- 屏幕内弹幕、采纳升格、乐队会议证据抽屉和真实干预入口。
+当前可运行的 `↻` Guided Demo 是固定的 Drums、Bass、Keys 三角色事件时间线。它用于展示弹幕采纳、角色领任务、逐角色进入和 Operation Result 的界面叙事，不等同于实时 Agent 规划、MIDI 检索或三条 DAW 轨道写入。
 
-当前 MIDI 资料事实：
+“选择一种乐器，用一条轨道依次走过 `Intro → Verse → Chorus → Bridge`”是正在接入的最小产品展示切片和界面设计目标。当前公有分支尚无对应的 `SingleInstrumentFlow` 控制器、View 或演示 MIDI 资产，不能写成当前证明或已交付功能。
 
-- `midi/easy/` 共 194,553 个 MIDI 文件；
-- 193,320 个文件通过当前目录校验并可进入完整索引；
-- 当前角色主要为 `drums`、`bass`、`keys`；
-- `midi/.dawdex/catalog.sqlite` 是本地生成物，不提交 Git，也不会随仓库下载。
+MIDI 资料规模只是一项本地环境记录。仓库跟踪资料说明，不分发 MIDI 资产或生成的 SQLite 数据库；clean clone 必须另行配置授权资料并建索引，才能验证完整检索链。
 
 ## 三、当前没有实现什么
 
 以下能力是正式方向，但不能写成已完成：
 
+- 单乐器、单轨、Intro → Verse → Chorus → Bridge 展示切片的运行时接入；
 - 完整的 Song Blueprint 生成、保存和执行；
+- 多乐器、多轨道的 Agent 编排与协同修改；
 - Intro、Verse、Chorus、Bridge、Outro 等 Section 的跨段编排；
 - Phrase、Region 和动机家族之间的发展关系；
 - 对旋律进行 repetition、sequence、fragmentation、rhythmic displacement、call-and-response 等有约束的发展；
@@ -99,6 +88,8 @@ Song
 这使 Agent 可以在严格边界内工作，也可以在用户开放授权时进行更自由的编曲。
 
 ## 五、完整创作 Workflow
+
+以下是产品目标 Workflow，不是当前三角色 Guided Demo 已经执行的链路：
 
 ```text
 用户自然语言
@@ -269,11 +260,12 @@ MIDI 决定“演奏什么”：音高、节奏、时值、力度和结构。
 
 ## 十一、实施优先级
 
-### P0：巩固 0.3.0
+### P0：接入最小产品展示切片
 
-- 保证真实 MIDI 索引、Agent Server、Studio 和演示链稳定；
+- 实现单乐器、单轨、四段落状态流和界面；
+- 接入可验证的演示素材与结果交付；
 - 修正文档与实现事实；
-- 完成听感验收和 Demo 兜底。
+- 完成听感与交互验收。
 
 ### P1：从 Loop 跨到 Song
 
@@ -320,4 +312,4 @@ DAWdex 应集中实现：
 
 > **DAWdex 是一个以 openDAW 为音乐引擎、以真实 MIDI 与音色资产为材料、以 Agent Harness 为调度核心、以虚拟录音棚为交互界面的完整歌曲创作系统。用户通过弹幕持续指挥，Agent 围绕 Song Blueprint 检索、安排、发展、验证并修改音乐；每一次角色动作、声音变化和工程操作都来自同一份可追踪状态。**
 
-当前 0.3.0 证明了这条链可以真实运行；下一阶段的任务，是让它从“会生长的 Loop”跨越到“会发展的完整歌曲”。
+当前仓库已经提供结构化计划、检索、审批、受控写入与可追踪回执的工程组件，也提供一条可运行的三角色 Guided Demo。单乐器、单轨、四段落展示切片仍在接入；在它之后，产品才继续扩展到多乐器、多轨道和完整歌曲创作。

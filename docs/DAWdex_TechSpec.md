@@ -1,11 +1,20 @@
 # DAWdex 技术方案
 
-> 基线：0.3.0 / PR #17
-> 适用范围：当前真实 MIDI 垂直切片，以及下一阶段完整歌曲扩展
+> 适用范围：仓库技术证据、当前 Guided Demo、正在接入的展示切片，以及完整歌曲扩展
+
+本文严格区分五层事实：
+
+- **产品意义**：用受控、可追踪的音乐操作替代黑盒 Prompt-to-Audio；
+- **当前代码证据**：Structured Plan、SQLite Retriever、Approval Gate、DAW Write/Rollback、Operation Ref；
+- **当前可运行展示**：固定 Drums、Bass、Keys 三角色 Guided Demo；
+- **正在接入**：单乐器、单轨道、Intro → Verse → Chorus → Bridge；
+- **后续产品**：多乐器、多轨道与完整歌曲。
+
+当前公有分支没有单乐器四段式 Flow/View/演示 MIDI 资产。Agent Server、MIDI Catalog 和 DAW 控制代码是可核对的工程实现，但因为授权 MIDI 与生成数据库不随 Git 分发，clean clone 不能直接证明完整资料库端到端运行。
 
 ## 一、技术边界
 
-| 层 | 当前 0.3.0 | 下一阶段 |
+| 层 | 仓库技术基线 | 下一阶段产品集成 |
 |---|---|---|
 | Product State | 当前 openDAW Snapshot | 持久 Song Blueprint、锁定和版本 |
 | Planning | Creative Brief + AgentPlan | Song Plan + Section/Phrase Patch |
@@ -16,7 +25,7 @@
 | Validation | Schema、ID、Capability、Quality Gate | 结构、重复度、能量曲线与锁定范围 |
 | UI | 真实事件、角色与六房间 | 编曲白板、Section 状态和物件热点 |
 
-生产规划路径必须检索和导入已有 MIDI。不得使用旧 `PatternCompiler` 或固定 Bass/Chord/Pulse/Lead 模板合成替代音符。
+仓库 Agent/MIDI 路径定义为检索并导入已有 MIDI，不使用旧 `PatternCompiler` 或固定 Bass/Chord/Pulse/Lead 模板合成替代音符。该路径的完整运行仍依赖本地配置的授权资料与索引。
 
 ## 二、代码地图
 
@@ -39,7 +48,6 @@ opendaw/
    ├─ DawProjectAdapter.ts
    ├─ DawCapabilityRegistry.ts
    ├─ DawControlExecutor.ts
-   ├─ LocalMusicPlanner.ts
    ├─ RealUiEventBridge.ts
    ├─ ui-contract.ts
    └─ music/
@@ -102,14 +110,6 @@ OPENAI_MODEL=<optional>
 OPENAI_BASE_URL=<optional>
 ```
 
-`auto` 顺序：
-
-```text
-authenticated Codex app-server
-→ configured OpenAI-compatible API
-→ Studio LocalMusicPlanner fallback
-```
-
 `CodexAppServer` 负责：
 
 - 发现和启动 `codex app-server`；
@@ -125,25 +125,30 @@ authenticated Codex app-server
 
 ### 数据事实
 
+以下数字是本地资料清单与一次索引环境的记录，不是 Git 仓库内容，也不是当前 Guided Demo 执行整个资料库的证明。
+
 ```text
-midi/easy/                      194,553 files
-midi/.dawdex/catalog.sqlite     local generated index
-validated rows                  193,320
+local library inventory         194,553 files
+observed local indexed rows     193,320
 roles                           drums | bass | keys
 ```
 
-索引命令：
+Git 只跟踪 `midi/easy/README.md`。授权 MIDI 文件位于本地忽略目录，`midi/.dawdex/catalog.sqlite` 也是本地生成物且不提交；clean clone 不包含两者。
+
+本地配置资料后使用：
 
 ```bash
 cd opendaw
 npm run index:midi -w @dawdex/agent-server
 ```
 
-数据库不提交 Git。Agent Server 完整打开时应输出大约：
+在记录该索引的环境中，Agent Server 日志为：
 
 ```text
 DAWdex opened 193320 indexed MIDI assets
 ```
+
+这条日志是环境验收记录，不是任何 clean clone 都应自动得到的仓库基线。
 
 ### 检索契约
 
@@ -174,11 +179,11 @@ duplicate and quality state
 
 后续只对难以结构化的风格、情绪和相似听感增加 Embedding，并将代表性片段聚合为 motif/riff family。
 
-## 六、当前规划数据
+## 六、Agent/MIDI 规划契约
 
 ### Creative Brief
 
-当前 Brief 包含：
+技术契约中的 Brief 包含：
 
 ```ts
 type MusicBrief = {
@@ -232,7 +237,7 @@ type UpsertRoleTrackAction = {
 
 ### 音色
 
-`TrackSoundDesign` 当前使用：
+`TrackSoundDesign` 技术路径使用：
 
 ```text
 Vaporisateur parameters
@@ -240,7 +245,7 @@ Vaporisateur parameters
 + 0..4 role-appropriate effects
 ```
 
-模型必须给 drums、bass、keys 设计不同音色，并避免 Sub Bass 上的宽立体声和过量 Reverb。
+后续多轨 Agent 路径必须给 drums、bass、keys 设计不同音色，并避免 Sub Bass 上的宽立体声和过量 Reverb。
 
 ## 七、通用 DAW 控制
 
@@ -296,7 +301,7 @@ GET /v1/midi-assets/:id
 
 ## 九、UI 契约
 
-当前 `ui-contract.ts` 的下行事件：
+Agent UI 契约的下行事件：
 
 ```text
 DanmakuReceived
@@ -325,7 +330,9 @@ TrackAudibleChanged(audible=true)
     unlocks performing animation
 ```
 
-Mock 与真实桥共用事件签名。Mock 只能通过 `?mock=1` 或 `↻` 启动。
+当前 `mock-timeline.ts` 通过相同事件签名运行 Drums、Bass、Keys 三角色 Guided Demo。该时间线直接派发 UI 事件，不调用实时 Structured Plan、`MidiCatalog` 或 `DawProjectAdapter.apply()`，因此不能作为 Agent/MIDI/DAW 端到端证据。
+
+单乐器四段式展示切片尚待新增 Flow、View 和演示资产；本节事件契约不表示该切片已经存在。
 
 ## 十、完整歌曲扩展契约
 
@@ -430,7 +437,7 @@ type SoundProfile = {
 - MIDI 下载只允许目录内 ID；
 - 不允许模型调用文件、Shell 或网络工具；
 - 不允许模型发出未经 Capability 校验的任意内部操作；
-- AI 弹幕和本地回退必须明确标识。
+- AI 生成内容必须明确标识。
 
 ## 十三、验证
 
@@ -451,4 +458,4 @@ git diff --check
 git diff --check
 ```
 
-涉及完整资料库时，另外确认 Agent Server 日志打开约 193,320 个索引资产。没有该日志，不能声称完整 MIDI 检索已经启用。
+涉及完整资料库时，必须先配置本地 MIDI 资产、生成数据库并确认实际日志。`193,320` 只是已记录环境的行数；clean clone 没有资产与数据库，不能据此声称完整 MIDI 检索已启用。

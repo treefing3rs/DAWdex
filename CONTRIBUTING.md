@@ -6,7 +6,7 @@ DAWdex 使用适合三人黑客松团队的轻量 GitHub Flow。
 
 | Lane | 主要职责 | 典型路径 |
 |---|---|---|
-| Experience & Story | 弹幕、角色 UI、动画、UX、路演 | `opendaw/packages/app/studio/src/agent/`、设计资产 |
+| Experience & Story | 弹幕、角色 UI、动画、UX、演示 | `opendaw/packages/app/studio/src/agent/`、设计资产 |
 | Agent & Intent | Agent Server、Schema、角色编排、openDAW Adapter | `opendaw/packages/server/dawdex-agent/`、Agent Protocol |
 | Music & Reliability | MIDI 素材、检索变体、循环、质量、构建测试 | MIDI 模块、播放调度、脚本和测试 |
 
@@ -181,7 +181,8 @@ gh auth status
 gh auth setup-git
 ```
 
-详细排障见 [prd生成/GIT_GUIDE.md](prd生成/GIT_GUIDE.md)。不要在群聊、Issue、Commit 或 Prompt 中发送 Token。
+如果授权失败，请重新运行 `gh auth login` 并确认登录了正确账号。不要在群聊、
+Issue、Commit 或 Prompt 中发送 Token。
 
 ## 发布
 

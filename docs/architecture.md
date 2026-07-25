@@ -1,7 +1,9 @@
 # DAWdex 系统架构
 
-> 当前实现：0.3.0 / PR #17
-> 正式方向：完整歌曲 AI 虚拟录音棚 Harness
+> 当前代码证据：Structured Plan、SQLite Retriever、Approval、DAW Write/Rollback、Operation Ref
+> 当前可运行展示：Drums / Bass / Keys 三角色 Guided Demo
+> 正在接入：单乐器、单轨道、Intro → Verse → Chorus → Bridge
+> 正式方向：多乐器、多轨道的完整歌曲 AI 虚拟录音棚 Harness
 
 ## 一、架构结论
 
@@ -21,7 +23,20 @@ Product State + Planning + Retrieval + Validation
 
 这个 Harness 决定模型看见什么状态、可以调用什么能力、能修改哪些对象、何时需要审批、如何验证、如何撤销，以及哪些事实可以驱动前端。
 
-## 二、当前 0.3.0 架构
+正在接入的最小产品展示路径是：
+
+```text
+选择 Drums / Bass / Keys 中的一种乐器
+→ 创建一条可编辑轨道
+→ Intro → Verse → Chorus → Bridge
+→ 显示段落、播放与完成状态
+```
+
+当前公有分支没有这条路径所需的 Flow、View 和演示 MIDI 资产。当前能运行的是固定 Drums、Bass、Keys 三角色 Guided Demo；它直接派发 UI 事件，不调用实时 Agent/MIDI/DAW 写入。
+
+下面的 Agent、MIDI 和通用 DAW 模块均可在源码中核对，但完整资料库端到端运行依赖 Git 之外的本地授权 MIDI 与生成索引。
+
+## 二、Agent/MIDI 技术架构
 
 ```text
 ┌────────────────────────────────────────────────────────────┐
@@ -37,10 +52,6 @@ Product State + Planning + Retrieval + Validation
 │ Codex app-server      │ OpenAI-compatible API              │
 │ ChatGPT account       │ environment configuration          │
 └───────────────────────┴──────────────┬─────────────────────┘
-                                       │ failure
-                                       ▼
-                              LocalMusicPlanner
-
 Agent Server
   → MidiCatalog / catalog.sqlite
   → exact MIDI candidates
@@ -83,11 +94,13 @@ openDAW state
 | `LocalRuntime.ts` | 本地 CLI 运行时扫描、选择、进程管理与严格路由 |
 | `LocalCliProviders.ts` | Codex/Kimi/Qoder 三种本地 CLI 运行时的适配定义 |
 | `MidiBundleRanker.ts` | 对角色 MIDI 检索捆绑做生成质量排序 |
-| `MidiCatalog.ts` | SQLite 检索、排序、去重和回退扫描 |
+| `MidiCatalog.ts` | SQLite 检索、排序和去重 |
 | `MusicPlan.ts` | Schema、Prompt 和模型输出解析 |
 | `index-midi.ts` | 构建本地 MIDI 索引 |
 
-## 三、当前计划主链
+## 三、Agent/MIDI 计划主链
+
+仓库已有构成下列链路的组件实现；这张图是代码路径，不是 clean clone 的完整资料库运行证明：
 
 ```text
 natural-language request
@@ -104,17 +117,13 @@ natural-language request
 → resnapshot and emit real UI events
 ```
 
-正式主链不允许使用旧 `PatternCompiler` 或固定 Bass/Chord/Pulse/Lead 模板合成替代音符。旧模块可以保留为历史测试或明确回退证据，但不能被描述为生产检索路径。
+正式主链不允许使用旧 `PatternCompiler` 或固定 Bass/Chord/Pulse/Lead 模板合成替代音符。旧模块只能保留为历史测试证据，不能被描述为生产检索路径。
 
 ## 四、Provider 架构
 
-Provider 优先级由 `DAWDEX_AGENT_PROVIDER` 控制，默认 `auto`：
+Provider 选择由 `DAWDEX_AGENT_PROVIDER` 控制；浏览器只调用受控 HTTP 接口。
 
-1. 已登录的 Codex ChatGPT 账号；
-2. 已配置的 OpenAI-compatible API；
-3. Studio 的本地 Planner 回退。
-
-PR #17 后，Agent Server 另支持本地 CLI 运行时适配器（`LocalRuntime.ts` + `LocalCliProviders.ts`）：扫描本机已安装的 Codex / Kimi / Qoder CLI，按显式选择或优先级严格路由到其中一个运行时；来源在 Provider 状态中可见，不得与 Codex 账号或 OpenAI API 混淆。设计契约见 [`superpowers/specs/2026-07-25-local-cli-runtime-adapter-design.md`](./superpowers/specs/2026-07-25-local-cli-runtime-adapter-design.md)。
+仓库还包含本地 CLI 运行时适配器（`LocalRuntime.ts` + `LocalCliProviders.ts`）。它属于 Agent 路径代码证据，不是当前 Guided Demo 的实时来源。
 
 Codex 集成不是在浏览器里直接运行 CLI 命令。Agent Server 管理本机 `codex app-server` 的进程、登录、请求、超时和结束状态，浏览器只调用受控 HTTP 接口。
 
@@ -135,6 +144,8 @@ Codex 集成不是在浏览器里直接运行 CLI 命令。Agent Server 管理�
 
 ## 五、MIDI 检索架构
 
+Git 只跟踪 `midi/easy/README.md`，不分发授权 MIDI 文件；`catalog.sqlite` 也是忽略的本地生成物。下图只有在本地配置资料并完成索引后才能运行：
+
 ```text
 midi/easy/
 → index-midi.ts
@@ -153,7 +164,7 @@ midi/easy/
 - 风格与听感 Embedding 只在结构化检索不足时补充；
 - 人工审核集中在高质量家族和异常样本，不逐条标注 19 万文件。
 
-完整索引缺失时，系统扫描较小的精选目录。该回退不能与完整资料库混淆。
+`194,553` 是本地资料清单记录，`193,320` 是一次本地索引环境记录。两者都不是 clean clone 可直接复现的仓库资产数。
 
 ## 六、音乐执行与安全边界
 
@@ -168,7 +179,7 @@ midi/easy/
 
 ### 通用控制平面
 
-当前支持：
+技术控制契约包括：
 
 | 命令 | 操作 |
 |---|---|
@@ -196,7 +207,7 @@ midi/easy/
 
 ## 七、音色架构
 
-当前自动声音设计使用 Vaporisateur：
+技术声音设计路径使用 Vaporisateur：
 
 ```text
 MIDI asset
@@ -239,10 +250,11 @@ OperationResult
 - `RoleStateChanged(performing)` 只能表示角色意图；
 - `TrackAudibleChanged(audible=true)` 才允许点亮实际演奏；
 - Pause/Stop 冻结或撤销播放动作；
-- Mock 与真实链共享接口，但来源必须可见；
 - 每条回执使用 Plan ID 或 Operation Reference 追踪。
 
 房间、角色和动画属于“音乐状态翻译层”，不拥有 Agent、MIDI 或 DAW 业务逻辑。
+
+当前 `mock-timeline.ts` 按相同事件签名驱动 Drums、Bass、Keys 三角色 Guided Demo。它不调用 `AgentClient`、`MidiCatalog` 或 `DawProjectAdapter.apply()`，因此 UI 中出现 `TrackAudibleChanged` / `OperationResult` 不能被讲成真实三轨工程写入。
 
 PR #12 增加可收起外壳：根节点收起后让 Pointer Event 穿透到原本一直存活的
 openDAW，`RealUiEventBridge` 仍按 500 ms 同步。它没有创建第二个 DAW，也
@@ -250,7 +262,7 @@ openDAW，`RealUiEventBridge` 仍按 500 ms 同步。它没有创建第二个 DA
 
 ## 九、完整歌曲目标架构
 
-0.3.0 的 Brief 仍以 4/8 小节角色片段为主。完整歌曲需要在现有链路上增加持久的 Song 层，而不是推翻现有实现：
+单乐器、单轨、四段落仍是正在接入的展示切片。完整歌曲需要在其后增加多乐器、多轨道与持久的 Song 层：
 
 ```text
 ┌──────────────────────────────────────────────┐
@@ -323,20 +335,16 @@ type SongPatch = {
 
 | 故障 | 行为 |
 |---|---|
-| Codex 不可用 | 尝试 OpenAI-compatible Provider |
-| 所有远程 Provider 失败 | 本地 Planner 回退并明确标记 |
-| 完整 MIDI 索引缺失 | 使用小规模回退扫描并记录状态 |
 | Asset 不存在或解析失败 | 拒绝执行该 Plan |
 | Capability/ID 非法 | Validator 拒绝动作 |
 | 工程动作失败 | 回滚本轮事务 |
 | 轨道没有确认可听 | 角色不进入演奏 |
-| Mock 启动 | 暂停真实桥；结束后恢复 |
 
 ## 十一、边界
 
 DAWdex 继续复用 openDAW 的时间线、设备、音频引擎和工程模型，不重新制造 DAW。
 
-DAWdex 自己负责：
+DAWdex 的产品方向负责：
 
 - 面向完整歌曲的持久状态；
 - 自然语言到受控 Patch 的编译；
