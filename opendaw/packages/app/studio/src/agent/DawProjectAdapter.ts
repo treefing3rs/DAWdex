@@ -240,6 +240,37 @@ export class DawProjectAdapter {
         return {success: true, message: "Reverted the last DAWdex edit."}
     }
 
+    // 走带播放/暂停（演播大厅 REC 监视器热点用；复用能力注册表校验过的 transport 通道）
+    setTransport(playing: boolean): ApplyResult {
+        if (!this.#service.hasProfile) {
+            return {success: false, message: "没有打开的工程，走带无法控制。"}
+        }
+        try {
+            this.#controls.applyTransport({
+                type: "control",
+                command: "transport",
+                operation: playing ? "play" : "pause",
+                targetTrackId: null,
+                targetRegionId: null,
+                targetDeviceId: null,
+                targetBusId: null,
+                kind: "",
+                name: "",
+                assetId: "",
+                index: 0,
+                enabled: true,
+                value: 0,
+                secondaryValue: 0,
+                seed: 0,
+                parameters: [],
+                points: []
+            })
+            return {success: true, message: playing ? "走带开始播放。" : "走带已暂停。"}
+        } catch (error) {
+            return {success: false, message: `走带控制失败：${String(error)}`}
+        }
+    }
+
     #instrumentTracks(): ReadonlyArray<InstrumentTrack> {
         return this.#service.project.rootBoxAdapter.audioUnits.adapters()
             .filter(audioUnit => audioUnit.isInstrument)
