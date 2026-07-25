@@ -1,6 +1,6 @@
 # DAWdex 技术方案
 
-> 基线：0.3.0 / PR #12
+> 基线：0.3.0 / PR #17
 > 适用范围：当前真实 MIDI 垂直切片，以及下一阶段完整歌曲扩展
 
 ## 一、技术边界
@@ -26,8 +26,11 @@ opendaw/
 │  └─ src/
 │     ├─ server.ts
 │     ├─ CodexAppServer.ts
+│     ├─ LocalRuntime.ts
+│     ├─ LocalCliProviders.ts
 │     ├─ MusicPlan.ts
 │     ├─ MidiCatalog.ts
+│     ├─ MidiBundleRanker.ts
 │     └─ index-midi.ts
 └─ packages/app/studio/src/agent/
    ├─ AgentClient.ts

@@ -1,6 +1,6 @@
 # DAWdex 文档索引
 
-> 最近核对：2026-07-25 · 代码基线：`0.3.0` / PR #12
+> 最近核对：2026-07-25 · 代码基线：`0.3.0` / PR #17（含 main 直推的巡棚箭头换台与全房间物件交互修复）
 
 这个目录区分四类信息：当前事实、正式产品方向、实施契约和历史证据。阅读时不要把未来设计误认为已经完成，也不要用旧交接覆盖当前代码。
 
@@ -24,7 +24,7 @@
 | [`architecture.md`](./architecture.md) | Agent、Harness、MIDI、openDAW 与前端如何协作 |
 | [`DAWdex_TechSpec.md`](./DAWdex_TechSpec.md) | 当前代码、接口和后续技术契约 |
 | [`design/DESIGN_DIRECTION.md`](./design/DESIGN_DIRECTION.md) | 前端世界观和发展方向 |
-| [`design/STAGE_UI.md`](./design/STAGE_UI.md) | PR #12 后舞台 UI 与 openDAW 工作台切换的真实实现 |
+| [`design/STAGE_UI.md`](./design/STAGE_UI.md) | PR #17 后舞台 UI、五房间物件管线与 openDAW 工作台切换的真实实现 |
 | [`DEMO_RUNBOOK.md`](./DEMO_RUNBOOK.md) | 现场演示、真实链与 Mock 兜底 |
 | [`coding-conventions.md`](./coding-conventions.md) | 编码约定 |
 | [`gallery-submission.md`](./gallery-submission.md) | 对外提交文案 |
@@ -38,10 +38,14 @@
 - [`division-of-labor.md`](./division-of-labor.md)
 - [`design/DESIGN_BRIEFS.md`](./design/DESIGN_BRIEFS.md)
 
+## 在制品分支
+
+- `codex/dual-mode-stage-preview`（8 提交，工作台停靠舞台预览/共享 UI 会话）：**未合并、未提 PR**，其设计与实施计划文档只存在于该分支；采纳或搁置待决策，主干文档暂不描述其功能。
+
 ## 当前事实与正式方向
 
-- **当前事实**：0.3.0 / PR #12 已跑通自然语言计划、真实 MIDI 素材检索与导入、审批、openDAW 写入、Undo、真实 UI 事件桥接、发声闸门、五套角色素材、电梯过场、六房间巡棚，以及可收起并露出真实 openDAW 的工作台模式；当前活跃轨道角色仍为 drums/bass/keys。
+- **当前事实**：0.3.0 / PR #17 已跑通自然语言计划、真实 MIDI 素材检索与导入、审批、openDAW 写入、Undo、真实 UI 事件桥接、发声闸门、五套角色素材、电梯过场、六房间巡棚（顶栏 CH、舞台两侧箭头与方向键切台），以及可收起并露出真实 openDAW 的工作台模式；PR #16/#17 另新增五房间冒险游戏物件管线（28 物件替身 + 轮廓命中 + 功能面板）、Fig Mint 主机壳与键盘甲板、演出态视频皮肤、AI 乐迷附和弹幕、Codex/Kimi/Qoder 本地 CLI 三运行时适配器和 MidiBundleRanker 质量捆绑排序；当前活跃轨道角色仍为 drums/bass/keys。
 - **正式方向**：DAWdex 要创作可持续修改的完整歌曲，不以无限堆叠单一 Loop 为终点。
-- **尚未完成**：Song Blueprint 执行器、跨 Section 编排、动机发展、正式乐器/音色目录、真实音频电平和房间物件热点。
+- **尚未完成**：Song Blueprint 执行器、跨 Section 编排、动机发展、正式乐器/音色目录、真实音频电平，以及房间物件与底层 DAW 的完整双向映射（物件面板已通，反向同步未完成）。
 
 版本号和 PR 只能说明代码基线；产品完成度以这里的边界以及实际验证结果为准。

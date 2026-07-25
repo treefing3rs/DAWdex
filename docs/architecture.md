@@ -1,6 +1,6 @@
 # DAWdex 系统架构
 
-> 当前实现：0.3.0 / PR #12
+> 当前实现：0.3.0 / PR #17
 > 正式方向：完整歌曲 AI 虚拟录音棚 Harness
 
 ## 一、架构结论
@@ -80,6 +80,9 @@ openDAW state
 |---|---|
 | `server.ts` | HTTP API、Provider 路由、Brief/Plan 编排和 MIDI 下载 |
 | `CodexAppServer.ts` | 启动与控制本机 Codex `app-server` |
+| `LocalRuntime.ts` | 本地 CLI 运行时扫描、选择、进程管理与严格路由 |
+| `LocalCliProviders.ts` | Codex/Kimi/Qoder 三种本地 CLI 运行时的适配定义 |
+| `MidiBundleRanker.ts` | 对角色 MIDI 检索捆绑做生成质量排序 |
 | `MidiCatalog.ts` | SQLite 检索、排序、去重和回退扫描 |
 | `MusicPlan.ts` | Schema、Prompt 和模型输出解析 |
 | `index-midi.ts` | 构建本地 MIDI 索引 |
@@ -111,6 +114,8 @@ Provider 优先级由 `DAWDEX_AGENT_PROVIDER` 控制，默认 `auto`：
 2. 已配置的 OpenAI-compatible API；
 3. Studio 的本地 Planner 回退。
 
+PR #17 后，Agent Server 另支持本地 CLI 运行时适配器（`LocalRuntime.ts` + `LocalCliProviders.ts`）：扫描本机已安装的 Codex / Kimi / Qoder CLI，按显式选择或优先级严格路由到其中一个运行时；来源在 Provider 状态中可见，不得与 Codex 账号或 OpenAI API 混淆。设计契约见 [`superpowers/specs/2026-07-25-local-cli-runtime-adapter-design.md`](./superpowers/specs/2026-07-25-local-cli-runtime-adapter-design.md)。
+
 Codex 集成不是在浏览器里直接运行 CLI 命令。Agent Server 管理本机 `codex app-server` 的进程、登录、请求、超时和结束状态，浏览器只调用受控 HTTP 接口。
 
 模型负责：
@@ -137,6 +142,7 @@ midi/easy/
 → MidiCatalog.search()
 → role-compatible candidates
 → fingerprint deduplication
+→ MidiBundleRanker bundle ranking
 → model-visible short list
 ```
 

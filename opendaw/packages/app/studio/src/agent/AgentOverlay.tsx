@@ -14,7 +14,9 @@ import type {
 } from "./ui-contract"
 import {playMockTimeline} from "./mock-timeline"
 import {DawdexStagePreview} from "@/ui/devices/panel/DawdexStagePreview"
-import {DAWDEX_PRODUCER, DAWDEX_ROOMS, DAWDEX_STAGE_ROLES} from "./DawdexStageAssets"
+import {
+    DAWDEX_PRODUCER, DAWDEX_ROOMS, DAWDEX_STAGE_ROLES, type DawdexRoomId
+} from "./DawdexStageAssets"
 import {
     DawdexProjectModeController, getDawdexUiSession, shouldPlayDawdexVideo, type DawdexViewMode
 } from "./DawdexUiSession"
@@ -37,6 +39,71 @@ const INTERVENTIONS: ReadonlyArray<{kind: InterventionKind, label: string}> = [
 
 const AUTHOR_BADGE: Record<DanmakuAuthor, string> = {user: "", "ai-fan": "AI 乐迷", system: ""}
 
+// ── 巡棚房间注册表（§11.1：房间即工程；未绑定事件的物件保持纯装饰） ─────────
+type RoomId = DawdexRoomId
+
+// ── 物件功能面板类型（模块级：房间物件注册表引用） ────────────────────────
+type PanelKind = "monitor" | "desk" | "guitar" | "lamp" | "art" | "shelf" | "clock" | "settings" | "role-kit" | "cat"
+
+// ── 冒险游戏管线 · 房间物件注册表（§13：替身零像素差 + 轮廓命中 + :has 联动） ──
+// box = 舞台百分比 [left, top, width, height]（1600 宽帧、cover 可视高 950px 标定）；
+// sprite 为底图同像素矩形裁剪（原位盖回零差异），clip 沿物件真实轮廓；
+// bind = Diegetic 绑定："playing" 走带播放亮起，drums/bass/keys 该角色 TrackAudibleChanged 亮起
+type RoomObject = {
+    readonly room: Exclude<RoomId, "main">
+    readonly id: string
+    readonly label: string
+    readonly box: readonly [number, number, number, number]
+    readonly clip?: string
+    readonly panel?: PanelKind
+    readonly bind?: "playing" | RoleId
+    readonly align?: "left" | "right"
+    readonly anim?: "sway" | "rock" | "bob" // hover 动画绑定：sway 悬挂摆动 / rock 立地摇晃 / bob 轻弹跳
+}
+const MONITOR_CLIP = "polygon(2% 2%, 98% 2%, 98% 76%, 62% 76%, 62% 98%, 38% 98%, 38% 76%, 2% 76%)"
+const LAMP_CLIP = "polygon(46% 0%, 54% 0%, 54% 52%, 88% 74%, 97% 88%, 62% 88%, 62% 97%, 38% 97%, 38% 88%, 3% 88%, 12% 74%, 46% 52%)"
+const ROOM_OBJECTS: ReadonlyArray<RoomObject> = [
+    // 鼓棚：监视器=轨道，鼓组=音色，节拍器=BPM/循环，吊灯=能量，REC 灯牌=鼓发声确认
+    {room: "drums", id: "monitor", label: "DRUM PREAMPS · 轨道", box: [15.31, 40.79, 9.56, 11.89], clip: MONITOR_CLIP, panel: "desk"},
+    {room: "drums", id: "kit", label: "鼓组 · 鼓音色", box: [26.56, 41.84, 35.62, 45.26], anim: "bob",
+        clip: "polygon(18% 8%, 38% 2%, 50% 10%, 62% 2%, 82% 8%, 90% 22%, 84% 42%, 94% 58%, 88% 96%, 12% 96%, 6% 58%, 16% 42%, 10% 22%)", panel: "role-kit"},
+    {room: "drums", id: "metro", label: "节拍器 · BPM / 循环", box: [93.75, 50.26, 3.75, 10.00], clip: "polygon(50% 2%, 92% 96%, 8% 96%)", panel: "clock", align: "right", anim: "sway"},
+    {room: "drums", id: "lamp", label: "吊灯 · 能量", box: [61.56, 7.63, 10.00, 20.00], clip: LAMP_CLIP, panel: "lamp", anim: "sway"},
+    {room: "drums", id: "sign", label: "REC DRUMS · 发声确认", box: [91.88, 16.05, 7.81, 8.42], bind: "drums", align: "right"},
+    // 吉他贝斯棚：信号链屏=轨道，三把吉他=音色，效果器板=换乐器，吊灯=能量，REC 灯牌=贝斯发声确认
+    {room: "strings", id: "screen", label: "信号链屏 · 轨道", box: [34.69, 24.47, 15.31, 16.32], clip: MONITOR_CLIP, panel: "desk"},
+    {room: "strings", id: "guitars", label: "三把吉他 · 音色", box: [31.56, 39.74, 20.31, 36.84], anim: "rock",
+        clip: "polygon(10% 2%, 30% 0%, 38% 8%, 50% 2%, 62% 8%, 72% 0%, 90% 2%, 88% 55%, 96% 70%, 90% 95%, 60% 98%, 40% 98%, 10% 95%, 4% 70%, 12% 55%)", panel: "role-kit"},
+    {room: "strings", id: "pedals", label: "效果器板 · 换乐器", box: [30.63, 72.89, 23.12, 14.74], clip: "polygon(2% 10%, 98% 0%, 100% 100%, 0% 100%)", panel: "guitar"},
+    {room: "strings", id: "lamp", label: "吊灯 · 能量", box: [54.37, 5.53, 5.31, 18.95], clip: LAMP_CLIP, panel: "lamp", anim: "sway"},
+    {room: "strings", id: "sign", label: "REC GUITAR/BASS · 发声确认", box: [20.31, 12.68, 10.31, 7.58], bind: "bass"},
+    // 键盘阁楼：走带监视器=transport，上排键盘/Rhodes=音色，红琴=换乐器，合成器墙=轨道，吊灯=能量，REC 灯牌=键盘发声确认
+    {room: "keys", id: "screen", label: "走带监视器 · 播放", box: [34.69, 23.95, 15.31, 17.37], clip: MONITOR_CLIP, panel: "monitor"},
+    {room: "keys", id: "top", label: "上排键盘 · 音色", box: [28.75, 42.37, 41.25, 19.47], clip: "polygon(0% 5%, 100% 0%, 100% 100%, 0% 100%)", panel: "role-kit", anim: "bob"},
+    {room: "keys", id: "rhodes", label: "Rhodes · 音色", box: [33.75, 61.32, 33.75, 24.21], clip: "polygon(2% 0%, 98% 0%, 100% 100%, 0% 100%)", panel: "role-kit", anim: "bob"},
+    {room: "keys", id: "redkey", label: "红色电钢 · 换乐器", box: [12.06, 58.47, 14.62, 9.89], clip: "polygon(2% 20%, 95% 0%, 100% 90%, 5% 100%)", panel: "guitar", anim: "rock"},
+    {room: "keys", id: "synthwall", label: "合成器墙 · 轨道", box: [14.56, 39.53, 20.00, 16.84], clip: "polygon(0% 10%, 100% 0%, 100% 100%, 0% 100%)", panel: "desk"},
+    {room: "keys", id: "lamp", label: "吊灯 · 能量", box: [54.37, 5.53, 5.31, 18.95], clip: LAMP_CLIP, panel: "lamp", anim: "sway"},
+    {room: "keys", id: "sign", label: "REC KEYBOARDS · 发声确认", box: [21.12, 30.79, 7.31, 6.32], bind: "keys"},
+    // 控制室：时间码屏=transport，三联屏=工程概览，调音台=轨道，机架=系统设置，吊灯=能量
+    {room: "control", id: "recscreen", label: "REC 时间码 · 走带", box: [15.31, 34.37, 9.06, 11.58], clip: MONITOR_CLIP, panel: "monitor"},
+    {room: "control", id: "triple", label: "三联屏 · 工程概览", box: [30.63, 34.89, 25.00, 14.21],
+        clip: "polygon(0% 5%, 33% 0%, 67% 2%, 100% 0%, 100% 92%, 88% 92%, 88% 100%, 80% 100%, 80% 92%, 20% 92%, 20% 100%, 12% 100%, 12% 92%, 0% 92%)", panel: "art"},
+    {room: "control", id: "desk", label: "调音台 · 轨道", box: [14.69, 49.63, 58.13, 23.16], clip: "polygon(3% 0%, 97% 0%, 100% 100%, 0% 100%)", panel: "desk"},
+    {room: "control", id: "rack", label: "机架 · 系统", box: [1.88, 39.63, 13.44, 43.16], panel: "settings", align: "left"},
+    {room: "control", id: "lamp", label: "吊灯 · 能量", box: [52.81, 11.74, 4.06, 12.63], clip: LAMP_CLIP, panel: "lamp", anim: "sway"},
+    // 休息室：沙发=走带（休息一下），咖啡桌=能量，零食柜=素材架，店猫=彩蛋，海报=工程概览，REC 灯牌=播放绑定
+    {room: "lounge", id: "sofa", label: "沙发 · 休息一下", box: [0.94, 47.11, 28.12, 27.37],
+        clip: "polygon(2% 20%, 30% 5%, 70% 5%, 98% 20%, 100% 90%, 95% 100%, 5% 100%, 0% 90%)", panel: "monitor"},
+    {room: "lounge", id: "coffee", label: "咖啡桌 · 续杯能量", box: [31.25, 58.68, 21.88, 25.26],
+        clip: "polygon(8% 0%, 92% 0%, 100% 30%, 96% 100%, 4% 100%, 0% 30%)", panel: "lamp"},
+    {room: "lounge", id: "snacks", label: "零食柜 · 素材架", box: [61.88, 48.16, 21.88, 37.37], panel: "shelf"},
+    {room: "lounge", id: "cat", label: "店猫 · 彩蛋", box: [23.44, 72.89, 4.69, 5.79], anim: "bob",
+        clip: "polygon(15% 30%, 40% 5%, 75% 10%, 95% 40%, 90% 90%, 10% 95%, 0% 60%)", panel: "cat"},
+    {room: "lounge", id: "poster", label: "TASCAM 海报 · 工程概览", box: [20.62, 13.42, 13.75, 34.21], panel: "art"},
+    {room: "lounge", id: "sign", label: "REC IN PROGRESS · 播放中", box: [50.00, 12.68, 12.62, 8.84], bind: "playing"}
+]
+
 export const AgentOverlay = ({lifecycle, service}: Construct) => {
     const client = new AgentClient()
     const daw = new DawProjectAdapter(service)
@@ -49,7 +116,6 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     const marquee: HTMLElement = (<div className="marquee hidden"><span className="marquee-text"/></div>)
     const noise: HTMLElement = (<div className="noise hidden"/>)
     const transportReadout: HTMLElement = (<span className="readout">-- · -- BPM · --</span>)
-    const transportBar: HTMLElement = (<div className="loop-bar-fill"/>)
     const receiptList: HTMLElement = (<div className="receipt-list"/>)
     const activity: HTMLElement = (<div className="activity"/>)
     const providerSlot: HTMLElement = (<div className="provider-slot"/>)
@@ -153,6 +219,34 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     const panelEl: HTMLElement = (<div className="object-panel"/>)
     const panelReadout: HTMLElement = (<span className="panel-readout"/>)
     const deckReadout: HTMLElement = (<span className="deck-readout"/>)
+    // ── 巡棚房间物件 slot（§13：全部房间一次建好，CSS 按 data-room 显隐） ──
+    const roomSlotsEl: HTMLElement = (<div className="room-slots"/>)
+    const slotHits: Array<{hit: HTMLElement, panel: PanelKind}> = []
+    const slotLeds: Array<{bind: "playing" | RoleId, el: HTMLElement}> = []
+    ROOM_OBJECTS.forEach(obj => {
+        const [left, top, width, height] = obj.box
+        const img: HTMLImageElement = (
+            <img className={`obj-copy${obj.anim !== undefined ? ` anim-${obj.anim}` : ""}`}
+                 src={`/dawdex/ro_${obj.room}_${obj.id}.png`} alt="" draggable={false}/>)
+        if (obj.clip !== undefined) {img.style.clipPath = obj.clip}
+        const hit: HTMLElement = (
+            <div className={`obj-hit slot-hit${obj.align !== undefined ? ` align-${obj.align}` : ""}`}
+                 data-label={obj.label} title={obj.label}/>)
+        if (obj.clip !== undefined) {hit.style.clipPath = obj.clip}
+        const glint: HTMLElement = (<span className="hint-glint slot-glint"/>)
+        lifecycle.own(Events.subscribe(hit, "mouseenter", () => glint.classList.add("seen")))
+        const slot: HTMLElement = (
+            <div className="obj-slot" data-room={obj.room}
+                 style={`left:${left}%;top:${top}%;width:${width}%;height:${height}%`}>
+                {img}{hit}{glint}
+            </div>)
+        roomSlotsEl.appendChild(slot)
+        if (obj.panel !== undefined) {slotHits.push({hit, panel: obj.panel})}
+        if (obj.bind !== undefined) {slotLeds.push({bind: obj.bind, el: slot})}
+    })
+    // 巡棚换台箭头：悬停舞台浮现，用过一次后常驻；左右循环切台 + 老电视频闪
+    const navPrev: HTMLElement = (<button className="room-nav prev" title="上一个房间（←）">‹</button>)
+    const navNext: HTMLElement = (<button className="room-nav next" title="下一个房间（→）">›</button>)
     // 舞台容器（巡棚切换作用于此）
     const stageEl: HTMLElement = (
         <div className="stage" data-room="main">
@@ -172,11 +266,13 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
                 {ledDrums}{ledBass}{ledKeys}
                 {clockHand}
             </div>
+            {roomSlotsEl}
             {recBadge}
             {newProjectButton}
+            {navPrev}
+            {navNext}
             <div className="transport">
                 {transportReadout}
-                <div className="loop-bar">{transportBar}</div>
             </div>
         </div>)
     // 巡棚切台
@@ -194,15 +290,37 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
             stageVideo.currentTime = 0
         }
     }
-    const setRoom = (index: number) => {
+    // 老电视换台频闪：白闪 + 场抖 + 噪点一闪
+    const zapChannel = () => {
+        stageEl.classList.remove("zapping")
+        void stageEl.offsetWidth // 重启动画
+        stageEl.classList.add("zapping")
+        flashNoise()
+    }
+    const setRoom = (index: number, zap = true) => {
         roomIndex = ((index % DAWDEX_ROOMS.length) + DAWDEX_ROOMS.length) % DAWDEX_ROOMS.length
         const room = DAWDEX_ROOMS[roomIndex]
         channelName.textContent = room.label
         stageEl.dataset.room = room.id
         stageImg.src = room.bg
         uiSession.setRoom(room.id)
+        if (zap) {zapChannel()}
         setVideoLive(isPlaying)
     }
+    // 换台箭头：点击切台后箭头常驻（已被发现的交互）
+    const navTo = (delta: number) => {
+        stageEl.classList.add("nav-used")
+        setRoom(roomIndex + delta)
+    }
+    lifecycle.own(Events.subscribe(navPrev, "click", () => navTo(-1)))
+    lifecycle.own(Events.subscribe(navNext, "click", () => navTo(1)))
+    // 键盘 ←/→ 同样可以巡棚（输入框聚焦时不抢按键）
+    lifecycle.own(Events.subscribe(document, "keydown", (event: KeyboardEvent) => {
+        const target = event.target as HTMLElement | null
+        if (target !== null && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) {return}
+        if (event.key === "ArrowLeft") {navTo(-1)}
+        else if (event.key === "ArrowRight") {navTo(1)}
+    }))
     const roleStates = new Map<RoleId, RoleState>()
     const audibleRoles = new Set<RoleId>()
     const pendingPerforming = new Map<RoleId, string | undefined>()
@@ -244,6 +362,15 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
             key: keySig,
             barsPerLoop,
             currentBar
+        })
+        updateSlotLeds()
+    }
+
+    // ── 房间灯牌 Diegetic 绑定：REC 灯牌 = 对应角色发声确认 / 走带播放 ──
+    const updateSlotLeds = () => {
+        slotLeds.forEach(({bind, el}) => {
+            const on = bind === "playing" ? isPlaying : audibleRoles.has(bind)
+            el.classList.toggle("lit", on)
         })
     }
 
@@ -328,7 +455,6 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
             : isPlaying
                 ? `BAR ${bar}/${barsPerLoop} · ${Math.round(bpm)} BPM · ${keySig}`
                 : `⏸ 已暂停 · BAR ${bar}/${barsPerLoop} · ${Math.round(bpm)} BPM · ${keySig}`
-        transportBar.style.width = `${(loopPos * 100).toFixed(1)}%`
         // 墙上时钟 = 循环进度（指针随 loopPos 旋转，暂停即冻结）
         clockHand.style.transform = `rotate(${(loopPos * 360).toFixed(1)}deg)`
         // 监视器面板的走带读数与壳内读数同源
@@ -418,6 +544,7 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
                         setRoleState(event.role, "waiting", "轨道已静音")
                     }
                 }
+                updateSlotLeds()
                 appendEvent(event.audible ? `${event.role} 轨道确认发声（BAR ${event.enteredAtBar ?? "?"}）` : `${event.role} 静音`,
                     event.audible ? "success" : "normal")
                 break
@@ -455,6 +582,7 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         Html.empty(receiptList)
         audibleRoles.clear()
         rackLeds.forEach(led => led.classList.remove("on"))
+        updateSlotLeds()
         pendingPerforming.clear()
         enteredRoles.clear()
         uiSession.resetRoles()
@@ -769,7 +897,6 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         </div>)
 
     // ── 物件功能面板（舞台内二级页面：点击物件从右缘滑出，§9.4） ─────────────
-    type PanelKind = "monitor" | "desk" | "guitar" | "lamp" | "art" | "shelf" | "clock" | "settings"
     const PANEL_TITLES: Record<PanelKind, string> = {
         monitor: "REC 监视器 · 走带",
         desk: "调音台 · 轨道",
@@ -778,7 +905,9 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         art: "声波挂画 · 工程概览",
         shelf: "书架 · 素材架",
         clock: "挂钟 · 循环",
-        settings: "设置 · 系统"
+        settings: "设置 · 系统",
+        "role-kit": "乐器 · 音色计划",
+        cat: "店猫"
     }
     let openPanelKind: PanelKind | null = null
     const closePanel = () => {
@@ -1042,6 +1171,25 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
                 runtimeSection,
                 (<div className="panel-sub">系统功能</div>),
                 presentBtn, workbenchBtn, replayBtn)
+        } else if (kind === "role-kit") {
+            // 乐器阵 = 音色计划：换音色（保结构）或重新生成（推翻重来），批准后真实改写工程
+            const swapBtn: HTMLButtonElement = (<button type="button" className="panel-primary">换一把音色</button>)
+            const regenBtn: HTMLButtonElement = (<button type="button" className="panel-primary">重新生成</button>)
+            swapBtn.onclick = () => intervene("swap-instrument")
+            regenBtn.onclick = () => intervene("regenerate")
+            appendChildren(body,
+                (<div className="panel-note">制作人改写这条乐器轨：换音色保留结构，重新生成推翻重来 — 批准后真实落到工程</div>),
+                (<div className="panel-row">{swapBtn}{regenBtn}</div>))
+        } else if (kind === "cat") {
+            // 店猫 = 彩蛋：不参与创作，但见证了一切
+            const patBtn: HTMLButtonElement = (<button type="button" className="panel-primary">撸一下</button>)
+            patBtn.onclick = () => {
+                launchDanmaku("喵 ——", "ai-fan")
+                appendEvent("店猫翻了个身", "normal")
+            }
+            appendChildren(body,
+                (<div className="panel-note">棚里的店猫在睡觉。它不参与创作，但它见证了一切。</div>),
+                patBtn)
         } else {
             const strongerBtn: HTMLButtonElement = (<button type="button" className="panel-primary">更有力量</button>)
             const lighterBtn: HTMLButtonElement = (<button type="button" className="panel-primary">更轻松</button>)
@@ -1182,6 +1330,11 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
             event.stopPropagation()
             openPanel("clock")
         }),
+        // 巡棚房间物件：点击开对应功能面板（§13）
+        ...slotHits.map(({hit, panel}) => Events.subscribe(hit, "click", event => {
+            event.stopPropagation()
+            openPanel(panel)
+        })),
         // 面板外点击舞台 = 关闭面板；面板内点击不冒泡
         Events.subscribe(stageEl, "click", () => {
             if (openPanelKind !== null) {closePanel()}
@@ -1194,7 +1347,7 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     const initialRoom = initialSearchParams.get("room")
     if (initialRoom !== null) {
         const idx = DAWDEX_ROOMS.findIndex(r => r.id === initialRoom)
-        if (idx >= 0) {setRoom(idx)}
+        if (idx >= 0) {setRoom(idx, false)}
     }
     // 打开/新建任何工程 ⇒ 回到完整演播厅；显式 ?workbench=1 只作用于首次工程打开。
     // Agent 在舞台内自动补建工程（isBusy）时不切形态，不打断正在观看的演出。
@@ -1226,7 +1379,8 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     DAWDEX_ROOMS.forEach(room => preloadImage(room.bg))
     const SPRITE_SRCS = [
         "/dawdex/obj_lamp.png", "/dawdex/obj_monitor.png", "/dawdex/obj_guitar.png",
-        "/dawdex/obj_art.png", "/dawdex/obj_shelf.png", "/dawdex/obj_clock.png"
+        "/dawdex/obj_art.png", "/dawdex/obj_shelf.png", "/dawdex/obj_clock.png",
+        ...ROOM_OBJECTS.map(obj => `/dawdex/ro_${obj.room}_${obj.id}.png`)
     ]
     SPRITE_SRCS.forEach(preloadImage)
 
