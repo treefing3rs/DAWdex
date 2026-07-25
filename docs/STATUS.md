@@ -1,8 +1,9 @@
 # DAWdex 当前状态
 
 > 最近核对：2026-07-26
-> 代码基线：`codex/family-sequence-arrangement-v2` / `a7d4ab94f`
-> 上游基线：`origin/main` / `8032e8c97`
+> 当前分支：`codex/family-sequence-arrangement-v2`
+> Family Sequence 功能提交：`a7d4ab94f`
+> 上游基线：`origin/main` / `34c579f9b`
 
 本文是“当前已经实现什么、还缺什么、最近验证是否通过”的唯一事实入口。
 产品方向见 [`PRODUCT_VISION.md`](./PRODUCT_VISION.md)，需求见
@@ -22,7 +23,8 @@
 - Toontrack/GM 来源音符 → Canonical Drum Role → TR-808/TR-909 Pad；
 - 每个角色一条 DAWdex 主轨，同一轨道可写入多个连续 Note Region；
 - create/replace、局部角色修改、一次 Plan 对应一次 Undo；
-- openDAW 真实工程、事件桥接、发声闸门、六房间舞台和专业工作台切换。
+- openDAW 真实工程、事件桥接、发声闸门和六房间舞台；
+- 专业工作台内的停靠舞台预览与共享 UI Session，以及五房间物件命中区。
 
 ## 尚未完成
 
@@ -50,13 +52,13 @@ generated database             midi/.dawdex/catalog.sqlite
 
 ## 最近验证
 
-基于 `origin/main` `8032e8c97` 完成冲突整合后：
+基于 `origin/main` `34c579f9b` 完成整合后：
 
 ```text
 Agent Server build             passed
 Agent Server tests             6 files / 23 tests passed
 Studio build                   passed
-Studio tests                   10 files / 35 tests passed
+Studio tests                   12 files / 48 tests passed
 git diff --check               passed
 ```
 
@@ -66,6 +68,7 @@ Studio build 仍有已知的 Node/Vite 版本、WASM/SVG 解析和大 Chunk 警�
 ## Git 状态
 
 - Family Sequence 提交：`a7d4ab94f`
+- 最新主分支整合提交：`0bc4145e8`
 - 远端分支：`origin/codex/family-sequence-arrangement-v2`
 - 分支已推送，尚未创建 Pull Request；
 - `midi.zip` 是本地未跟踪文件，禁止提交。

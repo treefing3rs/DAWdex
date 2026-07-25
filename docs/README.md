@@ -46,15 +46,15 @@
 
 - [`PHASE0_MIDI_FAMILY_AUDIT_2026-07-26.md`](./PHASE0_MIDI_FAMILY_AUDIT_2026-07-26.md)：Family 覆盖率、Section 分布和鼓映射审计。
 - [`superpowers/specs/2026-07-25-local-cli-runtime-adapter-design.md`](./superpowers/specs/2026-07-25-local-cli-runtime-adapter-design.md)：本地 CLI 多运行时契约。
+- [`superpowers/specs/2026-07-25-dual-mode-stage-preview-design.md`](./superpowers/specs/2026-07-25-dual-mode-stage-preview-design.md)：已由 PR #18 合并的工作台停靠舞台预览与共享 UI Session 设计。
 
 ## 在制品分支
 
 - `codex/family-sequence-arrangement-v2`：已提交并推送，尚未创建 PR；状态见 [`STATUS.md`](./STATUS.md)。
-- `codex/dual-mode-stage-preview`（8 提交，工作台停靠舞台预览/共享 UI 会话）：**未合并、未提 PR**，其设计与实施计划文档只存在于该分支；采纳或搁置待决策，主干文档暂不描述其功能。
 
 ## 当前事实与正式方向
 
-- **当前事实**：0.3.0 / PR #17 已跑通自然语言计划、真实 MIDI 素材检索与导入、审批、openDAW 写入、Undo、真实 UI 事件桥接、发声闸门、五套角色素材、电梯过场、六房间巡棚（顶栏 CH、舞台两侧箭头与方向键切台），以及可收起并露出真实 openDAW 的工作台模式；当前集成分支进一步加入 SQLite Index V2、Family/Section Sequence 检索、实际音符与鼓谱分析、跨轨 Bundle 排名、单角色多 Region 写入，以及 Codex/Kimi/Qoder 本地 CLI 三运行时适配；当前活跃轨道角色仍为 drums/bass/keys。
+- **当前事实**：0.3.0 / PR #17–#19 已跑通自然语言计划、真实 MIDI 素材检索与导入、审批、openDAW 写入、Undo、真实 UI 事件桥接、发声闸门、五套角色素材、电梯过场、六房间巡棚、可收起工作台、停靠舞台预览、共享 UI Session 和五房间物件命中区；当前集成分支进一步加入 SQLite Index V2、Family/Section Sequence 检索、实际音符与鼓谱分析、跨轨 Bundle 排名、单角色多 Region 写入，以及 Codex/Kimi/Qoder 本地 CLI 三运行时适配；当前活跃轨道角色仍为 drums/bass/keys。
 - **正式方向**：DAWdex 要创作可持续修改的完整歌曲，不以无限堆叠单一 Loop 为终点。
 - **尚未完成**：持久 Song Blueprint 与可锁定的 Section/Phrase Patch、逐 Section 完整和弦识别、动机发展、正式乐器/音色目录、真实音频电平，以及房间物件与底层 DAW 的完整双向映射（物件面板已通，反向同步未完成）。
 

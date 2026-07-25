@@ -111,6 +111,6 @@ Apply、Undo 与用户干预回执也通过该桥接器进入舞台。Mock 与�
 ## 验证
 
 - `npx tsc --noEmit` 零错误
-- `npm.cmd run test -w @opendaw/app-studio`：10 个文件、35 个测试全部通过
+- `npm.cmd run test -w @opendaw/app-studio`：12 个文件、48 个测试全部通过
 - 无头浏览器截图验证两种模式：默认模式无 Mock 自动播放；`?mock=1`
   演示模式下发声闸门按时间轴逐轨点亮
