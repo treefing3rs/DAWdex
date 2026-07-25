@@ -104,16 +104,113 @@ component
         box-shadow: 0 0 10px rgba($red, 0.85)
         animation: onair-breathe 1.9s ease-in-out infinite
 
-  // ── 舞台（电视机 bezel + 像素屏幕） ──────────────────────────────
-  // 宽度同时受视口高度约束，保证头/输入/操作行/抽屉一屏放下
+  // ── 伪 3D 桌面场景（§9.6：老式电脑 — CRT 显示器 + 平放键盘屏） ──────
+  .desk-scene
+    display: flex
+    flex-direction: column
+    align-items: center
+    width: 100%
+    perspective: 1500px
+    perspective-origin: 50% 8%
+    transform-style: preserve-3d
+    flex: 0 0 auto
+
+  // ── 舞台 = CRT 显示器屏幕（Fig Mint 奶油一体机壳，微微后仰） ────────────
+  // 宽度同时受视口高度约束，保证头/键盘屏/输入/抽屉一屏放下
   .stage-bezel
-    width: min(1080px, 96%, calc((100vh - 250px) * 16 / 9.5))
+    width: min(1200px, 96%, calc((100vh - 420px) * 16 / 9.5))
     aspect-ratio: 16 / 9.5
     padding: 14px
+    border: 1px solid #ddd6c5
     border-radius: 22px
-    background: #26221e
-    box-shadow: 0 2px 0 #3a342e inset, 0 18px 48px rgba(0, 0, 0, 0.35)
+    background: linear-gradient(180deg, #f5f2ea, #e9e4d4)
+    box-shadow: 0 18px 44px rgba(85, 74, 55, 0.26), inset 0 2px 0 rgba(255, 255, 255, 0.85)
     flex: 0 0 auto
+    transform: rotateX(2.5deg)
+    transform-origin: 50% 100%
+    transition: transform 620ms cubic-bezier(0.25, 0.8, 0.25, 1), opacity 620ms ease, filter 620ms ease, visibility 0s
+
+  // CRT 底座（同壳料奶油）
+  .crt-stand
+    width: 130px
+    height: 14px
+    margin-top: -6px
+    background: linear-gradient(180deg, #e9e4d4, #d4cdb9)
+    clip-path: polygon(14% 0, 86% 0, 100% 100%, 0 100%)
+    transition: opacity 620ms ease, visibility 0s
+
+  // ── 键盘甲板（Fig Mint 独立键盘：梯形楔形薄板，后高前低，屏上键下） ──────
+  .keyboard-deck
+    position: relative
+    display: flex
+    flex-direction: column
+    gap: 12px
+    width: min(1240px, 99%)
+    margin-top: -4px
+    margin-bottom: 6px
+    padding: 16px 22px 18px
+    border: 1px solid #ddd6c5
+    border-radius: 14px
+    background: linear-gradient(180deg, #f6f3ea, #ebe5d5)
+    box-shadow: 0 22px 44px rgba(85, 74, 55, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.9)
+    transform: rotateX(45deg)
+    transform-origin: 50% 0
+    transform-style: preserve-3d // 前缘立面与仰角屏活在真 3D 里
+    transition: transform 620ms cubic-bezier(0.25, 0.8, 0.25, 1), width 620ms cubic-bezier(0.25, 0.8, 0.25, 1)
+    // 梯形楔形的"前缘立面"：从甲板前缘垂下的厚度面，让甲板不是一张纸
+    &::before
+      content: ""
+      position: absolute
+      left: 1px
+      right: 1px
+      top: calc(100% - 1px)
+      height: 16px
+      border-radius: 0 0 12px 12px
+      background: linear-gradient(180deg, #ddd7c5, #c8c1ab)
+      box-shadow: 0 10px 18px rgba(85, 74, 55, 0.20)
+      transform: rotateX(-90deg)
+      transform-origin: 50% 0
+      transition: opacity 620ms ease
+
+  // 键盘屏（8-bit 磷光黑芯 + 扫描线；奶油边框，从甲板后缘仰起面向用户）
+  .deck-screen
+    position: relative
+    min-height: 168px
+    border-radius: 10px
+    border: 5px solid #eee9da
+    background: #16121a
+    box-shadow: inset 0 2px 12px rgba(0, 0, 0, 0.7), 0 6px 14px rgba(85, 74, 55, 0.18), 0 1px 0 rgba(255, 255, 255, 0.6)
+    overflow: hidden
+    transform: rotateX(-17deg) // 仰角：不随甲板平躺，立起来朝向用户
+    transform-origin: 50% 100%
+    transition: min-height 620ms cubic-bezier(0.25, 0.8, 0.25, 1)
+    // 扫描线
+    &::after
+      content: ""
+      position: absolute
+      inset: 0
+      pointer-events: none
+      background: repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 3px)
+      z-index: 20
+  .deck-idle
+    display: flex
+    flex-direction: column
+    align-items: center
+    justify-content: center
+    gap: 12px
+    min-height: 168px
+    font-family: "SF Mono", "Courier New", monospace
+    .deck-readout
+      color: $cyan
+      font-size: 15px
+      font-weight: 700
+      letter-spacing: 0.14em
+      text-shadow: 0 0 8px rgba($cyan, 0.55), 0 0 2px rgba($cyan, 0.8)
+    .deck-hint
+      color: rgba($amber, 0.55)
+      font-size: 11px
+      letter-spacing: 0.22em
+      text-shadow: 0 0 6px rgba($amber, 0.3)
 
   .stage
     position: relative
@@ -125,19 +222,7 @@ component
     container-type: size // 角色尺寸以 cqh 锁定舞台高度比例
 
   // 舞台背景：夜晚棚内循环视频（唯一皮肤）
-  .stage-bg-video
-    position: absolute
-    inset: 0
-    width: 100%
-    height: 100%
-    object-fit: cover
-    image-rendering: pixelated
-    user-select: none
-    pointer-events: none
-    &.hidden
-      display: none
-
-  // 巡棚：静态房间背景（与视频同规格，切台硬切）
+  // 巡棚：全部房间静态底图（切台硬切，TV 气质）
   .stage-bg-img
     position: absolute
     inset: 0
@@ -149,6 +234,28 @@ component
     pointer-events: none
     &.hidden
       display: none
+
+  // 演出态皮肤：走带播放时视频淡入（整棚苏醒），sprite/光晕同步淡出
+  .stage-bg-video
+    position: absolute
+    inset: 0
+    width: 100%
+    height: 100%
+    object-fit: cover
+    image-rendering: pixelated
+    user-select: none
+    pointer-events: none
+    opacity: 0
+    transition: opacity 360ms ease
+
+  .stage.video-live
+    .stage-bg-video
+      opacity: 1
+    .obj
+      opacity: 0
+    .lamp-glow
+      animation: none // 动画会覆盖 opacity 声明，需先停掉
+      opacity: 0
 
   // 巡棚演员表：当前房间未列出的角色隐藏（站位按各房间 1600×1065 场景标定）
   .stage[data-room] .performer
@@ -388,8 +495,8 @@ component
       color: rgba(255, 255, 255, 0.8)
       font-size: clamp(11px, 1.3vw, 14px)
 
-  // ── 演播大厅物件热点（Diegetic UI §9，仅 main 房间渲染） ──
-  // 坐标：1920×1080 视频帧标定 → cover 换算（stage_x% = fx*105.56 - 2.78，y 不裁）
+  // ── 演播大厅物件分层（Diegetic UI §9，仅 main 房间渲染） ──
+  // sprite 视觉层 + clip-path 轮廓命中层；坐标：1920×1080 帧标定 → cover 换算
   .hotspots
     position: absolute
     inset: 0
@@ -399,29 +506,140 @@ component
   .stage:not([data-room="main"]) .hotspots
     display: none
 
-  .hotspot
+  // ── sprite 视觉层（不接收事件；hover 动画由命中层 :has 联动） ──
+  .obj
+    position: absolute
+    pointer-events: none
+    user-select: none
+    image-rendering: pixelated
+    transition: opacity 300ms ease, filter 200ms ease
+  // 原位替身：与底图同像素，须与底图同算法缩放，否则边缘会露出重影
+  .obj-copy
+    image-rendering: auto
+  .obj-lamp
+    left: 62.92%
+    top: 0
+    width: 11.83%
+    transform-origin: 50% 0
+    animation: lamp-sway 4.6s ease-in-out infinite // 「微晃的灯」：idle 唯一循环动效
+  .obj-monitor
+    left: 16.47%
+    top: 41.1%
+    width: 11.65%
+  .obj-guitar
+    left: 49.73%
+    top: 63%
+    width: 8.52%
+    transform-origin: 50% 100%
+  .obj-art
+    left: 55.2%
+    top: 34.7%
+    width: 27.5%
+  .obj-shelf
+    left: 89.6%
+    top: 41.7%
+    width: 10.45%
+  .obj-clock
+    left: 92.06%
+    top: 22.7%
+    width: 7.97%
+
+  // hover 联动：只有被 hover 的物件动（其余保持静态）
+  .hotspots:has(.hit-lamp:hover) .obj-lamp
+    animation-duration: 1.6s
+  .hotspots:has(.hit-monitor:hover) .obj-monitor
+    filter: brightness(1.3) saturate(1.15)
+  .hotspots:has(.hit-guitar:hover) .obj-guitar
+    animation: guitar-sway 0.9s ease-in-out infinite
+  // 原位替身 hover：物件自己的像素变亮（无遮罩、无描边框）
+  .hotspots:has(.hit-art:hover) .obj-art,
+  .hotspots:has(.hit-shelf:hover) .obj-shelf,
+  .hotspots:has(.hit-clock:hover) .obj-clock
+    filter: brightness(1.45) saturate(1.2)
+  // hover 调音台：未发声的通道灯淡淡显现（可发现性线索）；发声后由 .on 常亮
+  .hotspots:has(.hit-desk:hover) .rack-led:not(.on)
+    opacity: 0.55
+
+  // ── 轮廓命中层（clip-path 沿物件真实轮廓） ──
+  // 命中层全程透明：hover 反馈 = 物件自身像素变亮/动起来（:has 联动）+ 像素风名签
+  .obj-hit
     position: absolute
     pointer-events: auto
     cursor: pointer
-    border-radius: 6px
-    transition: background 180ms ease, box-shadow 180ms ease
-    &:hover
-      background: rgba(255, 255, 255, 0.06)
-      box-shadow: 0 0 0 1px rgba($amber, 0.55), 0 0 18px rgba($amber, 0.25)
-
-  // REC 监视器（视频帧 x330-505 y440-575）= 真实走带播放/暂停
-  .rec-monitor
-    left: 15.2%
-    top: 40.5%
-    width: 9.9%
-    height: 12.8%
-
-  // 沙发旁的吉他（视频帧 x880-1070 y680-1075）= 换乐器干预
-  .guitar
-    left: 45.4%
-    top: 62.5%
-    width: 10.6%
-    height: 37%
+    &::after
+      content: attr(data-label)
+      position: absolute
+      bottom: calc(100% + 8px)
+      left: 50%
+      transform: translateX(-50%)
+      padding: 2px 7px
+      border-radius: 3px
+      border: 1px solid rgba($amber, 0.55)
+      background: rgba(14, 11, 8, 0.88)
+      color: $amber
+      font-size: clamp(10px, 1vw, 12px)
+      letter-spacing: 0.06em
+      white-space: nowrap
+      opacity: 0
+      transition: opacity 150ms ease
+    &:hover::after
+      opacity: 1
+  .hit-lamp
+    left: 62.92%
+    top: 0
+    width: 11.83%
+    height: 31%
+    clip-path: polygon(45.6% 0%, 50.7% 0%, 50.7% 63.3%, 77.7% 63.3%, 93.5% 89.6%, 65.6% 89.6%, 65.6% 97.3%, 34.9% 97.3%, 34.9% 89.6%, 6% 89.6%, 17.2% 63.3%, 45.6% 63.3%)
+    &::after // 吊灯贴顶棚，标签改放灯罩下方
+      bottom: auto
+      top: calc(100% + 8px)
+  .hit-monitor
+    left: 16.47%
+    top: 41.1%
+    width: 11.65%
+    height: 18.9%
+    clip-path: polygon(2.4% 2%, 97.6% 2%, 97.6% 79.4%, 64.6% 79.4%, 64.6% 98%, 36.8% 98%, 36.8% 79.4%, 2.4% 79.4%)
+  .hit-guitar
+    left: 49.73%
+    top: 63%
+    width: 8.52%
+    height: 36.9%
+    clip-path: polygon(34.2% 1.3%, 69% 1.3%, 69% 56.5%, 83% 55.5%, 94.8% 63.8%, 90.3% 83.4%, 83.2% 97.5%, 22.6% 99.5%, 5.2% 90.5%, 8.4% 67.6%, 14.8% 55%, 34.2% 56.5%)
+  .hit-desk
+    left: 15.1%
+    top: 68.1%
+    width: 12.9%
+    height: 11.1%
+    clip-path: polygon(2% 18%, 98% 0%, 100% 100%, 0% 100%)
+  // 声波城市挂画（帧 x1055-1555 y375-630）→ 工程概览面板
+  .hit-art
+    left: 55.2%
+    top: 34.7%
+    width: 27.5%
+    height: 23.6%
+    border-radius: 2px
+  // 右侧书架（帧 x1680-1905 y450-1080，右缘被 cover 裁掉）→ 素材架面板
+  .hit-shelf
+    left: 89.6%
+    top: 41.7%
+    width: 10.4%
+    height: 58.3%
+    border-radius: 2px
+    &::after // 右缘物件：标签右对齐避免溢出
+      left: auto
+      right: 0
+      transform: none
+  // 挂钟（帧 x1725-1885 y245-385）→ 循环面板；指针已是 loopPos 绑定
+  .hit-clock
+    left: 92.1%
+    top: 22.7%
+    width: 7.9%
+    height: 12.9%
+    border-radius: 50%
+    &::after
+      left: auto
+      right: 0
+      transform: none
 
   // 调音台角色色通道灯（视频帧 y768；x 370/435/500）= TrackAudibleChanged 发声确认
   .rack-led
@@ -432,7 +650,10 @@ component
     border-radius: 50%
     background: #39322b
     box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.65)
-    transition: background 200ms ease, box-shadow 200ms ease
+    opacity: 0 // 未发声不常驻：hover 调音台淡显（发现线索），TrackAudibleChanged 后 .on 常亮
+    transition: opacity 200ms ease, background 200ms ease, box-shadow 200ms ease
+    &.on
+      opacity: 1
     &[data-role="drums"]
       left: 17.2%
       &.on
@@ -449,7 +670,7 @@ component
         background: $magenta
         box-shadow: 0 0 8px rgba($magenta, 0.95), 0 0 2px $magenta
 
-  // 吊灯光晕（视频帧中心 x1295 y290）= 走带能量指示，播放时亮起
+  // 吊灯光晕：平时缓慢呼吸（环境生命感）；播放时增强
   .lamp-glow
     position: absolute
     left: 58.5%
@@ -457,12 +678,11 @@ component
     width: 20%
     height: 32%
     border-radius: 50%
-    background: radial-gradient(ellipse at center, rgba(255, 196, 90, 0.50), rgba(255, 196, 90, 0) 68%)
+    background: radial-gradient(ellipse at center, rgba(255, 196, 90, 0.55), rgba(255, 196, 90, 0) 68%)
     mix-blend-mode: screen
-    opacity: 0
-    transition: opacity 600ms ease
+    animation: lamp-breathe 4.6s ease-in-out infinite
     &.lit
-      opacity: 1
+      animation: lamp-breathe-lit 4.6s ease-in-out infinite
 
   // 墙上时钟指针（视频帧中心 x1780 y315）= 循环进度，随 loopPos 旋转
   .clock-hand
@@ -475,6 +695,170 @@ component
     border-radius: 2px
     transform-origin: 50% 100%
     pointer-events: none
+
+  // ── 可交互引导：8-bit 闪光点，周期眨一下提示「这里能点」；hover 过一次即熄灭 ──
+  .hint-glint
+    position: absolute
+    width: 7px
+    height: 7px
+    pointer-events: none
+    background: #ffe9a8
+    transform: rotate(45deg)
+    box-shadow: 0 0 6px rgba(255, 214, 120, 0.9)
+    opacity: 0
+    animation: glint-blink 4.6s linear infinite
+    &.seen
+      display: none
+  .glint-lamp
+    left: 73.6%
+    top: 25.5%
+    animation-delay: 0s
+  .glint-monitor
+    left: 27.4%
+    top: 41.5%
+    animation-delay: 0.7s
+  .glint-guitar
+    left: 57.3%
+    top: 63.5%
+    animation-delay: 1.4s
+  .glint-desk
+    left: 27.2%
+    top: 68.5%
+    animation-delay: 2.1s
+  .glint-art
+    left: 81.9%
+    top: 35.2%
+    animation-delay: 2.8s
+  .glint-shelf
+    left: 90.2%
+    top: 42.2%
+    animation-delay: 3.5s
+  .glint-clock
+    left: 91.5%
+    top: 22.2%
+    animation-delay: 4.1s
+
+  // ── 物件功能面板（落在键盘屏上：点击物件 → 屏幕点亮显示内容，§9.4） ──
+  .object-panel
+    position: absolute
+    inset: 0
+    z-index: 10
+    background: rgba($shell-bg, 0.98)
+    color: $shell-text
+    animation: deck-screen-on 220ms ease-out
+    &:empty
+      display: none
+    .panel-inner
+      display: flex
+      flex-direction: column
+      height: 100%
+      padding: 16px 14px 12px
+      gap: 12px
+    .panel-head
+      display: flex
+      justify-content: space-between
+      align-items: center
+      font-size: 13px
+      letter-spacing: 0.08em
+      padding-bottom: 8px
+      border-bottom: 1px solid $shell-line
+    .panel-close
+      border: 1px solid $shell-line
+      border-radius: 6px
+      background: #fff
+      color: $shell-muted
+      width: 24px
+      height: 24px
+      font-size: 11px
+      cursor: pointer
+      &:hover
+        color: $shell-text
+        border-color: $shell-muted
+    .panel-body
+      flex: 1
+      overflow-y: auto
+      display: flex
+      flex-direction: column
+      gap: 10px
+      font-size: 12px
+    .panel-row
+      display: flex
+      gap: 8px
+      &.big
+        font-size: 14px
+    .panel-readout
+      font-weight: 800
+      letter-spacing: 0.06em
+      color: $shell-text
+    .panel-sub
+      font-size: 10px
+      font-weight: 700
+      letter-spacing: 0.18em
+      color: $shell-muted
+    .panel-primary
+      padding: 8px 12px
+      border: 1px solid $shell-line
+      border-radius: 8px
+      background: #fff
+      color: $shell-text
+      font-size: 12px
+      cursor: pointer
+      &:hover
+        border-color: $shell-muted
+        background: $shell-text
+        color: #fff
+    .panel-note
+      color: $shell-muted
+      font-size: 11px
+      line-height: 1.7
+    .panel-tracks
+      display: flex
+      flex-direction: column
+      gap: 6px
+    .panel-track
+      display: flex
+      align-items: center
+      gap: 8px
+      padding: 6px 8px
+      border: 1px solid $shell-line
+      border-radius: 8px
+      background: rgba(255, 255, 255, 0.6)
+      .track-dot
+        width: 8px
+        height: 8px
+        border-radius: 50%
+        background: #d6d2ca
+        flex: 0 0 auto
+        &.on
+          background: $mint
+          box-shadow: 0 0 6px rgba($mint, 0.8)
+      &[data-role="drums"] .track-dot.on
+        background: $amber
+        box-shadow: 0 0 6px rgba($amber, 0.8)
+      &[data-role="keys"] .track-dot.on
+        background: $magenta
+        box-shadow: 0 0 6px rgba($magenta, 0.8)
+      .track-name
+        flex: 1
+        overflow: hidden
+        text-overflow: ellipsis
+        white-space: nowrap
+      .track-meta
+        color: $shell-muted
+        font-size: 10px
+    .panel-foot
+      padding-top: 8px
+      border-top: 1px solid $shell-line
+    .panel-daw-link
+      border: none
+      background: none
+      color: $shell-muted
+      font-size: 11px
+      cursor: pointer
+      padding: 0
+      &:hover
+        color: $shell-text
+        text-decoration: underline
 
   // 权威时钟 + 循环进度
   .transport
@@ -506,8 +890,10 @@ component
         background: $cyan
         box-shadow: 0 0 8px rgba($cyan, 0.8)
 
-  // ── 底部输入（Kimi 风） ──────────────────────────────────────────
+  // ── 底部输入（Kimi 风；z-index 保证画在透视甲板之前） ──────────────
   .composer
+    position: relative
+    z-index: 2
     width: min(720px, 92%)
     display: flex
     gap: 8px
@@ -516,7 +902,7 @@ component
     border-radius: 14px
     background: #fff
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06)
-    transition: width 0.3s ease, opacity 0.3s ease
+    transition: width 0.3s ease, opacity 0.3s ease, transform 620ms cubic-bezier(0.25, 0.8, 0.25, 1)
     input
       flex: 1
       border: none
@@ -537,7 +923,7 @@ component
       &:hover
         opacity: 0.85
 
-  // FR-09 操作行
+  // FR-09 操作行（默认样式；落在键盘甲板里时变为物理键帽）
   .interventions
     display: flex
     flex-wrap: wrap
@@ -556,12 +942,88 @@ component
       &:active
         transform: scale(0.95)
 
+  // 甲板键帽 = Fig Mint 立体键：顶面近白、侧壁可见、独立投影悬浮于板面
+  // 巧思：六颗功能键按真键盘弧形列高排布（两端低、中间高），撤销键加宽，设置键收尾
+  .keyboard-deck .interventions
+    gap: 12px
+    margin-top: 4px
+    align-items: flex-end
+    button
+      border: 1px solid #d9d2bf
+      border-radius: 8px
+      padding: 11px 20px 12px
+      min-height: 44px
+      font-size: 12px
+      letter-spacing: 0.05em
+      background: linear-gradient(180deg, #fcf9f2 0%, #f4efe1 55%, #eae3d0 100%)
+      color: #6b6353
+      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8)
+      box-shadow: 0 4px 0 #cfc7b2, 0 9px 14px rgba(85, 74, 55, 0.22), inset 0 1px 0 #fff
+      transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease
+      // 弧形列高（smile curve）
+      &:nth-child(1), &:nth-child(6)
+        transform: translateY(3px)
+      &:nth-child(2), &:nth-child(5)
+        transform: translateY(-1px)
+      &:nth-child(3), &:nth-child(4)
+        transform: translateY(-4px)
+      &:hover
+        filter: brightness(1.03)
+        box-shadow: 0 4px 0 #cfc7b2, 0 12px 18px rgba(85, 74, 55, 0.28), inset 0 1px 0 #fff
+      &:active
+        transform: translateY(4px)
+        box-shadow: 0 0 0 #cfc7b2, 0 1px 2px rgba(85, 74, 55, 0.18), inset 0 1px 0 #fff
+      // 撤销键：加宽一档，像真键盘上的大键
+      &[data-kind="undo"]
+        padding-left: 30px
+        padding-right: 30px
+      // 设置系统键：方正小键，低半头，像键盘上的功能小键
+      &.sys-key
+        padding: 8px 14px 9px
+        min-height: 36px
+        font-size: 11px
+        border-radius: 7px
+        background: linear-gradient(180deg, #f1ecdd 0%, #e7e0cd 60%, #dcd5bf 100%)
+        color: #857c68
+        box-shadow: 0 3px 0 #c6beaa, 0 7px 11px rgba(85, 74, 55, 0.20), inset 0 1px 0 rgba(255, 255, 255, 0.9)
+        transform: translateY(6px)
+        &:active
+          transform: translateY(8px)
+          box-shadow: 0 0 0 #c6beaa, 0 1px 2px rgba(85, 74, 55, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.9)
+
+  // ── 运镜：面板打开 = 进入 L2 —— 演播大厅（CRT）整个退场，键盘屏居中放大 ──
+  .desk-scene.deck-focus
+    .stage-bezel
+      transform: rotateX(2.5deg) translateY(-36px) scale(0.92)
+      opacity: 0
+      visibility: hidden // L1 内容从这一层拿掉，不是压暗当背景
+      pointer-events: none
+      transition: transform 620ms cubic-bezier(0.25, 0.8, 0.25, 1), opacity 620ms ease, visibility 0s 620ms
+    .crt-stand
+      opacity: 0
+      visibility: hidden
+      transition: opacity 620ms ease, visibility 0s 620ms
+    .keyboard-deck
+      width: min(1100px, 92%)
+      transform: rotateX(0deg) translateY(-40vh) // L2 放平成正视控制台，升到视口中央
+      &::before
+        opacity: 0 // 正视时前缘立面收起，避免悬浮残影
+    .deck-screen
+      min-height: min(46vh, 470px) // 屏幕自适应放大，面板内容完整可读
+      transform: rotateX(0deg) // 屏幕完全正对用户，内容为王
+
+  // L2 联动：甲板变高会把输入条/抽屉挤到屏外，它们跟随甲板一起上移
+  .desk-scene.deck-focus ~ .composer,
+  .desk-scene.deck-focus ~ .drawer
+    transform: translateY(-40vh)
+
   // ── 证据抽屉 ─────────────────────────────────────────────────────
   .drawer
     width: min(720px, 92%)
     border: 1px solid $shell-line
     border-radius: 12px
     background: #fff
+    transition: transform 620ms cubic-bezier(0.25, 0.8, 0.25, 1)
     summary
       padding: 10px 16px
       font-size: 13px
@@ -658,12 +1120,21 @@ component
       .event-dot
         background: $mint
 
-  // ── 投屏演示模式（§12.5-5：隐藏 C 区、缩小 B 区、A 区最大化） ────
+  // ── 投屏演示模式（§12.5-5：隐藏 C 区、缩小 B 区、A 区最大化；3D 壳压平省空间） ────
   &.presentation
     gap: 6px
+    .desk-scene
+      perspective: none
     .stage-bezel
-      width: min(1560px, 98%, calc((100vh - 130px) * 16 / 9.5))
-    .interventions,
+      width: min(1560px, 98%, calc((100vh - 260px) * 16 / 9.5))
+      transform: none
+    .crt-stand
+      display: none
+    .keyboard-deck
+      transform: none
+      margin-bottom: 0
+      .interventions
+        display: none
     .drawer
       display: none
     .composer
@@ -679,9 +1150,8 @@ component
     pointer-events: none
     overflow: visible
     padding: 0
-    .stage-bezel,
+    .desk-scene,
     .composer,
-    .interventions,
     .drawer,
     .intro-splash
       display: none
@@ -726,6 +1196,24 @@ component
       content: "· "
       color: $shell-line
 
+  // ── 窄屏/矮屏：伪 3D 壳压平为平面布局，保证可读可操作 ──────────────
+  @media (max-width: 900px), (max-height: 720px)
+    .desk-scene
+      perspective: none
+    .stage-bezel
+      transform: none
+      width: min(1080px, 96%, calc((100vh - 470px) * 16 / 9.5))
+    .crt-stand
+      display: none
+    .keyboard-deck
+      transform: none
+      margin-bottom: 0
+    .desk-scene.deck-focus
+      .stage-bezel, .keyboard-deck
+        transform: none
+        opacity: 1
+        filter: none
+
 // ── 动效关键帧 ─────────────────────────────────────────────────────
 @keyframes danmaku-fly
   to
@@ -746,6 +1234,35 @@ component
 @keyframes lamp-blink
   50%
     opacity: 0.35
+
+// 吊灯微晃：idle 唯一循环动效（±0.9°，4.6s 与光晕呼吸同周期）
+@keyframes lamp-sway
+  0%, 100%
+    transform: rotate(0.9deg)
+  50%
+    transform: rotate(-0.9deg)
+
+// 吉他 hover 摇摆（支点在琴底）
+@keyframes guitar-sway
+  0%, 100%
+    transform: rotate(0deg)
+  30%
+    transform: rotate(-1.4deg)
+  70%
+    transform: rotate(1deg)
+
+// 吊灯光晕呼吸：平时环境生命感 / 播放时增强
+@keyframes lamp-breathe
+  0%, 100%
+    opacity: 0.16
+  50%
+    opacity: 0.36
+
+@keyframes lamp-breathe-lit
+  0%, 100%
+    opacity: 0.55
+  50%
+    opacity: 0.9
 
 @keyframes performer-bob
   0%
@@ -780,6 +1297,26 @@ component
 @keyframes rec-blink
   50%
     opacity: 0.25
+
+// 键盘屏点亮：面板打开时的「屏幕开机」感
+@keyframes deck-screen-on
+  0%
+    opacity: 0
+    filter: brightness(2.2)
+  60%
+    opacity: 1
+    filter: brightness(1.3)
+  100%
+    filter: brightness(1)
+
+// 闪光点：大部分时候隐身，每周期快速眨一下（8-bit 拾取提示感）
+@keyframes glint-blink
+  0%, 86%, 100%
+    opacity: 0
+    transform: rotate(45deg) scale(0.4)
+  90%, 94%
+    opacity: 1
+    transform: rotate(45deg) scale(1)
 
 // ── Provider 状态（Codex 连接，抽屉顶部 + 壳上状态点） ─────────────────
 component

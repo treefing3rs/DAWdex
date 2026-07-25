@@ -36,6 +36,8 @@ export const MOCK_TIMELINE_90S: UiEvent[] = [
     brief: {bpm: 128, key: 'A minor', bars: 4, energyChange: 2, tensionChange: 2, preserve: ['keys']},
     echo: '制作人：这条采纳了——Boss 登场感，安排！钢琴不动。',
   }),
+  ev({type: 'DanmakuReceived', at: 20500, danmakuId: 'd-ai-1b', author: 'ai-fan', text: '制作人选它了！'}),
+  ev({type: 'DanmakuReceived', at: 22000, danmakuId: 'd-ai-1c', author: 'ai-fan', text: 'Boss 登场感 +1'}),
 
   // ── 30–45s：角色领任务 ──────────────────────────────────────────────────
   ev({
@@ -61,6 +63,7 @@ export const MOCK_TIMELINE_90S: UiEvent[] = [
   ev({type: 'RoleStateChanged', at: 44000, role: 'drums', state: 'queued'}),
   ev({type: 'RoleStateChanged', at: 45000, role: 'drums', state: 'performing', trackRef: 'track-drums-1'}),
   ev({type: 'TrackAudibleChanged', at: 45000, role: 'drums', audible: true, enteredAtBar: 1}),
+  ev({type: 'DanmakuReceived', at: 46500, danmakuId: 'd-ai-2a', author: 'ai-fan', text: '鼓来了鼓来了'}),
 
   ev({type: 'RoleStateChanged', at: 52000, role: 'bass', state: 'queued'}),
   ev({type: 'RoleStateChanged', at: 52500, role: 'bass', state: 'performing', trackRef: 'track-bass-1'}),
@@ -71,6 +74,7 @@ export const MOCK_TIMELINE_90S: UiEvent[] = [
   ev({type: 'RoleStateChanged', at: 60000, role: 'keys', state: 'performing', trackRef: 'track-keys-1'}),
   ev({type: 'TrackAudibleChanged', at: 60000, role: 'keys', audible: true, enteredAtBar: 1}),
   ev({type: 'OperationResult', at: 60500, operationRef: 'plan-1', kind: 'apply', ok: true, fallbackUsed: false, message: 'plan-1 三轨全部确认发声'}),
+  ev({type: 'DanmakuReceived', at: 61500, danmakuId: 'd-ai-2b', author: 'ai-fan', text: '钢琴这层亮起来了'}),
 
   // ── 68–80s：用户再次干预 ────────────────────────────────────────────────
   ev({type: 'DanmakuReceived', at: 69000, danmakuId: 'd-u-3', author: 'user', text: '再加一点推进感'}),
@@ -81,6 +85,7 @@ export const MOCK_TIMELINE_90S: UiEvent[] = [
     brief: {bpm: 128, key: 'A minor', bars: 4, energyChange: 1, preserve: ['keys']},
     echo: '制作人：推进感再加一档，贝斯 variation 换密一点的。',
   }),
+  ev({type: 'DanmakuReceived', at: 73500, danmakuId: 'd-ai-3a', author: 'ai-fan', text: '推进感 +1+1'}),
   ev({
     type: 'RoleTaskAssigned', at: 75000, role: 'bass',
     summary: '根音 pattern 换成十六分变体', audibleResult: '低频会更急促',
@@ -92,6 +97,7 @@ export const MOCK_TIMELINE_90S: UiEvent[] = [
   // ── 80–90s：变体在循环边界生效，收尾 ────────────────────────────────────
   ev({type: 'RoleStateChanged', at: 82500, role: 'bass', state: 'performing', trackRef: 'track-bass-1'}),
   ev({type: 'OperationResult', at: 83000, operationRef: 'plan-2', kind: 'intervention', ok: true, fallbackUsed: false}),
+  ev({type: 'DanmakuReceived', at: 84500, danmakuId: 'd-ai-3b', author: 'ai-fan', text: '这版可以循环一晚上'}),
   ev({type: 'DanmakuReceived', at: 86000, danmakuId: 'd-sys-2', author: 'system', text: '观众说人话，AI 乐队把它变成真正可编辑的音乐'}),
 ]
 
