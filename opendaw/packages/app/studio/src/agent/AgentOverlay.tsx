@@ -13,8 +13,11 @@ import type {
     DanmakuAuthor, InterventionKind, RoleId, RoleState, UiEvent
 } from "./ui-contract"
 import {playMockTimeline} from "./mock-timeline"
+import {DawdexStagePreview} from "@/ui/devices/panel/DawdexStagePreview"
 import {DAWDEX_PRODUCER, DAWDEX_ROOMS, DAWDEX_STAGE_ROLES} from "./DawdexStageAssets"
-import {getDawdexUiSession, shouldPlayDawdexVideo, type DawdexViewMode} from "./DawdexUiSession"
+import {
+    DawdexProjectModeController, getDawdexUiSession, shouldPlayDawdexVideo, type DawdexViewMode
+} from "./DawdexUiSession"
 
 const className = Html.adoptStyleSheet(css, "AgentOverlay")
 
@@ -66,6 +69,9 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     const lastEvent: HTMLElement = (<span className="last-event"/>)
     // 屏幕内 REC 灯牌（权威播放指示，与 ON AIR 同源）
     const recBadge: HTMLElement = (<div className="rec-badge standby">STANDBY</div>)
+    // 显示器上的「新建工程」键：产品页出发的建工程入口——点击后 DAW 自动建工程并直落工作台
+    const newProjectButton: HTMLButtonElement = (
+        <button type="button" className="new-project" title="新建 openDAW 工程并进入工作台">＋ 新建工程</button>)
     // 巡棚：全部房间均为静态底图（切台硬切，TV 气质）
     const stageImg: HTMLImageElement = (
         <img className="stage-bg-img" alt="" draggable={false}/>)
@@ -166,6 +172,7 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
                 {clockHand}
             </div>
             {recBadge}
+            {newProjectButton}
             <div className="transport">
                 {transportReadout}
                 <div className="loop-bar">{transportBar}</div>
@@ -1065,6 +1072,12 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     const introTimer = window.setTimeout(dismissIntro, 2600)
     lifecycle.own(Terminable.create(() => window.clearTimeout(introTimer)))
 
+    // ── 工作台缩略视窗停靠层：收起态常驻右下角，不依赖 Devices 面板 ─────────
+    const previewDock: HTMLElement = (
+        <div className="preview-dock">
+            <DawdexStagePreview lifecycle={lifecycle} service={service}/>
+        </div>)
+
     // ── 根节点（投屏演示模式作用于此） ───────────────────────────────────────
     const root: HTMLElement = (
         <div className={className}>
@@ -1092,6 +1105,7 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
                 {planSlot}
                 {activity}
             </details>
+            {previewDock}
         </div>
     )
 
@@ -1183,6 +1197,21 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     }
     // 支持 ?workbench=1 深链：直接以收起态（openDAW 工作台）启动
     if (new URLSearchParams(window.location.search).has("workbench")) {setCollapsed(true)}
+    // 打开/新建任何工程 ⇒ 直落工作台，右下角缩略视窗即刻可见；
+    // Agent 在舞台内自动补建工程（isBusy）时不切形态，不打断正在观看的演出。
+    // 同一订阅维护：显示器「新建工程」键只在无工程时亮起；缩略窗停靠层只在有工程时可用。
+    const projectMode = new DawdexProjectModeController(uiSession)
+    lifecycle.own(service.projectProfileService.catchupAndSubscribe(option => {
+        const hasProject = option.nonEmpty()
+        newProjectButton.classList.toggle("hidden", hasProject)
+        previewDock.classList.toggle("available", hasProject)
+        projectMode.update(hasProject, isBusy)
+    }))
+    lifecycle.own(Events.subscribe(newProjectButton, "click", event => {
+        event.stopPropagation()
+        newProjectButton.disabled = true
+        service.newProject().finally(() => newProjectButton.disabled = false)
+    }))
     // 支持 ?panel=monitor|desk|guitar|lamp|art|shelf|clock|settings 深链：直接打开物件功能面板（演示导航用）
     const initialPanel = new URLSearchParams(window.location.search).get("panel")
     if (initialPanel === "monitor" || initialPanel === "desk"

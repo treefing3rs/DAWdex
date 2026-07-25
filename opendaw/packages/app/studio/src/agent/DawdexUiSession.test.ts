@@ -1,6 +1,11 @@
 import {describe, expect, it} from "vitest"
 import {dawdexRoom} from "./DawdexStageAssets"
-import {DawdexUiSession, getDawdexUiSession, shouldPlayDawdexVideo} from "./DawdexUiSession"
+import {
+    DawdexProjectModeController,
+    DawdexUiSession,
+    getDawdexUiSession,
+    shouldPlayDawdexVideo
+} from "./DawdexUiSession"
 
 describe("DawdexUiSession", () => {
     it("switches between product and workbench without resetting stage state", () => {
@@ -96,5 +101,36 @@ describe("DawdexUiSession", () => {
 
         session.setWorkbench(false)
         expect(session.viewMode.getValue()).toBe("product")
+    })
+
+    it("drops every newly opened project into the workbench without resetting the stage", () => {
+        const session = new DawdexUiSession()
+        const controller = new DawdexProjectModeController(session)
+        session.setRoom("keys")
+
+        controller.update(true)
+
+        expect(session.viewMode.getValue()).toBe("workbench")
+        expect(session.stage.getValue().roomId).toBe("keys")
+
+        session.setViewMode("product")
+        controller.update(true)
+        expect(session.viewMode.getValue()).toBe("product")
+
+        controller.update(false)
+        controller.update(true)
+        expect(session.viewMode.getValue()).toBe("workbench")
+    })
+
+    it("keeps the stage in front when the agent creates the project itself", () => {
+        const session = new DawdexUiSession()
+        const controller = new DawdexProjectModeController(session)
+
+        controller.update(true, true)
+        expect(session.viewMode.getValue()).toBe("product")
+
+        controller.update(false)
+        controller.update(true)
+        expect(session.viewMode.getValue()).toBe("workbench")
     })
 })

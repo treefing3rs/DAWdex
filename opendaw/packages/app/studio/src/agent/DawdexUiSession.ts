@@ -110,6 +110,27 @@ export class DawdexUiSession {
     }
 }
 
+// 工程打开事件 → 形态策略：新建/打开任何工程都直落 openDAW 工作台，
+// 右下角缩略视窗即刻可见（点缩略窗随时回完整演播厅）。
+// 只在「无工程 → 有工程」上升沿动作，不触碰舞台状态，也不干扰用户手动切换；
+// suppressSwitch 供舞台内 Agent 自动补建工程使用——不打断正在观看的演出。
+export class DawdexProjectModeController {
+    readonly #session: DawdexUiSession
+
+    #hadProject = false
+
+    constructor(session: DawdexUiSession) {
+        this.#session = session
+    }
+
+    update(hasProject: boolean, suppressSwitch: boolean = false): void {
+        const opened = hasProject && !this.#hadProject
+        this.#hadProject = hasProject
+        if (!opened || suppressSwitch) {return}
+        this.#session.setViewMode("workbench")
+    }
+}
+
 const sessions = new WeakMap<StudioService, DawdexUiSession>()
 
 export const getDawdexUiSession = (service: StudioService): DawdexUiSession => {
