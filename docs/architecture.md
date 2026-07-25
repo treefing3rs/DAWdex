@@ -1,9 +1,6 @@
 # DAWdex 系统架构
 
-> 当前代码证据：Structured Plan、SQLite Retriever、Approval、DAW Write/Rollback、Operation Ref
-> 当前可运行展示：Drums / Bass / Keys 三角色 Guided Demo
-> 正在接入：单乐器、单轨道、Intro → Verse → Chorus → Bridge
-> 正式方向：多乐器、多轨道的完整歌曲 AI 虚拟录音棚 Harness
+本文回答系统如何分层、数据如何流动：DAWdex 在用户意图与真实 openDAW 工程之间，靠哪些组件完成计划、检索、审批、写入与回滚，以及当前实现与下一阶段的边界在哪里。
 
 ## 一、架构结论
 

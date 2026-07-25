@@ -1,8 +1,6 @@
 # DAWdex 技术方案
 
-> 适用范围：仓库技术证据、当前 Guided Demo、正在接入的展示切片，以及完整歌曲扩展
-
-本文严格区分五层事实：
+本文是工程契约：约定模块接口、MIDI 数据主链、运行时组件与验证命令，供实现与核对使用。行文严格区分五层事实：
 
 - **产品意义**：用受控、可追踪的音乐操作替代黑盒 Prompt-to-Audio；
 - **当前代码证据**：Structured Plan、SQLite Retriever、Approval Gate、DAW Write/Rollback、Operation Ref；

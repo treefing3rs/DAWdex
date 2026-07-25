@@ -1,7 +1,6 @@
 # DAWdex 公开演示脚本
 
-> 当前可运行：Drums / Bass / Keys 三角色 Guided Demo
-> 正在接入：单乐器、单轨道、`Intro → Verse → Chorus → Bridge`
+本文是现场演示的操作脚本：开机检查、演示动线、讲解口径与收尾话术，照此执行即可完成一场不超出当前能力的演示。
 
 ## 一、演示边界
 
