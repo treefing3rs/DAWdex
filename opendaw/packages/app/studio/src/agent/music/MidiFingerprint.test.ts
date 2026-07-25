@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vitest"
-import {midiFingerprint} from "./PatternCompiler"
+import {midiFingerprint} from "./MidiFingerprint"
 
 const notes = [
     {position: 0, duration: 480, pitch: 60, velocity: 0.8},

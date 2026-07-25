@@ -53,9 +53,25 @@ describe("compileMidiAsset", () => {
     it("maps General MIDI drum roles onto the audible Playfield TR kit octave", () => {
         const notes = compileMidiAsset(singleNoteMidi(36), "drums", 4, 5)
         expect(notes.every(note => note.pitch === 60)).toBe(true)
-        expect(compileMidiAsset(singleNoteMidi(38), "drums", 1)[0].pitch).toBe(62)
+        expect(compileMidiAsset(singleNoteMidi(38), "drums", 1)[0].pitch).toBe(61)
+        expect(compileMidiAsset(singleNoteMidi(41), "drums", 1)[0].pitch).toBe(62)
         expect(compileMidiAsset(singleNoteMidi(42), "drums", 1)[0].pitch).toBe(67)
         expect(compileMidiAsset(singleNoteMidi(46), "drums", 1)[0].pitch).toBe(68)
+    })
+
+    it("uses kit-specific crash slots and drops unsupported Toontrack articulations", () => {
+        expect(compileMidiAsset(singleNoteMidi(49), "drums", 1, 0, {
+            sourcePath: "drums/MIDI/rock/crash.mid",
+            drumKit: "TR-808"
+        })[0].pitch).toBe(70)
+        expect(compileMidiAsset(singleNoteMidi(49), "drums", 1, 0, {
+            sourcePath: "drums/MIDI/rock/crash.mid",
+            drumKit: "TR-909"
+        })[0].pitch).toBe(69)
+        expect(() => compileMidiAsset(singleNoteMidi(22), "drums", 1, 0, {
+            sourcePath: "drums/MIDI/rock/unknown-articulation.mid",
+            drumKit: "TR-909"
+        })).toThrow("empty after fitting")
     })
 
     it("applies bundle key transposition to pitched roles before fitting their register", () => {

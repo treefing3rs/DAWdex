@@ -254,6 +254,26 @@ describe("DawProjectAdapter", () => {
                     midiAssetId: role,
                     midiAssetPath: actualAssets.get(role)!,
                     transposeSemitones: 0,
+                    midiSections: [
+                        {
+                            assetId: role,
+                            assetPath: actualAssets.get(role)!,
+                            label: "Intro",
+                            sectionKind: "intro",
+                            startBar: 1,
+                            bars: 4,
+                            transposeSemitones: 0
+                        },
+                        {
+                            assetId: role,
+                            assetPath: actualAssets.get(role)!,
+                            label: "Theme",
+                            sectionKind: "develop",
+                            startBar: 5,
+                            bars: 4,
+                            transposeSemitones: 0
+                        }
+                    ],
                     sound: role === "drums"
                         ? {
                             ...createRoleTrackSound(role, "dubstep"),
@@ -278,6 +298,9 @@ describe("DawProjectAdapter", () => {
             })
             expect(result).toEqual(expect.objectContaining({success: true}))
             expect(adapter.snapshot().tracks).toHaveLength(3)
+            expect(adapter.snapshot().tracks.every(track => track.regionCount === 2)).toBe(true)
+            expect(roleMap(adapter.snapshot()).get("keys")?.regions.map(region => region.position))
+                .toEqual([0, 4 * PPQN.Bar])
             expect(progress).toEqual([
                 "preparing:keys", "preparing:drums", "preparing:bass",
                 "applied:keys", "applied:drums", "applied:bass"

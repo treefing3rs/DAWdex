@@ -1,6 +1,6 @@
 # DAWdex 编码与架构规范
 
-> 适用基线：0.3.0 / PR #12
+> 适用基线：0.3.0 / PR #16
 > 适用范围：Studio Agent UI、Agent Server、MIDI、音色、DAW 控制与未来 Song 层
 
 ## 一、不可破坏的原则
@@ -232,7 +232,10 @@ UI 不得：
 
 MIDI 与 Sound Profile 使用独立数据结构。
 
-当前自动路径是 Vaporisateur + Mixer + Effects。选择 Soundfont、Nano、Playfield 或 Apparat 前必须确认 Snapshot 中存在兼容 Asset ID。
+当前自动路径是鼓轨 Playfield TR-808 / TR-909、Bass/Keys Vaporisateur，以及
+Mixer + Effects。选择 Soundfont、Nano 或其他资产型设备前必须确认 Snapshot
+中存在兼容 Asset ID；库存 TR-808 / TR-909 由受控预设加载器解析，不允许模型
+提供任意路径或 Asset ID。
 
 Sound Profile 至少记录：
 

@@ -5,7 +5,7 @@
 | 项目 | 内容 |
 |---|---|
 | 文档状态 | 当前基线与正式产品方向 |
-| 当前实现 | 0.3.0 / PR #12 |
+| 当前实现 | 0.3.0 / PR #16 |
 | 当前产品形态 | Loop 导向的真实垂直切片 |
 | 正式下一阶段 | Song Blueprint 驱动的完整歌曲创作 |
 | 音乐底座 | openDAW |
@@ -177,14 +177,17 @@ Brief 必须表达开放风格，而不是只允许 Dubstep/R&B：
 
 当前支持：
 
-- Vaporisateur 合成器结构化参数；
+- 鼓轨使用经试听批准的 Playfield TR-808 / TR-909；
+- Bass 与 Keys 使用模型规划的 Vaporisateur 结构化参数；
+- 工程已经导入兼容资产时，可选择 Soundfont 或 Nano；
 - Mixer、Compression、Delay、Reverb、Stereo 和 Maximizer 等安全效果；
 - Transport、Loop、Track、Region、MIDI Transform、Instrument、Effect、Parameter、Automation、Bus、Send 和 Routing 操作。
 
 要求：
 
 - 只使用 Snapshot 暴露的真实 ID 和 Capability；
-- Soundfont、Nano、Playfield、Apparat 需要现有兼容资产；
+- Soundfont、Nano 和其他资产型设备需要现有兼容 Asset ID；DAWdex 内置的
+  TR-808 / TR-909 鼓组由受控预设加载器处理，不允许模型发明第三种鼓组；
 - 不创建不能发声的空乐器；
 - 完整的风格音色目录作为独立后续能力。
 
@@ -243,7 +246,9 @@ MIDI 提供音符和节奏，不能保证风格音色。R&B 的 Bass MIDI 如果
 - 音域与复音限制；
 - 资产是否已导入、可用和可分发。
 
-当前可使用 Vaporisateur 自动设计安全音色；外部 SF2 和采样必须先导入工程。浏览器不能直接访问用户电脑里的任意 AU/VST。
+当前鼓轨使用 Playfield TR-808 / TR-909，Bass 与 Keys 可由模型设计
+Vaporisateur 安全音色；外部 SF2 和采样必须先导入工程。浏览器不能直接访问
+用户电脑里的任意 AU/VST。
 
 ## 八、范围
 

@@ -1,8 +1,8 @@
 import {clamp, isDefined} from "@opendaw/lib-std"
 import {PPQN} from "@opendaw/lib-dsp"
 import {ControlType, MidiFile} from "@opendaw/lib-midi"
-import type {MusicRole} from "../AgentProtocol"
-import type {CompiledNote} from "./PatternCompiler"
+import type {DrumKitPreset, MusicRole} from "../AgentProtocol"
+import type {CompiledNote} from "./MidiFingerprint"
 
 export type MidiAssetLoader = (assetId: string) => Promise<ArrayBuffer>
 
@@ -70,37 +70,72 @@ const roleRange = (role: Exclude<MusicRole, "drums">) =>
         ? {min: 28, max: 55, center: 41}
         : {min: 48, max: 88, center: 67}
 
-// The stock Playfield TR-808/TR-909 presets occupy C3-B3 (MIDI 60-71), while
-// most library drum grooves use General MIDI percussion notes. Keep the
-// musical drum role when translating between those two layouts.
-const gmToPlayfield = new Map<number, number>([
-    [35, 60], [36, 60], // kick
-    [41, 61], [43, 61], // low tom
-    [38, 62], [40, 62], // snare
-    [45, 63], [47, 63], // mid tom
-    [48, 64], [50, 64], // high tom
-    [37, 65],           // rim shot
-    [39, 66],           // clap
-    [42, 67], [44, 67], // closed/pedal hat
-    [46, 68],           // open hat
-    [49, 69], [52, 69], [55, 69], [57, 69], // crash
-    [51, 70], [53, 70], [59, 70],            // ride
-    [54, 71], [56, 71], [58, 71]             // auxiliary percussion
+type CanonicalDrumRole =
+    | "kick" | "snare" | "low-tom" | "mid-tom" | "high-tom"
+    | "rim" | "clap" | "closed-hat" | "open-hat" | "crash" | "ride"
+    | "auxiliary"
+
+const gmDrumRole = new Map<number, CanonicalDrumRole>([
+    [35, "kick"], [36, "kick"],
+    [38, "snare"], [40, "snare"],
+    [41, "low-tom"], [43, "low-tom"],
+    [45, "mid-tom"], [47, "mid-tom"],
+    [48, "high-tom"], [50, "high-tom"],
+    [37, "rim"], [39, "clap"],
+    [42, "closed-hat"], [44, "closed-hat"], [46, "open-hat"],
+    [49, "crash"], [52, "crash"], [55, "crash"], [57, "crash"],
+    [51, "ride"], [53, "ride"], [59, "ride"],
+    [54, "auxiliary"], [56, "auxiliary"], [58, "auxiliary"]
 ])
 
-const playfieldDrumPitch = (pitch: number): number => {
-    const rounded = Math.round(pitch)
-    if (rounded >= 60 && rounded <= 71) {return rounded}
-    return gmToPlayfield.get(rounded) ?? 60 + ((rounded - 35) % 12 + 12) % 12
+const curatedPlayfieldRole = new Map<number, CanonicalDrumRole>([
+    [60, "kick"], [61, "snare"], [62, "low-tom"], [63, "mid-tom"],
+    [64, "high-tom"], [65, "rim"], [66, "clap"], [67, "closed-hat"],
+    [68, "open-hat"], [69, "auxiliary"], [70, "ride"]
+])
+
+const playfieldPitchByKit: Readonly<Record<
+    DrumKitPreset,
+    Readonly<Record<CanonicalDrumRole, number>>
+>> = {
+    "TR-808": {
+        kick: 60, snare: 61, "low-tom": 62, "mid-tom": 63, "high-tom": 64,
+        rim: 65, clap: 66, "closed-hat": 67, "open-hat": 68,
+        crash: 70, ride: 70, auxiliary: 69
+    },
+    "TR-909": {
+        kick: 60, snare: 61, "low-tom": 62, "mid-tom": 63, "high-tom": 64,
+        rim: 65, clap: 66, "closed-hat": 67, "open-hat": 68,
+        crash: 69, ride: 70, auxiliary: 66
+    }
+}
+
+const isCuratedPlayfieldAsset = (path: string): boolean =>
+    /(?:^|[\\/])dawdex-curated(?:[\\/]|$)/i.test(path)
+
+const playfieldDrumPitch = (
+    pitch: number,
+    sourcePath: string,
+    drumKit: DrumKitPreset
+): number | null => {
+    const role = isCuratedPlayfieldAsset(sourcePath)
+        ? curatedPlayfieldRole.get(Math.round(pitch))
+        : gmDrumRole.get(Math.round(pitch))
+    return role === undefined ? null : playfieldPitchByKit[drumKit][role]
 }
 
 const normalizePitchRange = (
     notes: ReadonlyArray<CompiledNote>,
-    role: MusicRole
+    role: MusicRole,
+    sourcePath: string,
+    drumKit: DrumKitPreset
 ): ReadonlyArray<CompiledNote> => {
     if (notes.length === 0) {return notes}
     if (role === "drums") {
-        return notes.map(note => ({...note, pitch: playfieldDrumPitch(note.pitch)}))
+        return notes.flatMap(note => {
+            const pitch = playfieldDrumPitch(note.pitch, sourcePath, drumKit)
+            return pitch === null ? [] : [{...note, pitch}]
+        })
     }
     const range = roleRange(role)
     const sorted = notes.map(note => note.pitch).sort((a, b) => a - b)
@@ -145,7 +180,11 @@ export const compileMidiAsset = (
     buffer: ArrayBuffer,
     role: MusicRole,
     bars: number,
-    transposeSemitones: number = 0
+    transposeSemitones: number = 0,
+    options: {
+        readonly sourcePath?: string
+        readonly drumKit?: DrumKitPreset
+    } = {}
 ): ReadonlyArray<CompiledNote> => {
     const decoded = decodeNotes(buffer)
     if (decoded.length === 0) {throw new Error("The selected MIDI asset contains no playable notes")}
@@ -153,7 +192,12 @@ export const compileMidiAsset = (
     const transposed = role === "drums" || transposeSemitones === 0
         ? fitted
         : fitted.map(note => ({...note, pitch: note.pitch + Math.round(transposeSemitones)}))
-    const normalized = normalizePitchRange(transposed, role)
+    const normalized = normalizePitchRange(
+        transposed,
+        role,
+        options.sourcePath ?? "drums/MIDI/legacy.mid",
+        options.drumKit ?? "TR-909"
+    )
     if (normalized.length === 0) {throw new Error("The selected MIDI asset is empty after fitting")}
     return normalized
 }

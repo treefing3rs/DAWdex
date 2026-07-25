@@ -1,6 +1,6 @@
 # DAWdex 系统架构
 
-> 当前实现：0.3.0 / PR #17
+> 当前实现：0.3.0 / PR #17 + Family Sequence 集成分支
 > 正式方向：完整歌曲 AI 虚拟录音棚 Harness
 
 ## 一、架构结论
@@ -43,12 +43,12 @@ Product State + Planning + Retrieval + Validation
 
 Agent Server
   → MidiCatalog / catalog.sqlite
-  → exact MIDI candidates
+  → ordered MIDI Family/Section candidates
   → structured AgentPlan
 
 Approved AgentPlan
   → DawProjectAdapter
-  → MidiAsset parser
+  → MidiAsset parser / multi-region sequence
   → TrackSound
   → DawControlExecutor
   → one openDAW undo transaction
@@ -83,7 +83,10 @@ openDAW state
 | `LocalRuntime.ts` | 本地 CLI 运行时扫描、选择、进程管理与严格路由 |
 | `LocalCliProviders.ts` | Codex/Kimi/Qoder 三种本地 CLI 运行时的适配定义 |
 | `MidiBundleRanker.ts` | 对角色 MIDI 检索捆绑做生成质量排序 |
-| `MidiCatalog.ts` | SQLite 检索、排序、去重和回退扫描 |
+| `MidiCatalog.ts` | SQLite Family/Section 检索、排序、去重和回退扫描 |
+| `MidiFamily.ts` | 从素材路径推导稳定 Family、Section 与原始顺序 |
+| `MidiAnalysis.ts` | 从实际音符提取调性、根音时间线、能量和音乐指纹 |
+| `DrumProfiles.ts` | Toontrack/GM 来源音符到 Canonical Role，再到 808/909 Pad |
 | `MusicPlan.ts` | Schema、Prompt 和模型输出解析 |
 | `index-midi.ts` | 构建本地 MIDI 索引 |
 
@@ -93,12 +96,13 @@ openDAW state
 natural-language request
 → current openDAW snapshot
 → Creative Brief
-→ SQLite retrieval over real MIDI
-→ small candidate list with exact IDs/paths
-→ arranger chooses assets, sound and controls
+→ SQLite Family Sequence retrieval over real MIDI
+→ small family-anchor list with exact IDs/paths
+→ arranger chooses compatible family anchors, sound and controls
+→ Harness expands ordered Section asset IDs/paths
 → schema/capability validation
 → user approval
-→ create/replace generated role tracks
+→ create/replace generated role tracks with continuous Regions
 → apply extra DAW controls
 → one undo transaction
 → resnapshot and emit real UI events
@@ -139,9 +143,10 @@ Codex 集成不是在浏览器里直接运行 CLI 命令。Agent Server 管理�
 midi/easy/
 → index-midi.ts
 → midi/.dawdex/catalog.sqlite
-→ MidiCatalog.search()
-→ role-compatible candidates
-→ fingerprint deduplication
+→ MidiCatalog.sequences()
+→ role-compatible Family candidates
+→ one verified Variant per ordered Section
+→ music-fingerprint deduplication
 → MidiBundleRanker bundle ranking
 → model-visible short list
 ```
@@ -196,17 +201,22 @@ midi/easy/
 
 ## 七、音色架构
 
-当前自动声音设计使用 Vaporisateur：
+当前角色化声音路径是：
 
 ```text
 MIDI asset
-→ role-aware synth parameters
+→ drums: approved Playfield TR-808 / TR-909
+  bass/keys: model-planned Vaporisateur
+  imported compatible asset: Soundfont / Nano
 → mixer volume / pan
 → restrained effect chain
 → openDAW track
 ```
 
-openDAW 的能力目录还包括 Soundfont、Nano、Playfield、MIDIOutput 和 Apparat，但依赖外部资产的设备只有在工程 Snapshot 中存在兼容 Asset ID 时才允许选择。
+鼓组是产品侧明确限制：模型只能在 TR-808 与 TR-909 之间按音乐目标选择，不能
+发明不存在的鼓组。Soundfont、Nano 等依赖外部资产的设备只有在工程 Snapshot
+中存在兼容 Asset ID 时才允许选择。通用控制平面还可以在验证后替换为
+MIDIOutput 等受支持设备。
 
 未来独立的 Instrument & Sound Catalog 负责：
 
@@ -247,6 +257,10 @@ OperationResult
 PR #12 增加可收起外壳：根节点收起后让 Pointer Event 穿透到原本一直存活的
 openDAW，`RealUiEventBridge` 仍按 500 ms 同步。它没有创建第二个 DAW，也
 不复制工程状态，只是在动画录音棚与同一底层工作台之间切换视图。
+
+PR #16 增加 Fig Mint 外壳、演播大厅分层物件和键盘屏二级面板。物件面板
+读取同一 Snapshot；走带操作进入 `DawProjectAdapter`，音乐修改重新进入
+Plan/Approval，仍不允许视觉层直接改工程。
 
 ## 九、完整歌曲目标架构
 

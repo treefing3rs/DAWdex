@@ -176,12 +176,12 @@ export class CodexAppServer {
         )
     }
 
-    async #runStructured<T>(
+    async #runStructured<TSchema, TResult>(
         input: string,
         instructions: string,
-        schema: z.ZodType<T>,
-        parse: (value: unknown) => T
-    ): Promise<T> {
+        schema: z.ZodType<TSchema>,
+        parse: (value: unknown) => TResult
+    ): Promise<TResult> {
         await this.#ensureStarted()
         const status = await this.status()
         if (!status.authenticated) {

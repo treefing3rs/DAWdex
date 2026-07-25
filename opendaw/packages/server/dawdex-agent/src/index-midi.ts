@@ -3,6 +3,8 @@ import {readdir, readFile, rename, rm, mkdir} from "node:fs/promises"
 import {relative, resolve, sep} from "node:path"
 import {DatabaseSync} from "node:sqlite"
 import {fileURLToPath} from "node:url"
+import {analyzeMidi, parseMidi} from "./MidiAnalysis.ts"
+import {parseMidiFamily} from "./MidiFamily.ts"
 
 type IndexedAsset = {
     readonly id: string
@@ -21,6 +23,40 @@ type IndexedAsset = {
     readonly byteLength: number
     readonly valid: number
     readonly error: string | null
+    readonly library: string
+    readonly pack: string
+    readonly familyId: string | null
+    readonly familyLabel: string | null
+    readonly familyKey: string | null
+    readonly groove: string | null
+    readonly meter: string | null
+    readonly sourceBpm: number | null
+    readonly sectionLabel: string | null
+    readonly sectionKind: string | null
+    readonly sectionOrder: number | null
+    readonly variantLabel: string
+    readonly keyRoot: number | null
+    readonly keyMode: string | null
+    readonly keyConfidence: number
+    readonly pitchClassHistogram: string
+    readonly rootTimeline: string
+    readonly harmonicSignature: string
+    readonly polyphony: number
+    readonly registerLow: number | null
+    readonly registerHigh: number | null
+    readonly onsetSignature: string
+    readonly velocityMean: number
+    readonly velocityStd: number
+    readonly pickupTicks: number
+    readonly phraseBars: number
+    readonly energy: number
+    readonly fillLikelihood: number
+    readonly musicFingerprint: string
+    readonly drumProfile: string | null
+    readonly drumRoleHistogram: string | null
+    readonly drumMappedHits: number
+    readonly drumUnsupportedHits: number
+    readonly drumCoverage: number | null
 }
 
 const midiRoot = resolve(process.env.DAWDEX_MIDI_ROOT
@@ -79,90 +115,9 @@ const collectMidiFiles = async (root: string): Promise<ReadonlyArray<string>> =>
     return files.sort()
 }
 
-type MidiSummary = {
-    readonly timeDivision: number
-    readonly maxTicks: number
-    readonly pitches: ReadonlyArray<number>
-}
-
-const readVariableLength = (bytes: Buffer, initialOffset: number): {value: number, offset: number} => {
-    let offset = initialOffset
-    let value = 0
-    for (let index = 0; index < 4; index++) {
-        if (offset >= bytes.length) {throw new Error("Unexpected end of variable-length value")}
-        const current = bytes[offset++]
-        value = (value << 7) | (current & 0x7F)
-        if ((current & 0x80) === 0) {return {value, offset}}
-    }
-    throw new Error("Invalid variable-length value")
-}
-
-const summarizeMidi = (bytes: Buffer): MidiSummary => {
-    if (bytes.length < 14 || bytes.subarray(0, 4).toString("ascii") !== "MThd") {
-        throw new Error("Missing MThd header")
-    }
-    const headerLength = bytes.readUInt32BE(4)
-    const timeDivision = bytes.readUInt16BE(12)
-    if ((timeDivision & 0x8000) !== 0 || timeDivision === 0) {
-        throw new Error("SMPTE MIDI time division is not supported")
-    }
-    const pitches: Array<number> = []
-    let maxTicks = 0
-    let offset = 8 + headerLength
-    while (offset + 8 <= bytes.length) {
-        const chunkType = bytes.subarray(offset, offset + 4).toString("ascii")
-        const chunkLength = bytes.readUInt32BE(offset + 4)
-        const chunkStart = offset + 8
-        const chunkEnd = chunkStart + chunkLength
-        if (chunkEnd > bytes.length) {throw new Error("MIDI chunk exceeds file length")}
-        offset = chunkEnd
-        if (chunkType !== "MTrk") {continue}
-        let position = chunkStart
-        let ticks = 0
-        let runningStatus = 0
-        while (position < chunkEnd) {
-            const delta = readVariableLength(bytes, position)
-            ticks += delta.value
-            maxTicks = Math.max(maxTicks, ticks)
-            position = delta.offset
-            if (position >= chunkEnd) {break}
-            let status = bytes[position]
-            let firstData: number | null = null
-            if (status < 0x80) {
-                if (runningStatus === 0) {throw new Error("Running status used before a channel event")}
-                firstData = status
-                status = runningStatus
-                position++
-            } else {
-                position++
-                if (status < 0xF0) {runningStatus = status}
-            }
-            if (status === 0xFF) {
-                if (position >= chunkEnd) {throw new Error("Truncated MIDI meta event")}
-                position++ // meta type
-                const length = readVariableLength(bytes, position)
-                position = length.offset + length.value
-                continue
-            }
-            if (status === 0xF0 || status === 0xF7) {
-                const length = readVariableLength(bytes, position)
-                position = length.offset + length.value
-                continue
-            }
-            const type = status & 0xF0
-            const dataLength = type === 0xC0 || type === 0xD0 ? 1 : 2
-            const param0 = firstData ?? bytes[position++]
-            const param1 = dataLength === 2 ? bytes[position++] : 0
-            if (position > chunkEnd) {throw new Error("Truncated MIDI channel event")}
-            if (type === 0x90 && param1 > 0) {pitches.push(param0)}
-        }
-    }
-    return {timeDivision, maxTicks, pitches}
-}
-
 const analyze = async (absolutePath: string): Promise<IndexedAsset> => {
     const path = normalizePath(relative(midiRoot, absolutePath))
-    const role = path.split("/")[0]
+    const role = path.split("/")[0] as "drums" | "bass" | "keys"
     const bytes = await readFile(absolutePath)
     const fingerprint = createHash("sha256").update(bytes).digest("hex")
     const base = {
@@ -176,11 +131,13 @@ const analyze = async (absolutePath: string): Promise<IndexedAsset> => {
         byteLength: bytes.length
     }
     try {
-        const summary = summarizeMidi(bytes)
-        const pitches = Array.from(summary.pitches)
+        const summary = parseMidi(bytes)
+        const pitches = summary.notes.map(note => note.pitch)
         if (pitches.length === 0) {throw new Error("No playable note-on events")}
         pitches.sort((a, b) => a - b)
         const bars = Math.max(1, Math.ceil(summary.maxTicks / summary.timeDivision / 4))
+        const family = parseMidiFamily(path, role)
+        const musical = analyzeMidi(summary, role, path)
         return {
             ...base,
             bars,
@@ -190,9 +147,44 @@ const analyze = async (absolutePath: string): Promise<IndexedAsset> => {
             medianPitch: pitches[Math.floor(pitches.length / 2)],
             density: pitches.length / bars,
             valid: 1,
-            error: null
+            error: null,
+            library: family.library,
+            pack: family.pack,
+            familyId: family.familyId,
+            familyLabel: family.familyLabel,
+            familyKey: family.familyKey,
+            groove: family.groove,
+            meter: family.meter ?? summary.meter,
+            sourceBpm: family.sourceBpm ?? summary.tempo,
+            sectionLabel: family.sectionLabel,
+            sectionKind: family.sectionKind,
+            sectionOrder: family.sectionOrder,
+            variantLabel: family.variantLabel,
+            keyRoot: musical.keyRoot,
+            keyMode: musical.keyMode,
+            keyConfidence: musical.keyConfidence,
+            pitchClassHistogram: JSON.stringify(musical.pitchClassHistogram),
+            rootTimeline: JSON.stringify(musical.rootTimeline),
+            harmonicSignature: musical.harmonicSignature,
+            polyphony: musical.polyphony,
+            registerLow: musical.registerLow,
+            registerHigh: musical.registerHigh,
+            onsetSignature: JSON.stringify(musical.onsetSignature),
+            velocityMean: musical.velocityMean,
+            velocityStd: musical.velocityStd,
+            pickupTicks: musical.pickupTicks,
+            phraseBars: musical.phraseBars,
+            energy: musical.energy,
+            fillLikelihood: musical.fillLikelihood,
+            musicFingerprint: musical.musicFingerprint,
+            drumProfile: musical.drum?.profile.id ?? null,
+            drumRoleHistogram: musical.drum === null ? null : JSON.stringify(musical.drum.histogram),
+            drumMappedHits: musical.drum?.mappedHits ?? 0,
+            drumUnsupportedHits: musical.drum?.unsupportedHits ?? 0,
+            drumCoverage: musical.drum?.coverage ?? null
         }
     } catch (error) {
+        const family = parseMidiFamily(path, role)
         return {
             ...base,
             bars: null,
@@ -202,7 +194,26 @@ const analyze = async (absolutePath: string): Promise<IndexedAsset> => {
             medianPitch: null,
             density: null,
             valid: 0,
-            error: error instanceof Error ? error.message.slice(0, 300) : String(error).slice(0, 300)
+            error: error instanceof Error ? error.message.slice(0, 300) : String(error).slice(0, 300),
+            library: family.library,
+            pack: family.pack,
+            familyId: family.familyId,
+            familyLabel: family.familyLabel,
+            familyKey: family.familyKey,
+            groove: family.groove,
+            meter: family.meter,
+            sourceBpm: family.sourceBpm,
+            sectionLabel: family.sectionLabel,
+            sectionKind: family.sectionKind,
+            sectionOrder: family.sectionOrder,
+            variantLabel: family.variantLabel,
+            keyRoot: null, keyMode: null, keyConfidence: 0,
+            pitchClassHistogram: "[]", rootTimeline: "[]", harmonicSignature: "",
+            polyphony: 0, registerLow: null, registerHigh: null, onsetSignature: "[]",
+            velocityMean: 0, velocityStd: 0, pickupTicks: 0, phraseBars: 0,
+            energy: 0, fillLikelihood: 0, musicFingerprint: "",
+            drumProfile: null, drumRoleHistogram: null,
+            drumMappedHits: 0, drumUnsupportedHits: 0, drumCoverage: null
         }
     }
 }
@@ -211,6 +222,7 @@ await mkdir(resolve(catalogPath, ".."), {recursive: true})
 await rm(temporaryPath, {force: true})
 const database = new DatabaseSync(temporaryPath)
 database.exec(`
+    PRAGMA user_version = 2;
     PRAGMA journal_mode = OFF;
     PRAGMA synchronous = OFF;
     PRAGMA temp_store = MEMORY;
@@ -230,15 +242,55 @@ database.exec(`
         fingerprint TEXT NOT NULL,
         byte_length INTEGER NOT NULL,
         valid INTEGER NOT NULL,
-        error TEXT
+        error TEXT,
+        library TEXT NOT NULL,
+        pack TEXT NOT NULL,
+        family_id TEXT,
+        family_label TEXT,
+        family_key TEXT,
+        groove TEXT,
+        meter TEXT,
+        source_bpm INTEGER,
+        section_label TEXT,
+        section_kind TEXT,
+        section_order INTEGER,
+        variant_label TEXT NOT NULL,
+        key_root INTEGER,
+        key_mode TEXT,
+        key_confidence REAL NOT NULL,
+        pitch_class_histogram TEXT NOT NULL,
+        root_timeline TEXT NOT NULL,
+        harmonic_signature TEXT NOT NULL,
+        polyphony REAL NOT NULL,
+        register_low INTEGER,
+        register_high INTEGER,
+        onset_signature TEXT NOT NULL,
+        velocity_mean REAL NOT NULL,
+        velocity_std REAL NOT NULL,
+        pickup_ticks INTEGER NOT NULL,
+        phrase_bars INTEGER NOT NULL,
+        energy REAL NOT NULL,
+        fill_likelihood REAL NOT NULL,
+        music_fingerprint TEXT NOT NULL,
+        drum_profile TEXT,
+        drum_role_histogram TEXT,
+        drum_mapped_hits INTEGER NOT NULL,
+        drum_unsupported_hits INTEGER NOT NULL,
+        drum_coverage REAL
     );
 `)
 const insert = database.prepare(`
     INSERT INTO assets (
         id, path, role, source, style_tags, bpm, bars, note_count,
         min_pitch, max_pitch, median_pitch, density, fingerprint,
-        byte_length, valid, error
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        byte_length, valid, error, library, pack, family_id, family_label, family_key,
+        groove, meter, source_bpm, section_label, section_kind, section_order, variant_label,
+        key_root, key_mode, key_confidence, pitch_class_histogram, root_timeline,
+        harmonic_signature, polyphony, register_low, register_high, onset_signature,
+        velocity_mean, velocity_std, pickup_ticks, phrase_bars, energy, fill_likelihood,
+        music_fingerprint, drum_profile, drum_role_histogram, drum_mapped_hits,
+        drum_unsupported_hits, drum_coverage
+    ) VALUES (${Array.from({length: 50}, () => "?").join(", ")})
 `)
 
 const files = await collectMidiFiles(midiRoot)
@@ -267,7 +319,41 @@ for (let start = 0; start < files.length; start += concurrency) {
                 asset.fingerprint,
                 asset.byteLength,
                 asset.valid,
-                asset.error
+                asset.error,
+                asset.library,
+                asset.pack,
+                asset.familyId,
+                asset.familyLabel,
+                asset.familyKey,
+                asset.groove,
+                asset.meter,
+                asset.sourceBpm,
+                asset.sectionLabel,
+                asset.sectionKind,
+                asset.sectionOrder,
+                asset.variantLabel,
+                asset.keyRoot,
+                asset.keyMode,
+                asset.keyConfidence,
+                asset.pitchClassHistogram,
+                asset.rootTimeline,
+                asset.harmonicSignature,
+                asset.polyphony,
+                asset.registerLow,
+                asset.registerHigh,
+                asset.onsetSignature,
+                asset.velocityMean,
+                asset.velocityStd,
+                asset.pickupTicks,
+                asset.phraseBars,
+                asset.energy,
+                asset.fillLikelihood,
+                asset.musicFingerprint,
+                asset.drumProfile,
+                asset.drumRoleHistogram,
+                asset.drumMappedHits,
+                asset.drumUnsupportedHits,
+                asset.drumCoverage
             )
         }
         database.exec("COMMIT")
@@ -282,12 +368,38 @@ for (let start = 0; start < files.length; start += concurrency) {
 }
 
 database.exec(`
+    CREATE TABLE families AS
+    SELECT family_id AS id, role, MIN(family_label) AS label,
+        MIN(library) AS library, MIN(pack) AS pack, MIN(groove) AS groove,
+        MIN(meter) AS meter, CAST(AVG(source_bpm) AS INTEGER) AS source_bpm,
+        COUNT(DISTINCT section_order || ':' || section_label) AS section_count,
+        COUNT(*) AS asset_count, AVG(energy) AS energy,
+        AVG(CASE WHEN key_confidence >= 0.15 THEN key_confidence ELSE NULL END) AS key_confidence
+    FROM assets
+    WHERE valid = 1 AND family_id IS NOT NULL
+    GROUP BY family_id, role;
+    CREATE UNIQUE INDEX families_id ON families(id);
+    CREATE INDEX families_role ON families(role);
+
+    CREATE TABLE family_sections AS
+    SELECT family_id, section_order, MIN(section_label) AS section_label,
+        MIN(section_kind) AS section_kind, COUNT(*) AS variant_count,
+        AVG(energy) AS energy, AVG(fill_likelihood) AS fill_likelihood
+    FROM assets
+    WHERE valid = 1 AND family_id IS NOT NULL
+    GROUP BY family_id, section_order;
+    CREATE UNIQUE INDEX family_sections_identity ON family_sections(family_id, section_order);
+
     CREATE INDEX assets_role_valid ON assets(role, valid);
     CREATE INDEX assets_bpm ON assets(bpm);
     CREATE INDEX assets_bars ON assets(bars);
     CREATE INDEX assets_fingerprint ON assets(fingerprint);
     CREATE INDEX assets_style_tags ON assets(style_tags);
     CREATE INDEX assets_source ON assets(source);
+    CREATE INDEX assets_family_section ON assets(family_id, section_order, valid);
+    CREATE INDEX assets_music_fingerprint ON assets(music_fingerprint);
+    CREATE INDEX assets_harmony ON assets(key_mode, harmonic_signature);
+    CREATE INDEX assets_drum_profile ON assets(drum_profile);
     ANALYZE;
 `)
 database.close()

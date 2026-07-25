@@ -1,6 +1,6 @@
 # DAWdex 技术方案
 
-> 基线：0.3.0 / PR #17
+> 基线：0.3.0 / PR #17 + Family Sequence 集成分支
 > 适用范围：当前真实 MIDI 垂直切片，以及下一阶段完整歌曲扩展
 
 ## 一、技术边界
@@ -9,10 +9,10 @@
 |---|---|---|
 | Product State | 当前 openDAW Snapshot | 持久 Song Blueprint、锁定和版本 |
 | Planning | Creative Brief + AgentPlan | Song Plan + Section/Phrase Patch |
-| Retrieval | SQLite 检索真实 MIDI | motif/riff family、相似度和风格增强 |
+| Retrieval | SQLite Index V2、Family/Section Sequence、实际音符分析 | motif/riff 相似度、人工标签和风格增强 |
 | Transformation | 裁剪、循环、音域、基础 MIDI Transform | 有来源的动机发展 |
-| Sound | Vaporisateur + Mixer + Effects | Instrument & Sound Catalog |
-| Execution | 角色轨道 upsert + 通用 DAW 控制 | 面向 Section 的 Patch Executor |
+| Sound | Playfield 808/909 + Vaporisateur + Mixer + Effects | Instrument & Sound Catalog |
+| Execution | 角色轨道 upsert、多 Region Sequence + 通用 DAW 控制 | 持久 Song Blueprint 的 Section/Phrase Patch Executor |
 | Validation | Schema、ID、Capability、Quality Gate | 结构、重复度、能量曲线与锁定范围 |
 | UI | 真实事件、角色与六房间 | 编曲白板、Section 状态和物件热点 |
 
@@ -30,6 +30,9 @@ opendaw/
 │     ├─ LocalCliProviders.ts
 │     ├─ MusicPlan.ts
 │     ├─ MidiCatalog.ts
+│     ├─ MidiFamily.ts
+│     ├─ MidiAnalysis.ts
+│     ├─ DrumProfiles.ts
 │     ├─ MidiBundleRanker.ts
 │     └─ index-midi.ts
 └─ packages/app/studio/src/agent/
@@ -44,6 +47,7 @@ opendaw/
    ├─ ui-contract.ts
    └─ music/
       ├─ MidiAsset.ts
+      ├─ MidiFingerprint.ts
       ├─ QualityGate.ts
       └─ TrackSound.ts
 ```
@@ -55,6 +59,9 @@ Agent Server 默认监听 `http://127.0.0.1:8787`。
 | 方法 | 路径 | 用途 |
 |---|---|---|
 | `GET` | `/v1/provider/status` | Codex/OpenAI/Local 状态 |
+| `GET` | `/v1/runtimes` | 当前本地 CLI 运行时快照 |
+| `GET` | `/v1/runtimes/scan` | 以 SSE 增量扫描 Codex/Kimi/Qoder |
+| `POST` | `/v1/runtimes/selection` | 严格选择本地 CLI 或 API 模式 |
 | `POST` | `/v1/provider/codex/login` | 发起 ChatGPT/Codex 登录 |
 | `POST` | `/v1/plan` | 一次性返回 Plan |
 | `POST` | `/v1/plan/stream` | NDJSON 返回进度与 Plan |
@@ -235,12 +242,15 @@ type UpsertRoleTrackAction = {
 `TrackSoundDesign` 当前使用：
 
 ```text
-Vaporisateur parameters
+drums: Playfield TR-808 / TR-909
+bass/keys: Vaporisateur parameters
+optional imported asset: Soundfont / Nano
 + mixer volume/pan/mute/solo
 + 0..4 role-appropriate effects
 ```
 
-模型必须给 drums、bass、keys 设计不同音色，并避免 Sub Bass 上的宽立体声和过量 Reverb。
+模型必须在 TR-808 / TR-909 中选择鼓组，并给 bass、keys 设计不同音色；不得
+发明不存在的鼓组或 Asset ID，并应避免 Sub Bass 上的宽立体声和过量 Reverb。
 
 ## 七、通用 DAW 控制
 
@@ -267,7 +277,8 @@ type DawControlAction = {
 
 - Track/Region/Device/Bus 使用 Snapshot 精确 ID；
 - Instrument 与 Effect 使用 Capability 白名单；
-- Soundfont/Nano/Playfield/Apparat 必须给工程内 Asset ID；
+- Soundfont/Nano 等资产型设备必须给工程内 Asset ID；角色轨道的 Playfield
+  TR-808 / TR-909 使用受控库存预设，不接受模型提供 Asset ID；
 - Automation 至少两个点，值归一化到 0..1；
 - Quantize 只允许 4/8/16/32；
 - Humanize 使用确定 seed；

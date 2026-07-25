@@ -306,6 +306,15 @@ export type UpsertRoleTrackAction = {
     readonly midiAssetId: string
     readonly midiAssetPath: string
     readonly transposeSemitones: number
+    readonly midiSections?: ReadonlyArray<{
+        readonly assetId: string
+        readonly assetPath: string
+        readonly label: string
+        readonly sectionKind: string
+        readonly startBar: number
+        readonly bars: number
+        readonly transposeSemitones: number
+    }>
     readonly sound: TrackSoundDesign
 }
 

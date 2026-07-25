@@ -19,7 +19,7 @@ import {
 } from "./MusicPlan.ts"
 import type {CreativeBrief, PlanOutput, ProjectSnapshot} from "./MusicPlan.ts"
 import {MidiCatalog} from "./MidiCatalog.ts"
-import type {MidiCandidate} from "./MidiCatalog.ts"
+import type {MidiCandidate, MidiFamilySequence} from "./MidiCatalog.ts"
 import {findExactBundle, rankMidiBundles} from "./MidiBundleRanker.ts"
 import type {MidiBundle} from "./MidiBundleRanker.ts"
 
@@ -45,7 +45,7 @@ You MUST respond with ONLY a single valid JSON object matching this exact schema
   "instrumentation": ["<instrument1>", ...],
   "bpm": <number 30-240>,
   "key": "<key string like C minor>",
-  "bars": 4 | 8,
+  "bars": <integer 4-64>,
   "energy": <number 0-1>,
   "swing": <number 0-1>,
   "preserveTrackIds": [],
@@ -215,27 +215,49 @@ const planCandidates = async (
     prompt: string,
     brief: CreativeBrief,
     emit: ProgressSink
-): Promise<{candidates: ReadonlyArray<MidiCandidate>, bundles: ReadonlyArray<MidiBundle>}> => {
+): Promise<{
+    candidates: ReadonlyArray<MidiCandidate>,
+    bundles: ReadonlyArray<MidiBundle>,
+    sequencesByAssetId: ReadonlyMap<string, MidiFamilySequence>
+}> => {
+    const sequencesByAssetId = new Map<string, MidiFamilySequence>()
     const byRole = await Promise.all(brief.targetRoles.map(async role => {
         const terms = brief.searchTerms[role]
-        const candidates = await midiCatalog.candidates(
+        const sequences = await midiCatalog.sequences(
             brief.style,
             role,
             brief.bpm,
-            brief.key,
             `${prompt} ${terms.join(" ")}`,
             12,
-            brief.bars,
             terms
         )
+        sequences.forEach(sequence => sequencesByAssetId.set(sequence.anchor.id, sequence))
+        const candidates = sequences.length > 0
+            ? sequences.map(sequence => sequence.anchor)
+            : await midiCatalog.candidates(
+                brief.style,
+                role,
+                brief.bpm,
+                brief.key,
+                `${prompt} ${terms.join(" ")}`,
+                12,
+                brief.bars,
+                terms
+            )
         emit({
             stage: "searching",
-            message: `${role} 检索完成：从本地 MIDI 索引筛出 ${candidates.length} 个候选。`
+            message: sequences.length > 0
+                ? `${role} 检索完成：筛出 ${sequences.length} 个有序素材家族。`
+                : `${role} 未找到可靠段落家族，回退到 ${candidates.length} 个单段候选。`
         })
         return candidates
     }))
     const candidates = byRole.flat()
-    return {candidates, bundles: rankMidiBundles(brief, candidates)}
+    return {
+        candidates,
+        bundles: rankMidiBundles(brief, candidates),
+        sequencesByAssetId
+    }
 }
 
 const validatePlan = (
@@ -243,7 +265,8 @@ const validatePlan = (
     brief: CreativeBrief,
     snapshot: ProjectSnapshot,
     candidates: ReadonlyArray<MidiCandidate>,
-    bundles: ReadonlyArray<MidiBundle>
+    bundles: ReadonlyArray<MidiBundle>,
+    sequencesByAssetId: ReadonlyMap<string, MidiFamilySequence>
 ): PlanOutput => {
     const allowed = new Map(candidates.map(candidate => [candidate.id, candidate]))
     const upserts = plan.actions.filter(action => action.type === "upsert-role-track")
@@ -263,6 +286,26 @@ const validatePlan = (
     const assets = new Map((snapshot.assets ?? []).map(asset => [asset.id, asset]))
     const instruments = new Map((snapshot.capabilities?.instruments ?? [])
         .map(instrument => [instrument.kind.toLowerCase(), instrument]))
+    const selectedSequences = upserts.map(action => sequencesByAssetId.get(action.midiAssetId) ?? null)
+    const sequenceCount = selectedSequences
+        .filter((sequence): sequence is MidiFamilySequence => sequence !== null)
+        .reduce((count, sequence) => Math.min(count, sequence.sections.length), Number.POSITIVE_INFINITY)
+    const commonSectionCount = Number.isFinite(sequenceCount)
+        ? Math.max(1, Math.min(6, sequenceCount))
+        : 1
+    const sectionBars = Array.from({length: commonSectionCount}, (_, index) => {
+        const lengths = selectedSequences
+            .flatMap(sequence => sequence?.sections[index]?.bars ?? [])
+            .sort((a, b) => a - b)
+        return Math.max(1, Math.min(16, lengths[Math.floor(lengths.length / 2)] ?? brief.bars))
+    })
+    while (sectionBars.reduce((sum, bars) => sum + bars, 0) > 64) {
+        const longest = Math.max(...sectionBars)
+        const index = sectionBars.indexOf(longest)
+        if (index < 0 || longest <= 1) {break}
+        sectionBars[index] = longest - 1
+    }
+    const arrangementBars = sectionBars.reduce((sum, bars) => sum + bars, 0)
     const actions = plan.actions.map(action => {
         if (action.type === "set-tempo") {return action}
         if (action.type === "control") {return action}
@@ -293,15 +336,53 @@ const validatePlan = (
         } else if (instrument.assetId.length > 0) {
             throw new Error("Vaporisateur must not reference an external asset")
         }
+        const transposeSemitones = bundle?.transposeByAssetId[candidate.id] ?? 0
+        const sequence = sequencesByAssetId.get(candidate.id)
+        let startBar = 1
+        const midiSections = sequence === undefined
+            ? [{
+                assetId: candidate.id,
+                assetPath: candidate.path,
+                label: candidate.section ?? "Loop",
+                sectionKind: candidate.section ?? "loop",
+                startBar: 1,
+                bars: arrangementBars,
+                transposeSemitones
+            }]
+            : sequence.sections.slice(0, commonSectionCount).map((section, index) => {
+                const selection = {
+                    assetId: section.assetId,
+                    assetPath: section.assetPath,
+                    label: section.label,
+                    sectionKind: section.sectionKind,
+                    startBar,
+                    bars: sectionBars[index],
+                    transposeSemitones
+                }
+                startBar += sectionBars[index]
+                return selection
+            })
         return {
             ...action,
             style: brief.style,
+            startBar: midiSections[0]?.startBar ?? action.startBar,
+            bars: midiSections.reduce((sum, section) => sum + section.bars, 0),
             midiAssetPath: candidate.path,
-            transposeSemitones: bundle?.transposeByAssetId[candidate.id] ?? 0
+            transposeSemitones,
+            midiSections
         }
     })
     const {searchTerms: _searchTerms, ...fixedBrief} = brief
-    return PlanOutputSchema.parse({...plan, brief: fixedBrief, actions})
+    return PlanOutputSchema.parse({
+        ...plan,
+        brief: {
+            ...fixedBrief,
+            bars: Number.isFinite(arrangementBars) && arrangementBars > 0
+                ? arrangementBars
+                : fixedBrief.bars
+        },
+        actions
+    })
 }
 
 const candidateSummary = (
@@ -358,7 +439,7 @@ const planWithProvider = async (
         stage: "searching",
         message: `正在按 ${brief.bpm} BPM、${brief.key} 和 ${brief.moods.join(" / ")} 检索真实 MIDI…`
     })
-    const {candidates, bundles} = await planCandidates(prompt, brief, emit)
+    const {candidates, bundles, sequencesByAssetId} = await planCandidates(prompt, brief, emit)
     for (const role of brief.targetRoles) {
         if (!candidates.some(candidate => candidate.role === role)) {
             throw new Error(`No usable ${brief.style} ${role} MIDI candidates were found`)
@@ -386,10 +467,20 @@ const planWithProvider = async (
             {stage: "arranging", message: "正在检查鼓、贝斯、键盘的音域、密度与进入顺序…"}
         ]
     )
-    const output = validatePlan(rawPlan, brief, snapshot, candidates, bundles)
+    const output = validatePlan(
+        rawPlan,
+        brief,
+        snapshot,
+        candidates,
+        bundles,
+        sequencesByAssetId
+    )
     const selected = output.actions
         .filter(action => action.type === "upsert-role-track")
-        .map(action => `${action.role}: ${action.midiAssetPath.split(/[\\/]/).pop()}`
+        .map(action => `${action.role}: ${(action.midiSections?.length ?? 1)} 段`
+            + (action.midiSections?.length
+                ? ` (${action.midiSections.map(section => section.sectionKind).join("→")})`
+                : ` · ${action.midiAssetPath.split(/[\\/]/).pop()}`)
             + (action.transposeSemitones === 0
                 ? ""
                 : ` (${action.transposeSemitones > 0 ? "+" : ""}${action.transposeSemitones} 半音)`))
@@ -634,6 +725,7 @@ const server = createServer((request, response) => {
     sendJson(response, 404, {error: "Not found"})
 })
 
+await midiCatalog.initialize()
 server.listen(port, "127.0.0.1", () => {
     console.log(`DAWdex Agent listening on http://127.0.0.1:${port}`)
 })

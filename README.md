@@ -159,8 +159,10 @@ DAWdex 可以操作：
 ### Role-aware Sound Design（角色化声音设计）
 
 MIDI 决定“演奏什么”，TrackSound（轨道声音设计）决定“听起来像什么”。系统可以
-创建 Vaporisateur 合成器音色，并设置 Mixer、Compression、Delay、Reverb、
-Stereo 与 Maximizer 等制作参数。
+为鼓轨选择经试听批准的 Playfield TR-808 / TR-909，为 Bass 与 Keys 设计
+Vaporisateur 合成器音色；当工程已经导入兼容资产时，也可以选择 Soundfont 或
+Nano。每条轨道还可以设置 Mixer、Compression、Delay、Reverb、Stereo 与
+Maximizer 等制作参数。
 
 ### Causal UI（因果界面）
 

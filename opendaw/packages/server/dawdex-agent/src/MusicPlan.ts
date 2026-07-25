@@ -249,7 +249,7 @@ export const CreativeBriefSchema = z.object({
     instrumentation: z.array(z.string().trim().min(1).max(80)).min(1).max(12),
     bpm: z.number().min(30).max(240),
     key: z.string().trim().min(1).max(32),
-    bars: z.union([z.literal(4), z.literal(8)]),
+    bars: z.number().int().min(4).max(64),
     energy: z.number().min(0).max(1),
     swing: z.number().min(0).max(1),
     preserveTrackIds: z.array(z.string().min(1).max(80)).max(16),
@@ -264,6 +264,16 @@ const SetTempoActionSchema = z.object({
     bpm: z.number().min(30).max(240)
 })
 
+const MidiSectionSelectionSchema = z.object({
+    assetId: z.string().min(1).max(80),
+    assetPath: z.string().min(1).max(512),
+    label: z.string().min(1).max(80),
+    sectionKind: z.string().min(1).max(40),
+    startBar: z.number().int().min(1).max(128),
+    bars: z.number().int().min(1).max(16),
+    transposeSemitones: z.number().int().min(-11).max(11)
+})
+
 const UpsertRoleTrackActionSchema = z.object({
     type: z.literal("upsert-role-track"),
     mode: z.enum(["create", "replace"]),
@@ -271,7 +281,7 @@ const UpsertRoleTrackActionSchema = z.object({
     role: MusicRoleSchema,
     style: StyleSchema,
     startBar: z.number().int().min(1).max(128),
-    bars: z.number().int().min(1).max(16),
+    bars: z.number().int().min(1).max(128),
     rootMidi: z.number().int().min(24).max(84),
     seed: z.number().int().min(0).max(0x7FFFFFFF),
     density: z.number().min(0.1).max(1),
@@ -279,6 +289,7 @@ const UpsertRoleTrackActionSchema = z.object({
     midiAssetId: z.string().min(1).max(80),
     midiAssetPath: z.string().min(1).max(512),
     transposeSemitones: z.number().int().min(-11).max(11).default(0),
+    midiSections: z.array(MidiSectionSelectionSchema).max(16).optional(),
     sound: TrackSoundDesignSchema
 })
 
@@ -354,7 +365,7 @@ export const CodexPlanOutputSchema = z.object({
         role: MusicRoleSchema,
         style: StyleSchema,
         startBar: z.number().int().min(1).max(128),
-        bars: z.number().int().min(1).max(16),
+        bars: z.number().int().min(1).max(128),
         rootMidi: z.number().int().min(24).max(84),
         seed: z.number().int().min(0).max(0x7FFFFFFF),
         density: z.number().min(0.1).max(1),
@@ -392,7 +403,8 @@ Creative rules:
 - Produce English searchTerms that are likely to appear in MIDI library paths or tags. Include genre synonyms,
   groove terms, and relevant library terms for every role.
 - Infer create/add/restyle/modify from the request and current project. Preserve explicit track IDs.
-- Use 4 or 8 bars for the current editable loop implementation.
+- For a quick loop, use 4 or 8 bars. When the request calls for musical development, choose 16–48 bars so
+  retrieved Intro/Theme/Variation/Outro sections can develop forward on each role track.
 - Respond in the user's language for decisionSummary and instrumentation labels.`
 
 export const PRODUCER_INSTRUCTIONS = `You are the Arranger of DAWdex.
@@ -405,8 +417,9 @@ Arrangement rules:
 - Use mode "replace" for an existing generated role and "create" only when no target exists or intent is add.
 - Give each role a deterministic non-negative integer seed. Different roles must not share a seed.
 - Use rootMidi 36 for drums, 38 for bass, and 62 for keys. Keys must not be placed in the bass register.
-- Every upsert action must choose one exact midiAssetId and midiAssetPath from the supplied candidates for the
-  same role. Set action.style exactly to the Creative Brief style.
+- Every upsert action must choose one exact midiAssetId and midiAssetPath from the supplied family anchors for
+  the same role. The server expands that anchor into verified Intro/Theme/Variation/Outro assets from the same
+  family; do not invent section paths. Set action.style exactly to the Creative Brief style.
 - Choose all role assets from one supplied ranked MIDI Bundle. Do not mix unrelated candidates from different
   bundles. The server will apply the bundle's key transposition after selection.
 - Every upsert action must include an intentional sound design. You—not a hidden style table—choose the

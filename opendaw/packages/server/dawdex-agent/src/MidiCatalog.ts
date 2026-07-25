@@ -26,6 +26,42 @@ export type MidiCandidate = {
     readonly keyRoot: number | null
     readonly keyMode: "major" | "minor" | null
     readonly section: string | null
+    readonly familyId?: string | null
+    readonly sectionOrder?: number | null
+    readonly keyConfidence?: number
+    readonly harmonicSignature?: string
+    readonly rootTimeline?: ReadonlyArray<number>
+    readonly energy?: number
+    readonly drumCoverage?: number | null
+    readonly drumRoleHistogram?: Readonly<Record<string, number>>
+}
+
+export type MidiSequenceSection = {
+    readonly assetId: string
+    readonly assetPath: string
+    readonly label: string
+    readonly sectionKind: string
+    readonly sectionOrder: number
+    readonly bars: number
+    readonly keyRoot: number | null
+    readonly keyMode: "major" | "minor" | null
+    readonly keyConfidence: number
+    readonly harmonicSignature: string
+    readonly rootTimeline: ReadonlyArray<number>
+    readonly energy: number
+}
+
+export type MidiFamilySequence = {
+    readonly role: CatalogRole
+    readonly familyId: string
+    readonly familyLabel: string
+    readonly anchor: MidiCandidate
+    readonly sections: ReadonlyArray<MidiSequenceSection>
+}
+
+type ScoredMidiFamilySequence = {
+    readonly sequence: MidiFamilySequence
+    readonly score: number
 }
 
 type CatalogSource = {
@@ -171,6 +207,54 @@ type CatalogRow = {
     readonly max_pitch: number | null
     readonly median_pitch: number | null
     readonly density: number | null
+    readonly family_id: string | null
+    readonly section_order: number | null
+    readonly section_kind: string | null
+    readonly key_root: number | null
+    readonly key_mode: string | null
+    readonly key_confidence: number
+    readonly harmonic_signature: string
+    readonly root_timeline: string
+    readonly energy: number
+    readonly drum_coverage: number | null
+    readonly drum_role_histogram: string | null
+}
+
+type FamilyRow = CatalogRow & {
+    readonly family_label: string | null
+    readonly section_label: string | null
+}
+
+const parseNumberArray = (value: string | undefined): ReadonlyArray<number> => {
+    if (value === undefined) {return []}
+    try {
+        const parsed = JSON.parse(value) as unknown
+        return Array.isArray(parsed)
+            ? parsed.filter((item): item is number => typeof item === "number" && Number.isFinite(item))
+            : []
+    } catch {
+        return []
+    }
+}
+
+const parseNumberRecord = (value: string | null): Readonly<Record<string, number>> => {
+    if (value === null) {return {}}
+    try {
+        const parsed = JSON.parse(value) as unknown
+        if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {return {}}
+        return Object.fromEntries(Object.entries(parsed)
+            .filter((entry): entry is [string, number] =>
+                typeof entry[1] === "number" && Number.isFinite(entry[1])))
+    } catch {
+        return {}
+    }
+}
+
+const hasCoreDrumRoles = (row: CatalogRow): boolean => {
+    const histogram = parseNumberRecord(row.drum_role_histogram)
+    return (histogram.kick ?? 0) > 0
+        && (histogram.snare ?? 0) > 0
+        && ((histogram["closed-hat"] ?? 0) + (histogram["open-hat"] ?? 0)) > 0
 }
 
 const inferredStyle = (row: CatalogRow): CatalogStyle => {
@@ -186,6 +270,7 @@ export class MidiCatalog {
     readonly #catalogPath: string
     readonly #byId = new Map<string, {candidate: MidiCandidate, absolutePath: string}>()
     #database: DatabaseSync | null = null
+    #hasFamilySchema = false
     #loading: Promise<void> | null = null
 
     constructor(root: string = defaultMidiRoot(), catalogPath?: string) {
@@ -193,9 +278,14 @@ export class MidiCatalog {
         this.#catalogPath = resolve(catalogPath ?? defaultCatalogPath(this.#root))
     }
 
+    async initialize(): Promise<void> {
+        await this.#ensureLoaded()
+    }
+
     close(): void {
         this.#database?.close()
         this.#database = null
+        this.#hasFamilySchema = false
         this.#loading = null
         this.#byId.clear()
     }
@@ -283,11 +373,111 @@ export class MidiCatalog {
         if (this.#database === null) {return this.#byId.get(id)?.candidate ?? null}
         const row = this.#database.prepare(`
             SELECT id, path, role, style_tags, source, bpm, bars, note_count,
-                min_pitch, max_pitch, median_pitch, density
+                min_pitch, max_pitch, median_pitch, density, ${this.#analysisColumns()}
             FROM assets
             WHERE id = ? AND valid = 1
         `).get(id) as CatalogRow | undefined
         return row === undefined ? null : this.#rowCandidate(row, inferredStyle(row))
+    }
+
+    async sequences(
+        style: CatalogStyle,
+        role: CatalogRole,
+        bpm: number,
+        prompt: string,
+        limit: number = 12,
+        searchTerms: ReadonlyArray<string> = []
+    ): Promise<ReadonlyArray<MidiFamilySequence>> {
+        await this.#ensureLoaded()
+        if (this.#database === null || !this.#hasFamilySchema) {return []}
+        const terms = Array.from(new Set([style, ...searchTerms]
+            .map(term => term.toLowerCase().trim())
+            .filter(term => lexicalTokens(term).join("").length >= 2)))
+        const aliases = terms.length > 0 ? terms : [style]
+        const clauses = aliases.map(() =>
+            `(${sqlPathTokens} LIKE ? OR (' ' || LOWER(style_tags) || ' ') LIKE ?)`).join(" OR ")
+        const drumClause = role === "drums"
+            ? "AND drum_coverage >= 0.95"
+            : ""
+        const rows = this.#database.prepare(`
+            SELECT id, path, role, style_tags, source, bpm, bars, note_count,
+                min_pitch, max_pitch, median_pitch, density, family_id, family_label,
+                section_label, section_order, section_kind, key_root, key_mode, key_confidence,
+                harmonic_signature, root_timeline, energy, drum_coverage,
+                drum_role_histogram
+            FROM assets
+            WHERE valid = 1
+              AND role = ?
+              AND family_id IS NOT NULL
+              ${drumClause}
+              AND (${clauses})
+            ORDER BY family_id, section_order, fill_likelihood, ABS(COALESCE(source_bpm, bpm, ?) - ?),
+                music_fingerprint, path
+            LIMIT 12000
+        `).all(
+            role,
+            ...aliases.flatMap(alias => [sqlPathPattern(alias), sqlTagPattern(alias)]),
+            bpm,
+            bpm
+        ) as unknown as ReadonlyArray<FamilyRow>
+        const usableRows = role === "drums" ? rows.filter(hasCoreDrumRoles) : rows
+        const families = new Map<string, Array<FamilyRow>>()
+        usableRows.forEach(row => {
+            if (row.family_id === null || row.section_order === null) {return}
+            const current = families.get(row.family_id) ?? []
+            current.push(row)
+            families.set(row.family_id, current)
+        })
+        return Array.from(families, ([familyId, familyRows]): ScoredMidiFamilySequence | null => {
+            const byOrder = new Map<number, FamilyRow>()
+            familyRows.forEach(row => {
+                if (row.section_order !== null && !byOrder.has(row.section_order)) {
+                    byOrder.set(row.section_order, row)
+                }
+            })
+            const selected = Array.from(byOrder.values())
+                .sort((a, b) => (a.section_order ?? 0) - (b.section_order ?? 0))
+            const anchorRow = selected.find(row => row.section_kind !== "custom") ?? selected[0]
+            if (anchorRow === undefined) {return null}
+            const anchor = this.#rowCandidate(anchorRow, style)
+            const sections: Array<MidiSequenceSection> = selected.map(row => ({
+                assetId: row.id,
+                assetPath: row.path,
+                label: row.section_label ?? row.section_kind ?? pathSection(row.path) ?? "section",
+                sectionKind: row.section_kind ?? "section",
+                sectionOrder: row.section_order ?? 0,
+                bars: Math.max(1, Math.min(16, row.bars ?? 4)),
+                keyRoot: row.key_root,
+                keyMode: row.key_mode === "major" || row.key_mode === "minor" ? row.key_mode : null,
+                keyConfidence: row.key_confidence,
+                harmonicSignature: row.harmonic_signature,
+                rootTimeline: parseNumberArray(row.root_timeline),
+                energy: row.energy
+            }))
+            const tempo = anchor.bpm ?? bpm
+            const termMatches = aliases.filter(term => containsTerm(anchor.path, term)).length
+            const score = Math.abs(tempo - bpm)
+                - termMatches * 24
+                - Math.min(6, sections.length) * 12
+                + Math.abs((anchor.energy ?? 0.5) - 0.55) * 8
+                + stableJitter(`${prompt}|${familyId}`) * 4
+            return {
+                sequence: {
+                    role,
+                    familyId,
+                    familyLabel: anchorRow.family_label ?? familyId,
+                    anchor,
+                    sections
+                },
+                score
+            }
+        })
+            .filter((entry): entry is ScoredMidiFamilySequence =>
+                entry !== null && entry.sequence.sections.length >= 3)
+            .sort((a, b) => a.score - b.score
+                || a.sequence.familyId.localeCompare(b.sequence.familyId))
+            .slice(0, limit)
+            .map(entry => entry.sequence)
     }
 
     async read(id: string): Promise<{candidate: MidiCandidate, bytes: Buffer} | null> {
@@ -313,12 +503,19 @@ export class MidiCatalog {
     async #load(): Promise<void> {
         if (existsSync(this.#catalogPath)) {
             this.#database = new DatabaseSync(this.#catalogPath, {readOnly: true})
+            const columns = this.#database.prepare("PRAGMA table_info(assets)")
+                .all() as unknown as ReadonlyArray<{name: string}>
+            this.#hasFamilySchema = columns.some(column => column.name === "family_id")
             const row = this.#database.prepare(
                 "SELECT COUNT(*) AS count FROM assets WHERE valid = 1"
             ).get() as {count: number}
-            console.log(`DAWdex opened ${row.count} indexed MIDI assets from ${this.#catalogPath}`)
+            console.log(`DAWdex opened ${row.count} indexed MIDI assets`)
             return
         }
+        console.warn(
+            "DAWdex MIDI catalog is missing; using the smaller curated-directory fallback. "
+            + "Run the index:midi workspace script to restore full-library retrieval."
+        )
         for (const source of sources) {
             const sourceRoot = resolve(this.#root, source.path)
             const files = await walkMidiFiles(sourceRoot)
@@ -341,7 +538,15 @@ export class MidiCatalog {
                     styleTags: [source.style],
                     keyRoot: pathKey(path).root,
                     keyMode: pathKey(path).mode,
-                    section: pathSection(path)
+                    section: pathSection(path),
+                    familyId: null,
+                    sectionOrder: null,
+                    keyConfidence: 0,
+                    harmonicSignature: "",
+                    rootTimeline: [],
+                    energy: 0.5,
+                    drumCoverage: null,
+                    drumRoleHistogram: {}
                 }
                 this.#byId.set(candidate.id, {candidate, absolutePath})
             })
@@ -373,10 +578,11 @@ export class MidiCatalog {
         ].filter(term => lexicalTokens(term).length > 0)))
         const select = `
             SELECT id, path, role, style_tags, source, bpm, bars, note_count,
-                min_pitch, max_pitch, median_pitch, density
+                min_pitch, max_pitch, median_pitch, density, ${this.#analysisColumns()}
             FROM (
                 SELECT id, path, role, style_tags, source, bpm, bars, note_count,
                     min_pitch, max_pitch, median_pitch, density, fingerprint,
+                    ${this.#analysisColumns()},
                     ROW_NUMBER() OVER (PARTITION BY fingerprint ORDER BY path) AS duplicate_rank
                 FROM assets
                 WHERE valid = 1
@@ -395,15 +601,24 @@ export class MidiCatalog {
                     sqlPathPattern(alias),
                     sqlTagPattern(alias)
                 ])) as unknown as ReadonlyArray<CatalogRow>
-        const rows = matchedRows.length > 0
-            ? matchedRows
-            : this.#database.prepare(select.replace("$MATCH", ""))
-                .all(role) as unknown as ReadonlyArray<CatalogRow>
-        return rows.map(row => this.#rowCandidate(row, style))
+        return matchedRows.map(row => this.#rowCandidate(row, style))
+    }
+
+    #analysisColumns(): string {
+        return this.#hasFamilySchema
+            ? `family_id, section_order, section_kind, key_root, key_mode, key_confidence,
+                harmonic_signature, root_timeline, energy, drum_coverage, drum_role_histogram`
+            : `NULL AS family_id, NULL AS section_order, NULL AS section_kind,
+                NULL AS key_root, NULL AS key_mode, 0 AS key_confidence,
+                '' AS harmonic_signature, '[]' AS root_timeline, 0.5 AS energy,
+                NULL AS drum_coverage, NULL AS drum_role_histogram`
     }
 
     #rowCandidate(row: CatalogRow, style: CatalogStyle): MidiCandidate {
-        const key = pathKey(row.path)
+        const pathDerivedKey = pathKey(row.path)
+        const analyzedMode = row.key_mode === "major" || row.key_mode === "minor"
+            ? row.key_mode
+            : null
         return {
             id: row.id,
             role: row.role,
@@ -419,9 +634,17 @@ export class MidiCatalog {
             density: row.density,
             source: row.source,
             styleTags: row.style_tags.split(" ").filter(tag => tag.length > 0),
-            keyRoot: key.root,
-            keyMode: key.mode,
-            section: pathSection(row.path)
+            keyRoot: row.key_root ?? pathDerivedKey.root,
+            keyMode: analyzedMode ?? pathDerivedKey.mode,
+            section: row.section_kind ?? pathSection(row.path),
+            familyId: row.family_id,
+            sectionOrder: row.section_order,
+            keyConfidence: row.key_confidence,
+            harmonicSignature: row.harmonic_signature,
+            rootTimeline: parseNumberArray(row.root_timeline),
+            energy: row.energy,
+            drumCoverage: row.drum_coverage,
+            drumRoleHistogram: parseNumberRecord(row.drum_role_histogram)
         }
     }
 }

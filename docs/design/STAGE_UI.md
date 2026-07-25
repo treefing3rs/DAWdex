@@ -6,7 +6,7 @@
 舞台视觉状态只消费 `ui-contract.ts` 的结构化事件，不解析模型自由文本。
 当前 `AgentOverlay` 同时承载控制器职责：调用计划、批准、执行和撤销，再由
 真实事件桥接器把执行结果与 openDAW 工程快照翻译为同一套 UI 事件。
-设计依据见 [`DESIGN_DIRECTION.md`](./DESIGN_DIRECTION.md)（v2.3）。
+设计依据见 [`DESIGN_DIRECTION.md`](./DESIGN_DIRECTION.md)（v3.1）。
 
 ## 文件地图
 
@@ -17,7 +17,18 @@
 | `opendaw/packages/app/studio/src/agent/AgentOverlay.sass` | 舞台样式（角色动画时长由 `--beat` CSS 变量驱动） |
 | `opendaw/packages/app/studio/src/agent/RealUiEventBridge.ts` | 将真实 Plan、Apply/Undo 回执、Transport 与轨道可听状态翻译为 UI 事件 |
 | `opendaw/packages/app/studio/src/agent/mock-timeline.ts` | 90 秒演示事件序列（与真实接口同一签名） |
-| `opendaw/packages/app/studio/public/dawdex/` | 舞台素材（夜景循环视频、角色立绘） |
+| `opendaw/packages/app/studio/public/dawdex/` | 舞台素材（分层大厅底图、物件 Sprite、夜景循环视频、角色立绘） |
+
+## Fig Mint 外壳与物件面板（PR #16）
+
+- 主舞台嵌在象牙色一体机中，楔形独立键盘承载六种干预和设置键；
+- 演播大厅的吊灯、REC 监视器、吉他、调音台、声波挂画、书架和挂钟使用
+  Sprite + 轮廓命中层，Hover 显示物件名；
+- 点击物件后运镜聚焦键盘屏并打开 L2 面板；面板读取同一份
+  `DawProjectAdapter.snapshot()`，不会维护平行工程状态；
+- REC 面板调用受控 Transport；换乐器/能量修改回到计划审批；轨道、
+  素材和工程概览当前为真实只读证据；
+- 工作台收起态、Mock 显式触发和真实性闸门保持不变。
 
 ## 演示模式（Mock）
 
@@ -87,7 +98,7 @@ Apply、Undo 与用户干预回执也通过该桥接器进入舞台。Mock 与�
 - 当前可听判断基于真实走带位置、Region 音符、轨道/Region 静音、Solo 与
   乐器存在状态；它不是音频电平表。未来接入真实峰值事件后可进一步确认
   “有信号”而非“理论上应发声”。
-- 弹幕范围按 v2.3 §13.1 裁决：**只在屏幕内**（取代旧 v2.2 的"全屏弹幕
+- 弹幕范围按当前设计裁决：**只在屏幕内**（取代旧版的"全屏弹幕
   遮罩"条款）；输入与安全区在屏幕外。
 - 完整歌曲前端尚未落地；下一阶段由控制室编曲白板消费
   `BlueprintChanged` / `SectionChanged` / `SectionLocked` 等增量事件，

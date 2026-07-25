@@ -44,6 +44,7 @@ tmp/
 temp/
 .cache/
 midi/.dawdex/
+opendaw/.dawdex/
 
 # Licensed DAWdex MIDI asset pack is installed locally, not stored in Git.
 midi/easy/**/*.[mM][iI][dD]

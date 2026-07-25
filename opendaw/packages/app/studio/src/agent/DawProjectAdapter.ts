@@ -22,7 +22,7 @@ import {DawControlExecutor} from "./DawControlExecutor"
 import {
     CompiledNote,
     midiFingerprint
-} from "./music/PatternCompiler"
+} from "./music/MidiFingerprint"
 import {
     dawdexTrackName,
     DawdexTrackMetadata,
@@ -52,7 +52,14 @@ type InstrumentTrack = {
 type PreparedUpsert = {
     readonly action: UpsertRoleTrackAction
     readonly target: InstrumentTrack | null
-    readonly notes: ReadonlyArray<CompiledNote>
+    readonly sections: ReadonlyArray<{
+        readonly label: string
+        readonly sectionKind: string
+        readonly startBar: number
+        readonly bars: number
+        readonly assetPath: string
+        readonly notes: ReadonlyArray<CompiledNote>
+    }>
     readonly fingerprint: string
     readonly replaceMidi: boolean
     readonly drumKit: DrumKitPreset | null
@@ -450,7 +457,7 @@ export class DawProjectAdapter {
                 mode: target === null ? "create" : "replace",
                 targetTrackId: target?.track.address.toString() ?? null,
                 startBar: clamp(Math.round(rawAction.startBar), 1, 128),
-                bars: clamp(Math.round(rawAction.bars), 1, 16),
+                bars: clamp(Math.round(rawAction.bars), 1, 128),
                 rootMidi: clamp(Math.round(rawAction.rootMidi), 24, 84),
                 seed: clamp(Math.round(rawAction.seed), 0, 0x7FFFFFFF),
                 density: clamp(rawAction.density, 0.1, 1),
@@ -464,22 +471,64 @@ export class DawProjectAdapter {
             if (action.role !== "drums" && action.sound.instrument.kind === "playfield") {
                 return {success: false, message: `${action.role} cannot use the drum Playfield.`}
             }
-            let notes: ReadonlyArray<CompiledNote>
+            const drumKit = action.role === "drums" ? action.sound.instrument.drumKit : null
+            const requestedSections = rawAction.midiSections?.length
+                ? rawAction.midiSections
+                : [{
+                    assetId: action.midiAssetId,
+                    assetPath: action.midiAssetPath,
+                    label: "Loop",
+                    sectionKind: "loop",
+                    startBar: action.startBar,
+                    bars: action.bars,
+                    transposeSemitones: action.transposeSemitones
+                }]
+            const sanitizedSections = requestedSections.map(section => ({
+                ...section,
+                startBar: clamp(Math.round(section.startBar), 1, 128),
+                bars: clamp(Math.round(section.bars), 1, 16),
+                transposeSemitones: clamp(Math.round(section.transposeSemitones), -11, 11)
+            }))
+            const arrangementEndBar = sanitizedSections.reduce(
+                (end, section) => Math.max(end, section.startBar + section.bars - 1),
+                0
+            )
+            if (arrangementEndBar > plan.brief.bars) {
+                return {
+                    success: false,
+                    message: `${action.role} sections exceed the MusicBrief (${arrangementEndBar} > ${plan.brief.bars}).`
+                }
+            }
+            let sections: PreparedUpsert["sections"]
             try {
-                const buffer = await this.#midiAssetLoader(action.midiAssetId)
-                notes = compileMidiAsset(
-                    buffer,
-                    action.role,
-                    action.bars,
-                    action.transposeSemitones
-                )
+                sections = await Promise.all(sanitizedSections.map(async section => {
+                    const buffer = await this.#midiAssetLoader(section.assetId)
+                    return {
+                        label: section.label,
+                        sectionKind: section.sectionKind,
+                        startBar: section.startBar,
+                        bars: section.bars,
+                        assetPath: section.assetPath,
+                        notes: compileMidiAsset(
+                            buffer,
+                            action.role,
+                            section.bars,
+                            section.transposeSemitones,
+                            {
+                                sourcePath: section.assetPath,
+                                drumKit: drumKit ?? "TR-909"
+                            }
+                        )
+                    }
+                }))
             } catch (error) {
                 return {
                     success: false,
                     message: `Could not load ${action.role} MIDI asset "${action.midiAssetPath}": ${String(error)}`
                 }
             }
-            const fingerprint = midiFingerprint(absoluteNotes(notes, action.startBar))
+            const fingerprint = midiFingerprint(sections.flatMap(section =>
+                absoluteNotes(section.notes, section.startBar)))
             const targetId = target?.track.address.toString()
             const targetFingerprint = targetId === undefined ? null : fingerprints.get(targetId) ?? null
             const replaceMidi = targetFingerprint !== fingerprint
@@ -518,7 +567,6 @@ export class DawProjectAdapter {
             }
             if (targetId !== undefined) {fingerprints.delete(targetId)}
             fingerprints.set(targetId ?? `new:${operations.length}`, fingerprint)
-            const drumKit = action.role === "drums" ? action.sound.instrument.drumKit : null
             let drumPresetBytes: ArrayBuffer | null = null
             if (drumKit !== null) {
                 const input = target?.audioUnit.input.adapter().unwrapOrNull() ?? null
@@ -538,7 +586,7 @@ export class DawProjectAdapter {
             operations.push({
                 action,
                 target,
-                notes,
+                sections,
                 fingerprint,
                 replaceMidi,
                 drumKit,
@@ -551,7 +599,7 @@ export class DawProjectAdapter {
     #applyUpsert({
         action,
         target,
-        notes,
+        sections,
         replaceMidi,
         drumKit,
         drumPresetBytes
@@ -611,19 +659,21 @@ export class DawProjectAdapter {
             if (target !== null) {
                 target.track.regions.collection.asArray().forEach(region => region.box.delete())
             }
-            const region = project.api.createNoteRegion({
-                trackBox,
-                position: (action.startBar - 1) * PPQN.Bar,
-                duration: action.bars * PPQN.Bar,
-                name
+            sections.forEach(section => {
+                const region = project.api.createNoteRegion({
+                    trackBox,
+                    position: (section.startBar - 1) * PPQN.Bar,
+                    duration: section.bars * PPQN.Bar,
+                    name: `${name} · ${section.label}`
+                })
+                section.notes.forEach(note => project.api.createNoteEvent({
+                    owner: region,
+                    position: note.position,
+                    duration: note.duration,
+                    pitch: note.pitch,
+                    velocity: note.velocity
+                }))
             })
-            notes.forEach(note => project.api.createNoteEvent({
-                owner: region,
-                position: note.position,
-                duration: note.duration,
-                pitch: note.pitch,
-                velocity: note.velocity
-            }))
         }
     }
 }

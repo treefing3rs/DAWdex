@@ -1,8 +1,8 @@
 # DAWdex 完整产品定义
 
 > 状态：正式产品方向
-> 当前实现基线：0.3.0 / PR #17
-> 最近核对：2026-07-25
+> 当前实现基线：0.3.0 / PR #17 + Family Sequence 集成分支
+> 最近核对：2026-07-26
 
 ## 一、最终结论
 
@@ -25,7 +25,12 @@ DAWdex 不是“Prompt 生成一个 Loop”，也不是给 openDAW 加一层聊�
 - 自然语言请求、工程快照、结构化计划、用户审批、执行和一步 Undo；
 - 从 `midi/easy/` 的真实 MIDI 资产中检索、去重、选择并导入 openDAW；
 - SQLite 元数据目录，以及目录缺失时的小规模回退扫描；
+- SQLite Index V2 保存素材 Family、有序 Section、实际音符推断的调性/根音时间线、音乐指纹、能量和鼓映射覆盖率；
+- 按角色检索至少三个可靠 Section 的真实素材 Family，由模型选择 Family 锚点，再由 Harness 展开精确 Asset ID/Path；
 - 对既有角色轨道执行 upsert/replace，避免每轮只会无限新增；
+- 每个角色仍维护一条 DAWdex 主轨，但可按素材原始 Section 顺序写入多个连续 Note Region；整个计划仍对应一次 Undo；
+- 从兼容素材中组成同调性的跨轨 MIDI Bundle，并在导入时做受控移调、音域适配、指纹去重和质量校验；
+- 鼓轨限定使用经试听批准的 Playfield TR-808 / TR-909，Bass 与 Keys 由模型设计 Vaporisateur；工程已有兼容资产时可选择 Soundfont 或 Nano；
 - openDAW Studio 与 Agent Server 的计划和素材下载链路；
 - `RealUiEventBridge` 将计划、执行、Undo、Transport 和可听轨道状态翻译为 UI 事件；
 - 演奏真实性闸门：角色只有在轨道确认可听后才进入演奏状态；
@@ -35,7 +40,8 @@ DAWdex 不是“Prompt 生成一个 Loop”，也不是给 openDAW 加一层聊�
 - Fig Mint 复古主机壳与键盘甲板承载舞台与物件面板；
 - Agent Server 支持 Codex/Kimi/Qoder 本地 CLI 三运行时扫描、选择与严格路由，并用 MidiBundleRanker 对检索捆绑做质量排序；
 - 演播厅外壳可以收起，直接操作底层真实 openDAW；`Esc`、工作台按钮和 `?workbench=1` 提供切换，收起期间真实事件仍持续同步；
-- 屏幕内弹幕、采纳升格、乐队会议证据抽屉和真实干预入口。
+- Fig Mint 式一体机外壳、楔形键盘甲板和物理干预键；
+- 屏幕内弹幕、采纳升格、乐队会议证据抽屉、演播大厅物件面板和真实干预入口。
 
 当前 MIDI 资料事实：
 
@@ -49,7 +55,7 @@ DAWdex 不是“Prompt 生成一个 Loop”，也不是给 openDAW 加一层聊�
 以下能力是正式方向，但不能写成已完成：
 
 - 完整的 Song Blueprint 生成、保存和执行；
-- Intro、Verse、Chorus、Bridge、Outro 等 Section 的跨段编排；
+- 持久、可编辑、可锁定的跨角色 Song Section 编排（当前仅实现素材 Family 内的确定性多 Region Sequence）；
 - Phrase、Region 和动机家族之间的发展关系；
 - 对旋律进行 repetition、sequence、fragmentation、rhythmic displacement、call-and-response 等有约束的发展；
 - 完整的吉他、Lead、弦乐和更多角色素材体系；

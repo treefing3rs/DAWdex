@@ -58,6 +58,29 @@ const densityTarget = (role: CatalogRole, energy: number): number =>
         : role === "bass" ? 1 + energy * 5
             : 2 + energy * 10
 
+const pitchClassDistance = (left: number, right: number): number => {
+    const distance = Math.abs(((left - right) % 12 + 12) % 12)
+    return Math.min(distance, 12 - distance)
+}
+
+const harmonicTimelineDistance = (
+    left: MidiCandidate,
+    right: MidiCandidate
+): number | null => {
+    if (left.keyRoot === null || right.keyRoot === null) {return null}
+    const leftTimeline = left.rootTimeline ?? []
+    const rightTimeline = right.rootTimeline ?? []
+    const length = Math.min(leftTimeline.length, rightTimeline.length)
+    if (length === 0) {return null}
+    let total = 0
+    for (let index = 0; index < length; index++) {
+        const leftRelative = (leftTimeline[index] - left.keyRoot + 12) % 12
+        const rightRelative = (rightTimeline[index] - right.keyRoot + 12) % 12
+        total += pitchClassDistance(leftRelative, rightRelative)
+    }
+    return total / length
+}
+
 const scoreBundle = (
     brief: CreativeBrief,
     parts: ReadonlyArray<MidiCandidate>,
@@ -76,7 +99,19 @@ const scoreBundle = (
         transposeByAssetId[part.id] = transpose
         score += Math.abs(transpose) * 0.8
         if (part.keyMode !== null && target.mode !== null && part.keyMode !== target.mode) {score += 16}
+        if (part.role !== "drums" && (part.keyConfidence ?? 0) < 0.1) {score += 10}
     }
+    const bass = parts.find(part => part.role === "bass")
+    const keys = parts.find(part => part.role === "keys")
+    const harmonicDistance = bass === undefined || keys === undefined
+        ? null
+        : harmonicTimelineDistance(bass, keys)
+    if (bass !== undefined && keys !== undefined
+        && bass.keyMode !== null && keys.keyMode !== null
+        && bass.keyMode !== keys.keyMode) {
+        score += 24
+    }
+    if (harmonicDistance !== null) {score += Math.min(30, harmonicDistance * 6)}
     const knownSections = parts.flatMap(part => part.section === null ? [] : [part.section])
     if (new Set(knownSections).size > 1) {score += 12}
     const shared = sharedSourceTokens(parts)
@@ -89,7 +124,10 @@ const scoreBundle = (
             knownSections.length === 0
                 ? "段落标签未知，使用节奏与长度兼容度兜底"
                 : `段落关系：${Array.from(new Set(knownSections)).join(" / ")}`,
-            shared > 0 ? `素材家族共享 ${shared} 个路径线索` : "素材来自不同家族，已提高兼容惩罚"
+            shared > 0 ? `素材家族共享 ${shared} 个路径线索` : "素材来自不同家族，已提高兼容惩罚",
+            harmonicDistance === null
+                ? "Bass/Keys 和声时间线不足，使用调性置信度兜底"
+                : `Bass/Keys 相对根音时间线距离 ${harmonicDistance.toFixed(2)}`
         ]
     }
 }
