@@ -298,6 +298,32 @@ component
       height: 46cqh // 高出台面一截，读出"台后制作人"
 
   // REC 灯牌（屏幕内权威播放指示，与壳上 ON AIR 同源）
+  // 显示器上的「新建工程」键：无工程时的产品页入口，点击建工程仍留在演播厅
+  .new-project
+    position: absolute
+    left: 50%
+    bottom: 16%
+    transform: translateX(-50%)
+    z-index: 8
+    padding: 10px 22px
+    border: 1px solid rgba(255, 255, 255, 0.35)
+    border-radius: 999px
+    background: rgba(5, 8, 10, 0.74)
+    color: #fff
+    font: 700 15px/1 ui-monospace, monospace
+    letter-spacing: 0.12em
+    text-shadow: 0 1px 3px #000
+    cursor: pointer
+    transition: border-color 150ms ease, background 150ms ease
+    &:hover
+      border-color: $mint
+      background: rgba(5, 8, 10, 0.9)
+    &:disabled
+      opacity: 0.6
+      cursor: wait
+    &.hidden
+      display: none
+
   .rec-badge
     position: absolute
     top: 10px
@@ -1383,6 +1409,15 @@ component
       &:hover, &:focus-within
         opacity: 1
 
+  // ── 工作台缩略视窗停靠层：收起态常驻右下角，与 Devices 面板可见性无关 ──
+  .preview-dock
+    display: none
+    position: fixed
+    right: 14px
+    bottom: 14px
+    height: 168px
+    filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.5))
+
   // ── 收起态（掀开舞台地板）：外壳整体让位，露出底下真实 openDAW ──
   &.collapsed
     background: transparent
@@ -1393,37 +1428,12 @@ component
     .desk-scene,
     .composer,
     .drawer,
-    .intro-splash
-      display: none
-    // 右边缘侧拉抽屉：平时只露一条竖签，hover 整条胶囊滑出
+    .intro-splash,
     .shell-header
+      display: none
+    .preview-dock.available
+      display: flex
       pointer-events: auto
-      position: fixed
-      right: 0
-      top: 50%
-      transform: translate(calc(100% - 30px), -50%)
-      transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1)
-      width: fit-content
-      max-width: 96vw
-      gap: 10px
-      padding: 10px 14px 10px 8px
-      background: rgba($shell-bg, 0.96)
-      border: 1px solid $shell-line
-      border-right: none
-      border-radius: 14px 0 0 14px
-      box-shadow: -4px 0 18px rgba(0, 0, 0, 0.10)
-      &:hover
-        transform: translate(0, -50%)
-      &::before
-        content: "◂ DAWDEX"
-        writing-mode: vertical-rl
-        font-size: 9px
-        font-weight: 800
-        letter-spacing: 0.22em
-        color: $shell-muted
-        padding: 4px 0
-      .last-event
-        display: inline-block
   .last-event
     display: none
     max-width: 320px

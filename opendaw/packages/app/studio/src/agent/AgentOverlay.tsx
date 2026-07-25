@@ -13,6 +13,13 @@ import type {
     DanmakuAuthor, InterventionKind, RoleId, RoleState, UiEvent
 } from "./ui-contract"
 import {playMockTimeline} from "./mock-timeline"
+import {DawdexStagePreview} from "@/ui/devices/panel/DawdexStagePreview"
+import {
+    DAWDEX_PRODUCER, DAWDEX_ROOMS, DAWDEX_STAGE_ROLES, type DawdexRoomId
+} from "./DawdexStageAssets"
+import {
+    DawdexProjectModeController, getDawdexUiSession, shouldPlayDawdexVideo, type DawdexViewMode
+} from "./DawdexUiSession"
 
 const className = Html.adoptStyleSheet(css, "AgentOverlay")
 
@@ -20,13 +27,6 @@ type Construct = {
     readonly lifecycle: Lifecycle
     readonly service: StudioService
 }
-
-/** MVP 启用的舞台角色（契约保留 lead/producer 扩展位） */
-const STAGE_ROLES: ReadonlyArray<{id: RoleId, label: string, img: string}> = [
-    {id: "drums", label: "鼓手", img: "/dawdex/drummer_v2.png"},
-    {id: "bass", label: "贝斯手", img: "/dawdex/bassist_v2.png"},
-    {id: "keys", label: "键盘手", img: "/dawdex/keyboardist_v2.png"}
-]
 
 const INTERVENTIONS: ReadonlyArray<{kind: InterventionKind, label: string}> = [
     {kind: "keep", label: "保留"},
@@ -40,17 +40,7 @@ const INTERVENTIONS: ReadonlyArray<{kind: InterventionKind, label: string}> = [
 const AUTHOR_BADGE: Record<DanmakuAuthor, string> = {user: "", "ai-fan": "AI 乐迷", system: ""}
 
 // ── 巡棚房间注册表（§11.1：房间即工程；未绑定事件的物件保持纯装饰） ─────────
-type RoomId = "main" | "drums" | "strings" | "keys" | "control" | "lounge"
-// video = 演出态皮肤（帧 0 = 静态底图来源，播放时淡入整棚苏醒，暂停回到静帧）
-const ROOMS: ReadonlyArray<{id: RoomId, label: string, bg: string, video: string}> = [
-    // 演播大厅 = 物件分层底图（吊灯/监视器/吉他已抠出为独立 sprite，§9 Diegetic UI）
-    {id: "main", label: "演播大厅", bg: "/dawdex/studio_base.jpg", video: "/dawdex/studio_night_loop.mp4"},
-    {id: "drums", label: "鼓棚", bg: "/dawdex/room_drums.jpg", video: "/dawdex/room_drums_loop.mp4"},
-    {id: "strings", label: "吉他贝斯棚", bg: "/dawdex/room_guitar_bass.jpg", video: "/dawdex/room_guitar_bass_loop.mp4"},
-    {id: "keys", label: "键盘阁楼", bg: "/dawdex/room_keyboards.jpg", video: "/dawdex/room_keyboards_loop.mp4"},
-    {id: "control", label: "控制室", bg: "/dawdex/control_room_night.jpg", video: "/dawdex/control_room_loop.mp4"},
-    {id: "lounge", label: "休息室", bg: "/dawdex/room_lounge.jpg", video: "/dawdex/room_lounge_loop.mp4"}
-]
+type RoomId = DawdexRoomId
 
 // ── 物件功能面板类型（模块级：房间物件注册表引用） ────────────────────────
 type PanelKind = "monitor" | "desk" | "guitar" | "lamp" | "art" | "shelf" | "clock" | "settings" | "role-kit" | "cat"
@@ -117,7 +107,9 @@ const ROOM_OBJECTS: ReadonlyArray<RoomObject> = [
 export const AgentOverlay = ({lifecycle, service}: Construct) => {
     const client = new AgentClient()
     const daw = new DawProjectAdapter(service)
-    const demoMode = new URLSearchParams(window.location.search).has("mock")
+    const uiSession = getDawdexUiSession(service)
+    const initialSearchParams = new URLSearchParams(window.location.search)
+    const demoMode = initialSearchParams.has("mock")
 
     // ── DOM 骨架 ────────────────────────────────────────────────────────────
     const danmakuLayer: HTMLElement = (<div className="danmaku-layer"/>)
@@ -144,22 +136,25 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     const lastEvent: HTMLElement = (<span className="last-event"/>)
     // 屏幕内 REC 灯牌（权威播放指示，与 ON AIR 同源）
     const recBadge: HTMLElement = (<div className="rec-badge standby">STANDBY</div>)
+    // 显示器上的「新建工程」键：产品页出发的建工程入口——点击后仍停留完整演播厅
+    const newProjectButton: HTMLButtonElement = (
+        <button type="button" className="new-project" title="新建 openDAW 工程">＋ 新建工程</button>)
     // 巡棚：全部房间均为静态底图（切台硬切，TV 气质）
     const stageImg: HTMLImageElement = (
         <img className="stage-bg-img" alt="" draggable={false}/>)
-    stageImg.src = ROOMS[0].bg
+    stageImg.src = DAWDEX_ROOMS[0].bg
     // 演出态皮肤：走带播放时整棚苏醒（烟雾/时间码/机架灯）；
     // 帧 0 = 静态底图来源，与 sprite 淡出淡入无缝切换，暂停即回到静帧
     const stageVideo: HTMLVideoElement = (
         <video className="stage-bg-video" loop playsInline preload="auto" muted draggable={false}/>)
-    stageVideo.src = ROOMS[0].video
-    const channelName: HTMLElement = (<span className="ch-name">{ROOMS[0].label}</span>)
+    stageVideo.src = DAWDEX_ROOMS[0].video
+    const channelName: HTMLElement = (<span className="ch-name">{DAWDEX_ROOMS[0].label}</span>)
     const chPrev: HTMLButtonElement = (<button type="button" title="上一个房间">‹</button>)
     const chNext: HTMLButtonElement = (<button type="button" title="下一个房间">›</button>)
 
     // ── 角色舞台 ────────────────────────────────────────────────────────────
     const performerEls = new Map<RoleId, HTMLElement>()
-    const performers = STAGE_ROLES.map(({id, label, img}) => {
+    const performers = DAWDEX_STAGE_ROLES.map(({id, label, img}) => {
         const lamp: HTMLElement = (<span className="lamp"/>)
         const el: HTMLElement = (
             <div className="performer" data-state="waiting" data-role={id}>
@@ -173,7 +168,7 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     // 制作人：控制室常驻（非轨道角色，不参与五态机与入场系统）
     const producerEl: HTMLElement = (
         <div className="performer entered" data-state="waiting" data-role="producer">
-            <img src="/dawdex/producer_v2.png" alt="制作人" draggable={false}/>
+            <img src={DAWDEX_PRODUCER.img} alt={DAWDEX_PRODUCER.label} draggable={false}/>
             <span className="lamp"/>
             <label>制作人</label>
         </div>)
@@ -273,6 +268,7 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
             </div>
             {roomSlotsEl}
             {recBadge}
+            {newProjectButton}
             {navPrev}
             {navNext}
             <div className="transport">
@@ -282,9 +278,9 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     // 巡棚切台
     let roomIndex = 0
     // ── 演出态皮肤：每个房间各有循环视频；播放时视频淡入整棚苏醒，暂停回到静帧 ──
-    const setVideoLive = (live: boolean) => {
-        const src = ROOMS[roomIndex].video
-        const on = live
+    const setVideoLive = (playing: boolean) => {
+        const src = DAWDEX_ROOMS[roomIndex].video
+        const on = shouldPlayDawdexVideo("product", uiSession.viewMode.getValue(), playing)
         stageEl.classList.toggle("video-live", on)
         if (on) {
             if (!stageVideo.src.endsWith(src)) {stageVideo.src = src}
@@ -302,11 +298,12 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         flashNoise()
     }
     const setRoom = (index: number, zap = true) => {
-        roomIndex = ((index % ROOMS.length) + ROOMS.length) % ROOMS.length
-        const room = ROOMS[roomIndex]
+        roomIndex = ((index % DAWDEX_ROOMS.length) + DAWDEX_ROOMS.length) % DAWDEX_ROOMS.length
+        const room = DAWDEX_ROOMS[roomIndex]
         channelName.textContent = room.label
         stageEl.dataset.room = room.id
         stageImg.src = room.bg
+        uiSession.setRoom(room.id)
         if (zap) {zapChannel()}
         setVideoLive(isPlaying)
     }
@@ -333,6 +330,7 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         roleStates.set(role, state)
         el.dataset.state = state
         el.title = reason ?? state
+        uiSession.setRole(role, {state})
         if (state === "failed") {flashNoise()}
     }
 
@@ -342,6 +340,7 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         if (enteredRoles.has(role)) {return}
         enteredRoles.add(role)
         performerEls.get(role)?.classList.add("entered")
+        uiSession.setRole(role, {entered: true})
     }
 
     // ── 播放状态（TransportChanged.isPlaying → ON AIR 灯 + REC 灯牌） ────────
@@ -357,6 +356,13 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         root.classList.toggle("transport-paused", !playing)
         // 角色演奏动画的一拍时长由权威 BPM 驱动，不写死
         root.style.setProperty("--beat", `${(60 / bpm).toFixed(3)}s`)
+        uiSession.setTransport({
+            isPlaying: playing,
+            bpm,
+            key: keySig,
+            barsPerLoop,
+            currentBar
+        })
         updateSlotLeds()
     }
 
@@ -371,6 +377,7 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     // ── 弹幕层 ──────────────────────────────────────────────────────────────
     let danmakuLane = 0
     const launchDanmaku = (text: string, author: DanmakuAuthor | "producer" | RoleId = "user") => {
+        uiSession.pushDanmaku(text, author)
         const badge = AUTHOR_BADGE[author as DanmakuAuthor]
         const item: HTMLElement = badge !== undefined && badge.length > 0
             ? (<div className={`danmaku ${author}`}><em>{badge}</em>{text}</div>)
@@ -462,9 +469,10 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         activity.prepend(<div className={`event ${style}`}><span className="event-dot"/><span>{message}</span></div>)
         while (activity.childElementCount > 18) {activity.lastElementChild?.remove()}
         lastEvent.textContent = message
+        uiSession.setLatestEvent(message)
     }
     const appendReceipt = (role: RoleId, summary: string, audible: string, ref: string) => {
-        const label = STAGE_ROLES.find(r => r.id === role)?.label ?? role
+        const label = DAWDEX_STAGE_ROLES.find(r => r.id === role)?.label ?? role
         receiptList.prepend(
             <div className={`receipt role-${role}`}>
                 <strong>{label} · 工作回执</strong>
@@ -520,6 +528,7 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
                 break
             case "TrackAudibleChanged":
                 enterRole(event.role)
+                uiSession.setRole(event.role, {audible: event.audible})
                 // 调音台角色色通道灯 = 轨道发声确认（Diegetic 绑定）
                 rackLeds.get(event.role)?.classList.toggle("on", event.audible)
                 if (event.audible) {
@@ -576,7 +585,8 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         updateSlotLeds()
         pendingPerforming.clear()
         enteredRoles.clear()
-        STAGE_ROLES.forEach(({id}) => {
+        uiSession.resetRoles()
+        DAWDEX_STAGE_ROLES.forEach(({id}) => {
             setRoleState(id, "waiting")
             performerEls.get(id)?.classList.remove("entered")
         })
@@ -1211,6 +1221,12 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     const introTimer = window.setTimeout(dismissIntro, 2600)
     lifecycle.own(Terminable.create(() => window.clearTimeout(introTimer)))
 
+    // ── 工作台缩略视窗停靠层：收起态常驻右下角，不依赖 Devices 面板 ─────────
+    const previewDock: HTMLElement = (
+        <div className="preview-dock">
+            <DawdexStagePreview lifecycle={lifecycle} service={service}/>
+        </div>)
+
     // ── 根节点（投屏演示模式作用于此） ───────────────────────────────────────
     const root: HTMLElement = (
         <div className={className}>
@@ -1238,24 +1254,30 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
                 {planSlot}
                 {activity}
             </details>
+            {previewDock}
         </div>
     )
 
     root.classList.add("transport-paused")
     root.style.setProperty("--beat", `${(60 / bpm).toFixed(3)}s`)
 
-    // ── 收起外壳 = 掀开舞台地板，露出底下真实 openDAW（事件桥持续同步，回来即最新） ──
-    const setCollapsed = (force?: boolean) => {
-        const on = force ?? !root.classList.contains("collapsed")
-        root.classList.toggle("collapsed", on)
-        collapseButton.classList.toggle("active", on)
-        collapseButton.textContent = on ? "⌃ 演播厅" : "⌄ 工作台"
-        collapseButton.title = on ? "回到 DAWdex 演播厅（Esc 往返）" : "收起演播厅，打开 openDAW 工作台（Esc 往返）"
-        if (on && root.classList.contains("presentation")) {
+    // ── 双形态切换：产品形态 ↔ openDAW 工作台；工作台预览与完整舞台共享同一会话 ──
+    const applyViewMode = (mode: DawdexViewMode) => {
+        const workbench = mode === "workbench"
+        root.classList.toggle("collapsed", workbench)
+        collapseButton.classList.toggle("active", workbench)
+        collapseButton.textContent = workbench ? "⌃ 演播厅" : "⌄ 工作台"
+        collapseButton.title = workbench
+            ? "回到 DAWdex 演播厅（Esc 往返）"
+            : "收起演播厅，打开 openDAW 工作台（Esc 往返）"
+        if (workbench && root.classList.contains("presentation")) {
             root.classList.remove("presentation")
             presentButton.classList.remove("active")
         }
+        setVideoLive(isPlaying)
     }
+    const setCollapsed = (force?: boolean) => uiSession.setWorkbench(force)
+    lifecycle.own(uiSession.viewMode.catchupAndSubscribe(owner => applyViewMode(owner.getValue())))
     lifecycle.own(Events.subscribe(window, "keydown", (event: KeyboardEvent) => {
         if (event.key === "Escape" && !(event.target instanceof HTMLInputElement)) {
             if (openPanelKind !== null) {closePanel()} else {setCollapsed()}
@@ -1322,13 +1344,26 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     )
 
     // 支持 ?room=<id> 深链（演示导航用）
-    const initialRoom = new URLSearchParams(window.location.search).get("room")
+    const initialRoom = initialSearchParams.get("room")
     if (initialRoom !== null) {
-        const idx = ROOMS.findIndex(r => r.id === initialRoom)
+        const idx = DAWDEX_ROOMS.findIndex(r => r.id === initialRoom)
         if (idx >= 0) {setRoom(idx, false)}
     }
-    // 支持 ?workbench=1 深链：直接以收起态（openDAW 工作台）启动
-    if (new URLSearchParams(window.location.search).has("workbench")) {setCollapsed(true)}
+    // 打开/新建任何工程 ⇒ 回到完整演播厅；显式 ?workbench=1 只作用于首次工程打开。
+    // Agent 在舞台内自动补建工程（isBusy）时不切形态，不打断正在观看的演出。
+    // 同一订阅维护：显示器「新建工程」键只在无工程时亮起；缩略窗停靠层只在有工程时可用。
+    const projectMode = new DawdexProjectModeController(uiSession, initialSearchParams.has("workbench"))
+    lifecycle.own(service.projectProfileService.catchupAndSubscribe(option => {
+        const hasProject = option.nonEmpty()
+        newProjectButton.classList.toggle("hidden", hasProject)
+        previewDock.classList.toggle("available", hasProject)
+        projectMode.update(hasProject, isBusy)
+    }))
+    lifecycle.own(Events.subscribe(newProjectButton, "click", event => {
+        event.stopPropagation()
+        newProjectButton.disabled = true
+        service.newProject().finally(() => newProjectButton.disabled = false)
+    }))
     // 支持 ?panel=monitor|desk|guitar|lamp|art|shelf|clock|settings 深链：直接打开物件功能面板（演示导航用）
     const initialPanel = new URLSearchParams(window.location.search).get("panel")
     if (initialPanel === "monitor" || initialPanel === "desk"
@@ -1341,7 +1376,7 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         const img = new Image()
         img.src = src
     }
-    ROOMS.forEach(room => preloadImage(room.bg))
+    DAWDEX_ROOMS.forEach(room => preloadImage(room.bg))
     const SPRITE_SRCS = [
         "/dawdex/obj_lamp.png", "/dawdex/obj_monitor.png", "/dawdex/obj_guitar.png",
         "/dawdex/obj_art.png", "/dawdex/obj_shelf.png", "/dawdex/obj_clock.png",
