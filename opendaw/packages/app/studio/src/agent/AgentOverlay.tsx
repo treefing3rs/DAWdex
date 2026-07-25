@@ -121,6 +121,13 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         <img className="obj obj-monitor" src="/dawdex/obj_monitor.png" alt="" draggable={false}/>)
     const guitarSprite: HTMLImageElement = (
         <img className="obj obj-guitar" src="/dawdex/obj_guitar.png" alt="" draggable={false}/>)
+    // 原位替身 sprite（从底图同像素裁出，叠回原位平时不可见；hover 时物件自身像素变亮 = 无遮罩高亮）
+    const artSprite: HTMLImageElement = (
+        <img className="obj obj-copy obj-art" src="/dawdex/obj_art.png" alt="" draggable={false}/>)
+    const shelfSprite: HTMLImageElement = (
+        <img className="obj obj-copy obj-shelf" src="/dawdex/obj_shelf.png" alt="" draggable={false}/>)
+    const clockSprite: HTMLImageElement = (
+        <img className="obj obj-copy obj-clock" src="/dawdex/obj_clock.png" alt="" draggable={false}/>)
     // 轮廓命中层：clip-path 沿物件真实轮廓；hover 出物件名小标签（data-label）
     const lampHit: HTMLElement = (<div className="obj-hit hit-lamp" data-label="吊灯 · 能量" title="吊灯 · 能量"/>)
     const monitorHit: HTMLElement = (<div className="obj-hit hit-monitor" data-label="REC 监视器 · 走带" title="REC 监视器 · 走带"/>)
@@ -131,6 +138,17 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
     const artHit: HTMLElement = (<div className="obj-hit hit-art" data-label="声波挂画 · 工程概览" title="声波挂画 · 工程概览"/>)
     const shelfHit: HTMLElement = (<div className="obj-hit hit-shelf" data-label="书架 · 素材架" title="书架 · 素材架"/>)
     const clockHit: HTMLElement = (<div className="obj-hit hit-clock" data-label="挂钟 · 循环" title="挂钟 · 循环"/>)
+    // 可交互引导：8-bit 闪光点，周期性眨一下提示「这里能点」；hover 过一次即永久熄灭
+    const makeGlint = (name: string, hit: HTMLElement): HTMLElement => {
+        const glint: HTMLElement = (<span className={`hint-glint glint-${name}`}/>)
+        lifecycle.own(Events.subscribe(hit, "mouseenter", () => glint.classList.add("seen")))
+        return glint
+    }
+    const glints = [
+        makeGlint("lamp", lampHit), makeGlint("monitor", monitorHit),
+        makeGlint("guitar", guitarHit), makeGlint("desk", deskHotspot),
+        makeGlint("art", artHit), makeGlint("shelf", shelfHit), makeGlint("clock", clockHit)
+    ]
     const ledDrums: HTMLElement = (<span className="rack-led" data-role="drums" title="鼓轨道 · 发声确认灯"/>)
     const ledBass: HTMLElement = (<span className="rack-led" data-role="bass" title="贝斯轨道 · 发声确认灯"/>)
     const ledKeys: HTMLElement = (<span className="rack-led" data-role="keys" title="键盘轨道 · 发声确认灯"/>)
@@ -153,8 +171,10 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
             <div className="hotspots">
                 {lampGlow}
                 {lampSprite}{monitorSprite}{guitarSprite}
+                {artSprite}{shelfSprite}{clockSprite}
                 {lampHit}{monitorHit}{guitarHit}{deskHotspot}
                 {artHit}{shelfHit}{clockHit}
+                {glints}
                 {ledDrums}{ledBass}{ledKeys}
                 {clockHand}
             </div>
@@ -937,7 +957,10 @@ export const AgentOverlay = ({lifecycle, service}: Construct) => {
         img.src = src
     }
     ROOMS.forEach(room => preloadImage(room.bg))
-    const SPRITE_SRCS = ["/dawdex/obj_lamp.png", "/dawdex/obj_monitor.png", "/dawdex/obj_guitar.png"]
+    const SPRITE_SRCS = [
+        "/dawdex/obj_lamp.png", "/dawdex/obj_monitor.png", "/dawdex/obj_guitar.png",
+        "/dawdex/obj_art.png", "/dawdex/obj_shelf.png", "/dawdex/obj_clock.png"
+    ]
     SPRITE_SRCS.forEach(preloadImage)
 
     renderProviderSlot()

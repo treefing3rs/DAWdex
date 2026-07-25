@@ -415,7 +415,10 @@ component
     pointer-events: none
     user-select: none
     image-rendering: pixelated
-    transition: opacity 300ms ease
+    transition: opacity 300ms ease, filter 200ms ease
+  // 原位替身：与底图同像素，须与底图同算法缩放，否则边缘会露出重影
+  .obj-copy
+    image-rendering: auto
   .obj-lamp
     left: 62.92%
     top: 0
@@ -431,6 +434,18 @@ component
     top: 63%
     width: 8.52%
     transform-origin: 50% 100%
+  .obj-art
+    left: 55.2%
+    top: 34.7%
+    width: 27.5%
+  .obj-shelf
+    left: 89.6%
+    top: 41.7%
+    width: 10.45%
+  .obj-clock
+    left: 92.06%
+    top: 22.7%
+    width: 7.97%
 
   // hover 联动：只有被 hover 的物件动（其余保持静态）
   .hotspots:has(.hit-lamp:hover) .obj-lamp
@@ -439,16 +454,21 @@ component
     filter: brightness(1.3) saturate(1.15)
   .hotspots:has(.hit-guitar:hover) .obj-guitar
     animation: guitar-sway 0.9s ease-in-out infinite
-  .hotspots:has(.hit-desk:hover) .rack-led
-    filter: brightness(1.6)
+  // 原位替身 hover：物件自己的像素变亮（无遮罩、无描边框）
+  .hotspots:has(.hit-art:hover) .obj-art,
+  .hotspots:has(.hit-shelf:hover) .obj-shelf,
+  .hotspots:has(.hit-clock:hover) .obj-clock
+    filter: brightness(1.45) saturate(1.2)
+  // hover 调音台：未发声的通道灯淡淡显现（可发现性线索）；发声后由 .on 常亮
+  .hotspots:has(.hit-desk:hover) .rack-led:not(.on)
+    opacity: 0.55
 
   // ── 轮廓命中层（clip-path 沿物件真实轮廓） ──
-  // hover 反馈保持克制：7% 白提亮剪影 + 像素风物件名小标签（指点冒险游戏式），不铺光晕
+  // 命中层全程透明：hover 反馈 = 物件自身像素变亮/动起来（:has 联动）+ 像素风名签
   .obj-hit
     position: absolute
     pointer-events: auto
     cursor: pointer
-    transition: background 200ms ease
     &::after
       content: attr(data-label)
       position: absolute
@@ -465,10 +485,8 @@ component
       white-space: nowrap
       opacity: 0
       transition: opacity 150ms ease
-    &:hover
-      background: rgba(255, 255, 255, 0.07)
-      &::after
-        opacity: 1
+    &:hover::after
+      opacity: 1
   .hit-lamp
     left: 62.92%
     top: 0
@@ -535,7 +553,10 @@ component
     border-radius: 50%
     background: #39322b
     box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.65)
-    transition: background 200ms ease, box-shadow 200ms ease
+    opacity: 0 // 未发声不常驻：hover 调音台淡显（发现线索），TrackAudibleChanged 后 .on 常亮
+    transition: opacity 200ms ease, background 200ms ease, box-shadow 200ms ease
+    &.on
+      opacity: 1
     &[data-role="drums"]
       left: 17.2%
       &.on
@@ -577,6 +598,48 @@ component
     border-radius: 2px
     transform-origin: 50% 100%
     pointer-events: none
+
+  // ── 可交互引导：8-bit 闪光点，周期眨一下提示「这里能点」；hover 过一次即熄灭 ──
+  .hint-glint
+    position: absolute
+    width: 7px
+    height: 7px
+    pointer-events: none
+    background: #ffe9a8
+    transform: rotate(45deg)
+    box-shadow: 0 0 6px rgba(255, 214, 120, 0.9)
+    opacity: 0
+    animation: glint-blink 4.6s linear infinite
+    &.seen
+      display: none
+  .glint-lamp
+    left: 73.6%
+    top: 25.5%
+    animation-delay: 0s
+  .glint-monitor
+    left: 27.4%
+    top: 41.5%
+    animation-delay: 0.7s
+  .glint-guitar
+    left: 57.3%
+    top: 63.5%
+    animation-delay: 1.4s
+  .glint-desk
+    left: 27.2%
+    top: 68.5%
+    animation-delay: 2.1s
+  .glint-art
+    left: 81.9%
+    top: 35.2%
+    animation-delay: 2.8s
+  .glint-shelf
+    left: 90.2%
+    top: 42.2%
+    animation-delay: 3.5s
+  .glint-clock
+    left: 91.5%
+    top: 22.2%
+    animation-delay: 4.1s
 
   // ── 物件功能面板（舞台内二级页面，右缘滑出，§9.4） ──
   .object-panel
@@ -1041,6 +1104,15 @@ component
 @keyframes rec-blink
   50%
     opacity: 0.25
+
+// 闪光点：大部分时候隐身，每周期快速眨一下（8-bit 拾取提示感）
+@keyframes glint-blink
+  0%, 86%, 100%
+    opacity: 0
+    transform: rotate(45deg) scale(0.4)
+  90%, 94%
+    opacity: 1
+    transform: rotate(45deg) scale(1)
 
 // ── Provider 状态（Codex 连接，抽屉顶部 + 壳上状态点） ─────────────────
 component
