@@ -1,0 +1,34 @@
+{
+  "ok": true,
+  "failures": [],
+  "rule": "bars 1-2 twice; only Sub Bass changes E (40/52) to D (38/50)",
+  "tracks": {
+    "Felt Piano": {
+      "notes": 16,
+      "pitchDifferences": []
+    },
+    "Sub Bass": {
+      "notes": 20,
+      "pitchDifferences": [
+        { "tick": 0, "from": 40, "to": 38 },
+        { "tick": 0, "from": 40, "to": 38 },
+        { "tick": 480, "from": 40, "to": 38 },
+        { "tick": 480, "from": 40, "to": 38 },
+        { "tick": 960, "from": 40, "to": 38 },
+        { "tick": 960, "from": 40, "to": 38 },
+        { "tick": 1440, "from": 40, "to": 38 },
+        { "tick": 1440, "from": 40, "to": 38 },
+        { "tick": 1680, "from": 52, "to": 50 },
+        { "tick": 1680, "from": 52, "to": 50 }
+      ]
+    },
+    "Dust Pad": {
+      "notes": 8,
+      "pitchDifferences": []
+    },
+    "Frame Drum": {
+      "notes": 48,
+      "pitchDifferences": []
+    }
+  }
+}

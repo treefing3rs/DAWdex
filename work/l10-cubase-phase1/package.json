@@ -1,0 +1,12 @@
+{
+  "name": "dawdex-l10-cubase-phase1",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dry": "node phase1.mjs --dry",
+    "export": "node phase1.mjs --export",
+    "check": "node phase1.mjs --check",
+    "live": "node phase1.mjs --live --armed"
+  }
+}
